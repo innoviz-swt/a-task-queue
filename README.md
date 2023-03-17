@@ -1,2 +1,2 @@
 # a-task-queue
-yet another task queue :)  an in process task queue to be used in distributed computing systems.
+An in process task queue for distributed computing systems.

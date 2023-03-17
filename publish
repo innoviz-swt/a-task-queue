@@ -1,0 +1,12 @@
+#/bin/bash
+set -e
+
+ver="${1:-0.0.0}"
+build=$(git rev-parse --short HEAD)
+
+# create version file
+echo ver $ver build $build
+echo "__version__ == '${ver}'" > ./ataskq/version.py
+echo "__build__ == '${build}'" >> ./ataskq/version.py
+
+# publish package

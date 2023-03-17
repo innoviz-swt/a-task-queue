@@ -127,3 +127,12 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# project related
+ataskq/version.py
+
+# tmp
+tmp
+
+# local files
+*.local.*
