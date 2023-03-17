@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from distutils.core import setup
+from setuptools import setup
 from ataskq import __version__
 
 with open("README.md", "r") as fh:
@@ -18,6 +18,5 @@ setup(
     url='https://github.com/innoviz-swt/a-task-queue/',
     packages=['ataskq'],
     keywords=['python', 'task', 'queue', 'distributed systems', 'distributed computing'],
-
-    install_requires=[],
+    # install_requires=[],
 )
