@@ -1,5 +1,5 @@
 def hello_world():
     print('hello world')
 
-def entrypoint_with_args():
-    print('entrypoint_with_args')
+def entrypoint_with_args(*args, **kwargs):
+    print(f'entrypoint_with_args args: {args}, kwargs: {kwargs}')

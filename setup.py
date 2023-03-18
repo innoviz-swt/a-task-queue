@@ -1,4 +1,8 @@
 #!/usr/bin/env python
+# pre requisites: 
+# ```
+# sudo apt-get install -y libgflags-dev libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev librocksdb-dev
+# ````
 from setuptools import setup
 from ataskq import __version__
 
@@ -18,5 +22,7 @@ setup(
     url='https://github.com/innoviz-swt/a-task-queue/',
     packages=['ataskq'],
     keywords=['python', 'task', 'queue', 'distributed systems', 'distributed computing'],
-    # install_requires=[],
+    install_requires=[
+        'plyvel>=1.5.0',
+    ],
 )
