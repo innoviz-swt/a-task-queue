@@ -130,6 +130,7 @@ dmypy.json
 
 # vscode
 .vscode
+!contrib/**
 
 # JetBrains IDEA
 .idea

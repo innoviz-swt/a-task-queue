@@ -3,7 +3,7 @@ import os
 import logging 
 sys.path.append(os.path.dirname(__file__) + '/..')
 
-from ataskq.task_runner import EStatus, TaskRunner, Task
+from ataskq.task_runner import TaskRunner, Task
 
 # init logger
 logger = logging.getLogger('ataskq')
@@ -22,8 +22,15 @@ def targs(*args, **kwargs):
 # add tasks
 tr.add_tasks([
     Task(level=1, entrypoint='examples.exmodule.hello_world'),
+    Task(level=1.1, entrypoint='examples.exmodule.entrypoint_with_args', targs=targs('1.1a', level=1.1)),
+    Task(level=1.1, entrypoint='examples.exmodule.entrypoint_with_args', targs=targs('1.1b', level=1.1)),
     Task(level=2, entrypoint='examples.exmodule.entrypoint_with_args', targs=targs('args for entrypoint_with_args')),
-
 ])
+logger.info('tasks:')
 tr.log_tasks()
-tr.run()
+
+logger.info('running tasks...')
+tr.run_all_sequential()
+
+logger.info('tasks:')
+tr.log_tasks()

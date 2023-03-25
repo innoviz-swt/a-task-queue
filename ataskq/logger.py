@@ -16,9 +16,6 @@ class Logger:
     def warning(self, *args, **kwargs):
         self._logger.warning(*args, **kwargs)
 
-    def warn(self, *args, **kwargs):
-        self._logger.warn(*args, **kwargs)
-
     def info(self, *args, **kwargs):
         self._logger.info(*args, **kwargs)
 

@@ -8,6 +8,7 @@ import sqlite3
 import logging
 from importlib import import_module
 from enum import Enum
+from datetime import datetime
 
 import plyvel
 
@@ -25,11 +26,13 @@ class EStatus(str, Enum):
 # python 3.6 default factory
 
 class Task:
-    def __init__(self, level: float, entrypoint: str, targs: tuple or None = None, status: EStatus = EStatus.PENDING) -> None:
+    def __init__(self, level: float, entrypoint: str, targs: tuple or None = None, status: EStatus = EStatus.PENDING, take_time = None, tid = None) -> None:
+        self.tid = tid
         self.level = level
         self.entrypoint = entrypoint
         self.targs = targs
         self.status = status
+        self.take_time = take_time
 
     def db_vals(self):
         return (self.level, self.entrypoint, self.targs, self.status.value)
@@ -53,8 +56,8 @@ class TaskRunner(Logger):
         if job_path.exists() and overwrite:
             shutil.rmtree(job_path)
         elif job_path.exists():
-            self.warn(f"job path '{job_path}' already exists.")
-            return
+            self.warning(f"job path '{job_path}' already exists.")
+            return self
 
         job_path.mkdir(parents=parents)
         (job_path / '.ataskqjob').write_text('')
@@ -70,11 +73,12 @@ class TaskRunner(Logger):
                 # Create tasks table
                 statuses = ", ".join([f'\"{a}\"' for a in EStatus])
                 c.execute(f"CREATE TABLE tasks ("\
-                    "id INTEGER PRIMARY KEY, "\
+                    "tid INTEGER PRIMARY KEY, "\
                     "level REAL, "\
                     "entrypoint TEXT NOT NULL, "\
                     "targs BLOB, "\
-                    f"status TEXT CHECK(status in ({statuses}))"\
+                    f"status TEXT CHECK(status in ({statuses})),"\
+                    "take_time DATETIME"\
                 ")")
 
         # key value store
@@ -123,8 +127,8 @@ class TaskRunner(Logger):
 
                 for row in rows:
                     self.info(row)
-        
-    def run_next(self):
+    
+    def _take_next_task(self, set_running=True):
         with sqlite3.connect(str(self._taskdb)) as conn:
             # Start a transaction
             with conn:
@@ -134,12 +138,41 @@ class TaskRunner(Logger):
                 c.execute('BEGIN EXCLUSIVE')
 
                 # get task with minimum level not Done or Running
-                c.execute('SELECT * FROM tasks WHERE level = '
+                c.execute(f'SELECT * FROM tasks WHERE status IN ("{EStatus.PENDING}") AND level = '
                           f'(SELECT MIN(level) FROM tasks WHERE status IN ("{EStatus.PENDING}"))')
                 row = c.fetchone()
-                task_id = row[0]
-                task = Task(*row[1:]) # 0 is index
+                if row is None:
+                    conn.commit()
+                    return None
 
+                tid = row[0]
+                task = Task(*row[1:], tid = tid) # 0 is index
+
+                c = conn.cursor()
+                if set_running:
+                    c.execute(f'UPDATE tasks SET status = "{EStatus.RUNNING}", take_time="{datetime.now()}" WHERE tid = {task.tid}')
+                    task.status = EStatus.RUNNING
+                
+                # end execution
+                conn.commit()
+        
+        return task
+
+    def get_next_task(self):
+        return self._take_next_task(set_running=False)
+
+    def update_task_status(self, task, status):
+        # update status
+        with sqlite3.connect(str(self._taskdb)) as conn:
+            # Start a transaction
+            with conn:
+                # Create a cursor object
+                c = conn.cursor()
+                c.execute(f'UPDATE tasks SET status = "{status}" WHERE tid = {task.tid}')
+        task.status = status
+
+        
+    def run_task(self, task):
         # get entry point func to execute
         ep = task.entrypoint
         assert '.' in ep, 'entry point must be inside a module.'
@@ -169,16 +202,12 @@ class TaskRunner(Logger):
             if self._run_task_raise_exception:
                 raise ex
 
-        # update status
-        with sqlite3.connect(str(self._taskdb)) as conn:
-            # Start a transaction
-            with conn:
-                # Create a cursor object
-                c = conn.cursor()
-                c.execute(f'UPDATE tasks SET status = "{status}" WHERE id = {task_id}')
+        self.update_task_status(task, status)
 
 
-
-    def run(self):
-        self.run_next()
-        self.run_next()
+    def run_all_sequential(self):
+        task = self._take_next_task()
+        while task:
+            # self.log_tasks()
+            self.run_task(task)
+            task = self._take_next_task()
