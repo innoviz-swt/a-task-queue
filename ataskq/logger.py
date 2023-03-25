@@ -4,23 +4,23 @@ class Logger:
     def __init__(self, logger: logging.Logger or None):
         self._logger = logger or logging.getLogger('ataskq')
     
-    def exception(self, *args, **kwwargs):
-        self._logger.exception(*args, **kwwargs)
+    def exception(self, *args, **kwargs):
+        self._logger.exception(*args, **kwargs)
 
-    def critical(self, *args, **kwwargs):
-        self._logger.critical(*args, **kwwargs)
+    def critical(self, *args, **kwargs):
+        self._logger.critical(*args, **kwargs)
 
-    def error(self, *args, **kwwargs):
-        self._logger.error(*args, **kwwargs)
+    def error(self, *args, **kwargs):
+        self._logger.error(*args, **kwargs)
 
-    def warning(self, *args, **kwwargs):
-        self._logger.warning(*args, **kwwargs)
+    def warning(self, *args, **kwargs):
+        self._logger.warning(*args, **kwargs)
 
-    def warn(self, *args, **kwwargs):
-        self._logger.warn(*args, **kwwargs)
+    def warn(self, *args, **kwargs):
+        self._logger.warn(*args, **kwargs)
 
-    def info(self, *args, **kwwargs):
-        self._logger.info(*args, **kwwargs)
+    def info(self, *args, **kwargs):
+        self._logger.info(*args, **kwargs)
 
-    def debug(self, *args, **kwwargs):
-        self._logger.debug(*args, **kwwargs)
+    def debug(self, *args, **kwargs):
+        self._logger.debug(*args, **kwargs)

@@ -35,11 +35,12 @@ class Task:
         return (self.level, self.entrypoint, self.targs, self.status.value)
 
 class TaskRunner(Logger):
-    def __init__(self, job_path="./ataskqjob", logger: logging.Logger or None=None) -> None:
+    def __init__(self, job_path="./ataskqjob", run_task_raise_exception=False, logger: logging.Logger or None=None) -> None:
         super().__init__(logger)
         self._job_path = Path(job_path)
         self._taskdb = self._job_path / 'tasks.db'
         self._keyvaldb = self._job_path / 'keyvalue.db'
+        self._run_task_raise_exception = run_task_raise_exception
         
 
     @property
@@ -110,7 +111,7 @@ class TaskRunner(Logger):
         keyvaldb.close()
         return self
 
-    def get_tasks(self):
+    def log_tasks(self):
         with sqlite3.connect(str(self._taskdb)) as conn:
             # Start a transaction
             with conn:
@@ -121,7 +122,7 @@ class TaskRunner(Logger):
                 rows = c.fetchall()
 
                 for row in rows:
-                    print(row)
+                    self.info(row)
         
     def run_next(self):
         with sqlite3.connect(str(self._taskdb)) as conn:
@@ -129,6 +130,8 @@ class TaskRunner(Logger):
             with conn:
                 # Create a cursor object
                 c = conn.cursor()
+
+                c.execute('BEGIN EXCLUSIVE')
 
                 # get task with minimum level not Done or Running
                 c.execute('SELECT * FROM tasks WHERE level = '
@@ -155,14 +158,16 @@ class TaskRunner(Logger):
             targs = pickle.loads(keyvaldb.get(task.targs))
             keyvaldb.close()
         else:
-            targs = ()
+            targs = ((), {})
 
         try:
-            func(*targs)  
+            func(*targs[0], **targs[1])  
             status = EStatus.SUCCESS
         except Exception as ex:
-            self.info("running task entry point failed with exception.", ex)
+            self.info("running task entry point failed with exception.", exc_info=True)
             status = EStatus.FAILURE
+            if self._run_task_raise_exception:
+                raise ex
 
         # update status
         with sqlite3.connect(str(self._taskdb)) as conn:
