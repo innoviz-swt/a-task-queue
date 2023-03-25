@@ -16,6 +16,18 @@
             "justMyCode": true
         },
         {
+            "name": "Pytest",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            // "args": ["-k", "test_something"],
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "SOME_VAR": "some_value"
+            },
+            "console": "integratedTerminal"
+        },
+        {
             "name": "basic_task_queue",
             "type": "python",
             "request": "launch",
