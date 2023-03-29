@@ -9,11 +9,9 @@ from ataskq import __version__
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-__version__ = '1.0'
-
 setup(
     name='ataskq',
-    version='1.0',
+    version=__version__,
     description='An in process task queue for distributed computing systems.',
     long_description=long_description,
     long_description_content_type="text/markdown",
