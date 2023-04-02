@@ -18,7 +18,7 @@ echo "__build__ = '${build}'" >> ./ataskq/version.py
 python -m pip install --upgrade pip
 python -m pip install --upgrade setuptools wheel
 python setup.py sdist bdist_wheel
-# python -m twine upload --repository pypi dist/*
+python -m twine upload --repository pypi dist/*
 
 # remove version file
 rm ./ataskq/version.py

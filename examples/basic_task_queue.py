@@ -14,7 +14,7 @@ logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
 # create  job
-tr = TaskRunner(logger=logger).create_job(overwrite=True)    
+tr = TaskRunner(logger=logger, job_path=f"./ataskqjob-{os.getpid()}").create_job(overwrite=True)    
 
 def targs(*args, **kwargs):
     return (args, kwargs)

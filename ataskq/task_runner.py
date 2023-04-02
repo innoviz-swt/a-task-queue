@@ -1,5 +1,5 @@
+import multiprocessing
 import pickle
-from errno import ESTALE
 from pathlib import Path
 import shutil
 import hashlib
@@ -9,8 +9,11 @@ import logging
 from importlib import import_module
 from enum import Enum
 from datetime import datetime
+from multiprocessing import Process
+import time
 
 import plyvel
+import rocksdb3
 
 from .logger import Logger
 from collections import namedtuple
@@ -23,7 +26,25 @@ class EStatus(str, Enum):
     FAILURE = 'failure'
 
 
-# python 3.6 default factory
+def keyval_store_retry(retries=1000, polling_delta=0.1):
+    def decorator(func):
+        def wrapper(self, *args, **kwargs):
+            for i in range(retries):
+                try:
+                    ret = func(self, *args, **kwargs)
+                    # self.info(f' success in {i} iteration.')
+                    return ret
+                # except plyvel.IOError as ex:
+                except rocksdb3.RocksDBError:
+                    if (i != 0 and i % 100 == 0):
+                        self.warning(f'keyval store retry {i} iteration.')
+                    time.sleep(polling_delta)
+                    continue
+            raise RuntimeError(f"Failed keyval store retry retry. retries: {retries}, polling_delta: {polling_delta}.")
+        return wrapper
+    return decorator
+
+
 
 class Task:
     def __init__(self, level: float, entrypoint: str, targs: tuple or None = None, status: EStatus = EStatus.PENDING, take_time = None, tid = None) -> None:
@@ -82,15 +103,40 @@ class TaskRunner(Logger):
                 ")")
 
         # key value store
-        plyvel.DB(str(self._keyvaldb), create_if_missing=True)
+        # keyvaldb = plyvel.DB(str(self._keyvaldb), create_if_missing=True)
+        # keyvaldb.close()
+        rocksdb3.open_default(str(self._keyvaldb))
+
 
         return self
+
+    @keyval_store_retry()
+    def _put_keyval(self, key, val):
+        # keyvaldb = plyvel.DB(str(self._keyvaldb))
+        # keyvaldb.put(key, val)
+        # keyvaldb.close()
+        # assert keyvaldb.closed
+
+        db = rocksdb3.open_default(str(self._keyvaldb))
+        db.put(key, val)
+
+    
+    @keyval_store_retry()
+    def _get_keval(self, key):
+        # keyvaldb = plyvel.DB(str(self._keyvaldb))
+        # val = keyvaldb.get(key)
+        # keyvaldb.close()
+        # assert keyvaldb.closed
+
+        db = rocksdb3.open_default(str(self._keyvaldb))
+        val = db.get(key)
+
+        return val
 
     def add_tasks(self, tasks: List[Task] or Task):
         if isinstance(tasks, (Task)):
             tasks = [tasks]
 
-        keyvaldb = plyvel.DB(str(self._keyvaldb))
         with sqlite3.connect(str(self._taskdb)) as conn:
             # Start a transaction
             with conn:
@@ -106,13 +152,12 @@ class TaskRunner(Logger):
                         assert isinstance(t.targs[0], tuple)
                         assert isinstance(t.targs[1], dict)
                         data = pickle.dumps(t.targs)
-                        key_hash = hashlib.md5(data).digest()  
-                        keyvaldb.put(key_hash, pickle.dumps(t.targs))
+                        key_hash = hashlib.md5(data).digest() 
+                        self._put_keyval(key_hash, pickle.dumps(t.targs)) 
                         t.targs = key_hash
                     keys = list(t.__dict__.keys())
                     values = list(t.__dict__.values())
                     c.execute(f'INSERT INTO tasks ({", ".join(keys)}) VALUES ({", ".join(["?"] * len(keys))})', values)
-        keyvaldb.close()
         return self
 
     def log_tasks(self):
@@ -172,7 +217,7 @@ class TaskRunner(Logger):
         task.status = status
 
         
-    def run_task(self, task):
+    def _run_task(self, task):
         # get entry point func to execute
         ep = task.entrypoint
         assert '.' in ep, 'entry point must be inside a module.'
@@ -187,9 +232,8 @@ class TaskRunner(Logger):
         
         # get targs
         if task.targs is not None:
-            keyvaldb = plyvel.DB(str(self._keyvaldb))
-            targs = pickle.loads(keyvaldb.get(task.targs))
-            keyvaldb.close()
+            targs_data = self._get_keval(task.targs)
+            targs = pickle.loads(targs_data)
         else:
             targs = ((), {})
 
@@ -209,5 +253,59 @@ class TaskRunner(Logger):
         task = self._take_next_task()
         while task:
             # self.log_tasks()
-            self.run_task(task)
+            self._run_task(task)
             task = self._take_next_task()
+
+    def _multiprocess_run(self, taskq: multiprocessing.Queue):
+        # check for error code
+        while True:
+            task = taskq.get()
+
+            # handle no task available
+            if task is None:
+                continue
+
+            # handle stop request
+            if task == 'stop':
+                break
+            
+            # handle invalid task type
+            if not isinstance(task, Task):
+                self.warning(f"invalid task type recieved '{type(task)}', skipping.")
+                continue
+
+            self._run_task(task)
+
+    def run_all_multiprocess(self, num_processes=0.9):
+        assert isinstance(num_processes, (int, float))
+
+        if isinstance(num_processes, float):
+            assert 0.0 <= num_processes <= 1.0
+            nprocesses = int(multiprocessing.cpu_count() * num_processes)
+        elif num_processes < 0:
+            nprocesses = multiprocessing.cpu_count() - num_processes 
+        else:
+            nprocesses = num_processes
+
+        # set processes and Q
+        q = multiprocessing.Queue()
+        self.lock = multiprocessing.Lock()
+        processes = [Process(target=self._multiprocess_run, args=(q,), daemon=True) for i in range(nprocesses)]
+        [p.start() for p in processes]
+
+        # grab tasks and set them in Q
+        task = self._take_next_task()
+        while task:
+            q.put(task)
+            task = self._take_next_task()
+        
+        # send stop request to all q's 
+        [q.put('stop') for i in range(len(processes))]
+
+        # join all processes
+        [p.join() for p in processes]
+
+        # log failed processes 
+        for p in processes:
+            if p.exitcode != 0:
+                self.error(f"Process '{p.pid}' failed with exitcode '{p.exitcode}'")
