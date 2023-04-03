@@ -3,7 +3,7 @@ import pickle
 from pathlib import Path
 import shutil
 import hashlib
-from typing import List
+from typing import List, Tuple
 import sqlite3
 import logging
 from importlib import import_module
@@ -12,11 +12,9 @@ from datetime import datetime
 from multiprocessing import Process
 import time
 
-import plyvel
 import rocksdb3
 
 from .logger import Logger
-from collections import namedtuple
 
 
 class EStatus(str, Enum):
@@ -24,6 +22,12 @@ class EStatus(str, Enum):
     RUNNING = 'running'
     SUCCESS = 'success'
     FAILURE = 'failure'
+
+
+class EAction(str, Enum):
+    RUN_TASK = 'run_task'
+    WAIT = 'wait'
+    STOP = 'stop'
 
 
 def keyval_store_retry(retries=1000, polling_delta=0.1):
@@ -47,7 +51,7 @@ def keyval_store_retry(retries=1000, polling_delta=0.1):
 
 
 class Task:
-    def __init__(self, level: float, entrypoint: str, targs: tuple or None = None, status: EStatus = EStatus.PENDING, take_time = None, tid = None) -> None:
+    def __init__(self, tid = None, level: float = -1, entrypoint: str = "", targs: tuple or None = None, status: EStatus = EStatus.PENDING, take_time = None) -> None:
         self.tid = tid
         self.level = level
         self.entrypoint = entrypoint
@@ -59,12 +63,13 @@ class Task:
         return (self.level, self.entrypoint, self.targs, self.status.value)
 
 class TaskRunner(Logger):
-    def __init__(self, job_path="./ataskqjob", run_task_raise_exception=False, logger: logging.Logger or None=None) -> None:
+    def __init__(self, job_path="./ataskqjob", run_task_raise_exception=False, task_wait_delta=0.2, logger: logging.Logger or None=None) -> None:
         super().__init__(logger)
         self._job_path = Path(job_path)
         self._taskdb = self._job_path / 'tasks.db'
         self._keyvaldb = self._job_path / 'keyvalue.db'
         self._run_task_raise_exception = run_task_raise_exception
+        self._task_wait_delta = task_wait_delta
         
 
     @property
@@ -170,41 +175,69 @@ class TaskRunner(Logger):
                 c.execute('SELECT * FROM tasks')
                 rows = c.fetchall()
 
-                for row in rows:
-                    self.info(row)
+        self.info("tasks:")
+        for row in rows:
+            self.info(row)
     
-    def _take_next_task(self, set_running=True):
+    def _take_next_task(self) -> Tuple[EAction, Task]:
         with sqlite3.connect(str(self._taskdb)) as conn:
             # Start a transaction
             with conn:
                 # Create a cursor object
                 c = conn.cursor()
 
-                c.execute('BEGIN EXCLUSIVE')
+                c.execute('BEGIN EXCLUSIVE;')
 
-                # get task with minimum level not Done or Running
+                # get pending task with minimum level
                 c.execute(f'SELECT * FROM tasks WHERE status IN ("{EStatus.PENDING}") AND level = '
-                          f'(SELECT MIN(level) FROM tasks WHERE status IN ("{EStatus.PENDING}"))')
+                          f'(SELECT MIN(level) FROM tasks WHERE status IN ("{EStatus.PENDING}"));')
                 row = c.fetchone()
-                if row is None:
-                    conn.commit()
-                    return None
+                ptask = row if row is None else Task(*row)
 
-                tid = row[0]
-                task = Task(*row[1:], tid = tid) # 0 is index
+                # get running task with minimum level
+                c.execute(f'SELECT * FROM tasks WHERE status IN ("{EStatus.RUNNING}") AND level = '
+                          f'(SELECT MIN(level) FROM tasks WHERE status IN ("{EStatus.RUNNING}"));')
+                row = c.fetchone()
+                rtask = row if row is None else Task(*row)
 
-                c = conn.cursor()
-                if set_running:
-                    c.execute(f'UPDATE tasks SET status = "{EStatus.RUNNING}", take_time="{datetime.now()}" WHERE tid = {task.tid}')
-                    task.status = EStatus.RUNNING
-                
+                action = None
+                if ptask is None and rtask is None:
+                    # no more pending task, no more running tasks
+                    action = EAction.STOP
+                elif ptask is None and rtask is not None:
+                    # no more pending tasks, tasks still running
+                    action = EAction.WAIT
+                elif ptask is not None and rtask is None:
+                    # pending task next, no more running tasks 
+                    action = EAction.RUN_TASK
+                elif ptask is not None and rtask is not None:
+                    if ptask.level > rtask.level:
+                        # pending task with level higher than running (wait for running to end)
+                        action = EAction.WAIT
+                    elif rtask.level > ptask.level:
+                        # should never happend
+                        # running task with level higher than pending task (warn and take next task)
+                        self.warning(f'Running task with level higher than pending detected, taking pending. running id: {rtask.tid}, pending id: {ptask.tid}.')
+                        action = EAction.RUN_TASK
+                    else:
+                        action = EAction.RUN_TASK
+
+                if action == EAction.RUN_TASK:
+                    c.execute(f'UPDATE tasks SET status = "{EStatus.RUNNING}", take_time = "{datetime.now()}" WHERE tid = {ptask.tid};')
+                    ptask.status = EStatus.RUNNING
+                    task = ptask
+                elif action == EAction.WAIT:
+                    task = None
+                elif action == EAction.STOP:
+                    task = None
+                else:
+                    raise RuntimeError(f"Unsupported action '{EAction}'")
+
                 # end execution
                 conn.commit()
         
-        return task
-
-    def get_next_task(self):
-        return self._take_next_task(set_running=False)
+        # self.log_tasks()
+        return action, task
 
     def update_task_status(self, task, status):
         # update status
@@ -250,31 +283,28 @@ class TaskRunner(Logger):
 
 
     def run_all_sequential(self):
-        task = self._take_next_task()
-        while task:
-            # self.log_tasks()
-            self._run_task(task)
-            task = self._take_next_task()
+        action, task = self._take_next_task()
+        while action != EAction.STOP:
+            if action == EAction.RUN_TASK:
+                self._run_task(task)
+            else:
+                raise RuntimeError("Run sequential should never hit action either than run or stop")
+            action, task = self._take_next_task()
 
-    def _multiprocess_run(self, taskq: multiprocessing.Queue):
+    def _multiprocess_run(self):
         # check for error code
         while True:
-            task = taskq.get()
+            # grab tasks and set them in Q
+            action, task = self._take_next_task()
 
             # handle no task available
-            if task is None:
-                continue
-
-            # handle stop request
-            if task == 'stop':
+            if action == EAction.STOP:
                 break
-            
-            # handle invalid task type
-            if not isinstance(task, Task):
-                self.warning(f"invalid task type recieved '{type(task)}', skipping.")
-                continue
-
-            self._run_task(task)
+            if action == EAction.RUN_TASK:
+                self._run_task(task)
+            elif action == EAction.WAIT:
+                self.debug(f"waiting for {self._task_wait_delta} sec before taking next task")
+                time.sleep(self._task_wait_delta)
 
     def run_all_multiprocess(self, num_processes=0.9):
         assert isinstance(num_processes, (int, float))
@@ -288,19 +318,8 @@ class TaskRunner(Logger):
             nprocesses = num_processes
 
         # set processes and Q
-        q = multiprocessing.Queue()
-        self.lock = multiprocessing.Lock()
-        processes = [Process(target=self._multiprocess_run, args=(q,), daemon=True) for i in range(nprocesses)]
+        processes = [Process(target=self._multiprocess_run, daemon=True) for i in range(nprocesses)]
         [p.start() for p in processes]
-
-        # grab tasks and set them in Q
-        task = self._take_next_task()
-        while task:
-            q.put(task)
-            task = self._take_next_task()
-        
-        # send stop request to all q's 
-        [q.put('stop') for i in range(len(processes))]
 
         # join all processes
         [p.join() for p in processes]
