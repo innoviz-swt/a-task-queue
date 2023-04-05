@@ -3,7 +3,7 @@ import os
 import logging 
 sys.path.append(os.path.dirname(__file__) + '/..')
 
-from ataskq.task_runner import TaskRunner, Task
+from ataskq.task_runner import TaskRunner, Task, targs
 
 # init logger
 log_level = logging.INFO
@@ -16,9 +16,6 @@ logger.setLevel(log_level)
 
 # create  job
 tr = TaskRunner(logger=logger).create_job(overwrite=True)    
-
-def targs(*args, **kwargs):
-    return (args, kwargs)
 
 # create following flow
 #          / 'run in parallel' \
@@ -43,4 +40,4 @@ tr.add_tasks([
 # tr.log_tasks()
 
 logger.info('running tasks...')
-tr.run_all_multiprocess(1.0)
+tr.run(1.0)

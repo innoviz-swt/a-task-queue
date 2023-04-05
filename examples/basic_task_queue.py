@@ -30,7 +30,7 @@ logger.info('tasks:')
 tr.log_tasks()
 
 logger.info('running tasks...')
-tr.run_all_sequential()
+tr.run()
 
 logger.info('tasks:')
 tr.log_tasks()

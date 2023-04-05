@@ -30,6 +30,10 @@ class EAction(str, Enum):
     STOP = 'stop'
 
 
+def targs(*args, **kwargs):
+    return (args, kwargs)
+
+
 def keyval_store_retry(retries=1000, polling_delta=0.1):
     def decorator(func):
         def wrapper(self, *args, **kwargs):
@@ -291,7 +295,7 @@ class TaskRunner(Logger):
                 raise RuntimeError("Run sequential should never hit action either than run or stop")
             action, task = self._take_next_task()
 
-    def _multiprocess_run(self):
+    def _run(self):
         # check for error code
         while True:
             # grab tasks and set them in Q
@@ -306,7 +310,12 @@ class TaskRunner(Logger):
                 self.debug(f"waiting for {self._task_wait_delta} sec before taking next task")
                 time.sleep(self._task_wait_delta)
 
-    def run_all_multiprocess(self, num_processes=0.9):
+    def run(self, num_processes=None):
+        # default to run in current process
+        if num_processes is None:
+            self._run()
+            return
+
         assert isinstance(num_processes, (int, float))
 
         if isinstance(num_processes, float):
@@ -318,7 +327,7 @@ class TaskRunner(Logger):
             nprocesses = num_processes
 
         # set processes and Q
-        processes = [Process(target=self._multiprocess_run, daemon=True) for i in range(nprocesses)]
+        processes = [Process(target=self._run, daemon=True) for i in range(nprocesses)]
         [p.start() for p in processes]
 
         # join all processes
