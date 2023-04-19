@@ -153,7 +153,16 @@ class TaskRunner(Logger):
                     keys = list(t.__dict__.keys())
                     values = list(t.__dict__.values())
                     c.execute(f'INSERT INTO tasks ({", ".join(keys)}) VALUES ({", ".join(["?"] * len(keys))})', values)
+        
         return self
+
+    def summary():
+        
+        return ''
+
+    def summary_html():
+
+        return ''
 
     def log_tasks(self):
         with sqlite3.connect(str(self._taskdb)) as conn:
@@ -327,3 +336,5 @@ class TaskRunner(Logger):
                 self.error(f"Process '{p.pid}' failed with exitcode '{p.exitcode}'")
 
         self._running = False
+
+        return self

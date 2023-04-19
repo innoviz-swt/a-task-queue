@@ -24,9 +24,9 @@ def test_run_default(tmp_path: Path):
     runner = TaskRunner(job_path=job_path).create_job(overwrite=True)
 
     runner.add_tasks([
-        Task(entrypoint="tests.utils.write_to_file_task.write_to_file", targs=targs(tmp_path / 'file.txt', 'task 0\n')),
-        Task(entrypoint="tests.utils.write_to_file_task.write_to_file", targs=targs(tmp_path / 'file.txt', 'task 1\n')),
-        Task(entrypoint="tests.utils.write_to_file_task.write_to_file", targs=targs(tmp_path / 'file.txt', 'task 2\n')),
+        Task(entrypoint="ataskq.utils.write_to_file_task.write_to_file", targs=targs(tmp_path / 'file.txt', 'task 0\n')),
+        Task(entrypoint="ataskq.utils.write_to_file_task.write_to_file", targs=targs(tmp_path / 'file.txt', 'task 1\n')),
+        Task(entrypoint="ataskq.utils.write_to_file_task.write_to_file", targs=targs(tmp_path / 'file.txt', 'task 2\n')),
     ])
 
     runner.run()
@@ -44,9 +44,9 @@ def test_run_2_processes(tmp_path: Path):
     runner = TaskRunner(job_path=job_path).create_job(overwrite=True)
 
     runner.add_tasks([
-        Task(entrypoint="tests.utils.write_to_file_task.write_to_file_mp_lock", targs=targs(tmp_path / 'file.txt', 'task 0\n')),
-        Task(entrypoint="tests.utils.write_to_file_task.write_to_file_mp_lock", targs=targs(tmp_path / 'file.txt', 'task 1\n')),
-        Task(entrypoint="tests.utils.write_to_file_task.write_to_file_mp_lock", targs=targs(tmp_path / 'file.txt', 'task 2\n')),
+        Task(entrypoint="ataskq.utils.write_to_file_task.write_to_file_mp_lock", targs=targs(tmp_path / 'file.txt', 'task 0\n')),
+        Task(entrypoint="ataskq.utils.write_to_file_task.write_to_file_mp_lock", targs=targs(tmp_path / 'file.txt', 'task 1\n')),
+        Task(entrypoint="ataskq.utils.write_to_file_task.write_to_file_mp_lock", targs=targs(tmp_path / 'file.txt', 'task 2\n')),
     ])
 
     runner.run(num_processes=2)
