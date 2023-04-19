@@ -1,3 +1,4 @@
+from io import FileIO
 import multiprocessing
 import pickle
 from pathlib import Path
@@ -156,13 +157,62 @@ class TaskRunner(Logger):
         
         return self
 
-    def summary():
+    def summary(self):
+        with sqlite3.connect(str(self._taskdb)) as conn:
+            # Start a transaction
+            with conn:
+                # Create a cursor object
+                c = conn.cursor()
+                query = "SELECT level, " \
+                        "COUNT(*) as total, " + \
+                        ",".join(
+                            [f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status} " for status in  EStatus]
+                        ) + \
+                        "FROM tasks " \
+                        "GROUP BY level;"
+
+                c.execute(query)
+                rows = c.fetchall()
+                col_names = [description[0] for description in c.description]
+                # col_types = [description[1] for description in c.description]
+
+
+        return col_names, rows
+
+    def summary_html(self, file=None):
+        """ 
         
-        return ''
+        """
+        col_names, rows = self.summary()
+        pad = '  '
+        ret = [
+            '<table>',
+            pad + '<tr>',
+            *[ pad + pad + '<th> ' + col + ' </th>' for col in col_names],
+            pad + '</tr>',
+        ]
 
-    def summary_html():
+        for row in rows:
+            ret += [
+                pad + '<tr>',
+                *[ pad + pad + '<th> ' + f'{col}'+ ' </th>' for col in row],
+                pad + '</tr>',
+            ]
 
-        return ''
+        ret += ['</table>']
+
+        html = "\n".join(ret)
+
+        if file is not None:
+            if isinstance(file, (str, Path)):
+                with open(file, 'w') as f:
+                    f.write(html)
+            elif isinstance(file, FileIO):
+                file.write(html)
+            else:
+                raise RuntimeError('file must by either path of file io')
+                    
+        return html
 
     def log_tasks(self):
         with sqlite3.connect(str(self._taskdb)) as conn:

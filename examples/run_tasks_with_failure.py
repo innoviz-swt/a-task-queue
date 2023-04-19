@@ -9,7 +9,7 @@ from ataskq.task_runner import TaskRunner, Task
 logger = logging.getLogger('ataskq')
 handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter(logging.BASIC_FORMAT))
-handler.setLevel(logging.INFO)
+handler.setLevel(os.environ.get("LOGLEVEL", "INFO"))
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
@@ -23,14 +23,14 @@ def targs(*args, **kwargs):
 tr.add_tasks([
     Task(level=1, entrypoint='examples.exmodule.hello_world'),
     Task(level=1.1, entrypoint='examples.exmodule.entrypoint_with_args', targs=targs('1.1a', level=1.1)),
-    Task(level=1.1, entrypoint='examples.exmodule.entrypoint_with_args', targs=targs('1.1b', level=1.1)),
+    Task(level=1.1, entrypoint='examples.exmodule.entrypoint_with_args', targs=targs('1.1a', level=1.1)),
     Task(level=1.1, entrypoint='ataskq.utils.exception_tasks.exception_task'),
-    Task(level=2, entrypoint='examples.exmodule.entrypoint_with_args', targs=targs('args for entrypoint_with_args')),
 ])
 logger.info('tasks:')
-print(tr.summary())
-tr.summary_html(file=tr.job_path / 'summary.html')
+tr.log_tasks()
 
 logger.info('running tasks...')
 tr.run()
 
+logger.info('tasks:')
+tr.log_tasks()
