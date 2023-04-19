@@ -20,7 +20,4 @@ setup(
     url='https://github.com/innoviz-swt/a-task-queue/',
     packages=['ataskq'],
     keywords=['python', 'task', 'queue', 'distributed systems', 'distributed computing'],
-    install_requires=[
-        'plyvel>=1.5.0',
-    ],
 )

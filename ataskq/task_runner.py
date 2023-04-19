@@ -11,8 +11,7 @@ from enum import Enum
 from datetime import datetime
 from multiprocessing import Process
 import time
-
-import rocksdb3
+import dbm
 
 from .logger import Logger
 
@@ -42,8 +41,7 @@ def keyval_store_retry(retries=1000, polling_delta=0.1):
                     ret = func(self, *args, **kwargs)
                     # self.info(f' success in {i} iteration.')
                     return ret
-                # except plyvel.IOError as ex:
-                except rocksdb3.RocksDBError:
+                except Exception:
                     if (i != 0 and i % 100 == 0):
                         self.warning(f'keyval store retry {i} iteration.')
                     time.sleep(polling_delta)
@@ -71,9 +69,10 @@ class TaskRunner(Logger):
         super().__init__(logger)
         self._job_path = Path(job_path)
         self._taskdb = self._job_path / 'tasks.db'
-        self._keyvaldb = self._job_path / 'keyvalue.db'
+        self._keyvaldb = self._job_path / 'keyvalue'
         self._run_task_raise_exception = run_task_raise_exception
         self._task_wait_delta = task_wait_delta
+        self._running = False
         
 
     @property
@@ -112,33 +111,20 @@ class TaskRunner(Logger):
                 ")")
 
         # key value store
-        # keyvaldb = plyvel.DB(str(self._keyvaldb), create_if_missing=True)
-        # keyvaldb.close()
-        rocksdb3.open_default(str(self._keyvaldb))
-
+        with dbm.open(str(self._keyvaldb), 'n') as db:
+            pass
 
         return self
 
-    @keyval_store_retry()
-    def _put_keyval(self, key, val):
-        # keyvaldb = plyvel.DB(str(self._keyvaldb))
-        # keyvaldb.put(key, val)
-        # keyvaldb.close()
-        # assert keyvaldb.closed
-
-        db = rocksdb3.open_default(str(self._keyvaldb))
-        db.put(key, val)
+    def _set_keyval(self, key, val):
+        assert not self._running, "Can't update keyval store while running."
+        with dbm.open(str(self._keyvaldb), 'c') as db:
+            db[key] = val
 
     
-    @keyval_store_retry()
     def _get_keval(self, key):
-        # keyvaldb = plyvel.DB(str(self._keyvaldb))
-        # val = keyvaldb.get(key)
-        # keyvaldb.close()
-        # assert keyvaldb.closed
-
-        db = rocksdb3.open_default(str(self._keyvaldb))
-        val = db.get(key)
+        with dbm.open(str(self._keyvaldb)) as db:
+            val = db[key]
 
         return val
 
@@ -162,7 +148,7 @@ class TaskRunner(Logger):
                         assert isinstance(t.targs[1], dict)
                         data = pickle.dumps(t.targs)
                         key_hash = hashlib.md5(data).digest() 
-                        self._put_keyval(key_hash, pickle.dumps(t.targs)) 
+                        self._set_keyval(key_hash, pickle.dumps(t.targs)) 
                         t.targs = key_hash
                     keys = list(t.__dict__.keys())
                     values = list(t.__dict__.values())
@@ -311,6 +297,8 @@ class TaskRunner(Logger):
                 time.sleep(self._task_wait_delta)
 
     def run(self, num_processes=None):
+        self._running = True
+
         # default to run in current process
         if num_processes is None:
             self._run()
@@ -337,3 +325,5 @@ class TaskRunner(Logger):
         for p in processes:
             if p.exitcode != 0:
                 self.error(f"Process '{p.pid}' failed with exitcode '{p.exitcode}'")
+
+        self._running = False

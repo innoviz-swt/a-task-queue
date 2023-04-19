@@ -20,18 +20,35 @@
             "type": "python",
             "request": "launch",
             "module": "pytest",
-            // "args": ["-k", "test_something"],
+            "args": ["-vs", "-k", "${fileBasenameNoExtension}"],
+            "cwd": "${workspaceFolder}",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Pytest ALL",
+            "type": "python",
+            "request": "launch",
+            "module": "pytest",
+            "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "env": {
-                "SOME_VAR": "some_value"
+                "PYTHONPATH": "${workspaceFolder}:$PYTHONPATH"
             },
-            "console": "integratedTerminal"
+            "justMyCode": true
         },
         {
             "name": "basic_task_queue",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/examples/basic_task_queue.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "run_multiprocess",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/run_multiprocess.py",
             "console": "integratedTerminal",
             "justMyCode": true
         },
