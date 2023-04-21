@@ -197,7 +197,7 @@ class TaskRunner(Logger):
         for row in rows:
             ret += [
                 pad + '<tr>',
-                *[ pad + pad + '<th> ' + f'{col}'+ ' </th>' for col in row],
+                *[ pad + pad + '<td> ' + f'{col}'+ ' </td>' for col in row],
                 pad + '</tr>',
             ]
 

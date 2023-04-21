@@ -17,8 +17,7 @@ def run_server(task_runner:TaskRunner, port=8000, background=False):
     class SimpleHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         def do_GET(self):
             """Handle GET requests"""
-            # http.server.SimpleHTTPRequestHandler.do_GET(self)
-            print('GET request received')
+            # print('GET request received')
             self.send_response(200)
             self.send_header('Content-type', 'text/html')
             self.end_headers()
