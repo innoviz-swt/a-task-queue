@@ -1,4 +1,4 @@
-from io import FileIO
+from io import TextIOWrapper
 import multiprocessing
 import pickle
 from pathlib import Path
@@ -73,7 +73,9 @@ class TaskRunner(Logger):
         self._keyvaldb = self._job_path / 'keyvalue'
         self._run_task_raise_exception = run_task_raise_exception
         self._task_wait_delta = task_wait_delta
+
         self._running = False
+        self._templates_dir = Path(__file__).parent / 'templates'
         
 
     @property
@@ -179,7 +181,7 @@ class TaskRunner(Logger):
 
         return col_names, rows
 
-    def summary_html(self, file=None):
+    def summary_table(self):
         """ 
         
         """
@@ -201,17 +203,26 @@ class TaskRunner(Logger):
 
         ret += ['</table>']
 
-        html = "\n".join(ret)
+        table = "\n".join(ret)
+                    
+        return table
+
+    def summary_html(self, file=None):
+        with open(self._templates_dir / 'base.html') as f:
+            html = f.read()
+        
+        table = self.summary_table()
+        html = html.replace('{{table}}', table)
 
         if file is not None:
             if isinstance(file, (str, Path)):
                 with open(file, 'w') as f:
                     f.write(html)
-            elif isinstance(file, FileIO):
+            elif isinstance(file, TextIOWrapper):
                 file.write(html)
             else:
                 raise RuntimeError('file must by either path of file io')
-                    
+        
         return html
 
     def log_tasks(self):

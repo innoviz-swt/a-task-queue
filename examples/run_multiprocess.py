@@ -22,20 +22,20 @@ tr = TaskRunner(logger=logger).create_job(overwrite=True)
 #  'start' - 'run in parallel' - 'end'
 #          \  ...              /
 tr.add_tasks([
-    Task(level=1, entrypoint='examples.exmodule.entrypoint_with_args', targs=targs('1:start', level=1)),
+    Task(level=1, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('1:start', level=1)),
 
-    Task(level=2, entrypoint='examples.exmodule.entrypoint_with_args', targs=targs('2:run in parallel:a', level=2, sleep=1)),
-    Task(level=2, entrypoint='examples.exmodule.entrypoint_with_args', targs=targs('2:run in parallel:b', level=2, sleep=0)),
-    Task(level=2, entrypoint='examples.exmodule.entrypoint_with_args', targs=targs('2:run in parallel:c', level=2, sleep=1)),
-    Task(level=2, entrypoint='examples.exmodule.entrypoint_with_args', targs=targs('2:run in parallel:d', level=2, sleep=2)),
-    Task(level=2, entrypoint='examples.exmodule.entrypoint_with_args', targs=targs('2:run in parallel:e', level=2, sleep=3)),
-    Task(level=2, entrypoint='examples.exmodule.entrypoint_with_args', targs=targs('2:run in parallel:f', level=2, sleep=0)),
-    Task(level=2, entrypoint='examples.exmodule.entrypoint_with_args', targs=targs('2:run in parallel:g', level=2, sleep=1)),
-    Task(level=2, entrypoint='examples.exmodule.entrypoint_with_args', targs=targs('2:run in parallel:h', level=2, sleep=2)),
-    Task(level=2, entrypoint='examples.exmodule.entrypoint_with_args', targs=targs('2:run in parallel:i', level=2, sleep=3)),
-    Task(level=2, entrypoint='examples.exmodule.entrypoint_with_args', targs=targs('2:run in parallel:j', level=2, sleep=0)),
+    Task(level=2, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('2:run in parallel:a', level=2, sleep=1)),
+    Task(level=2, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('2:run in parallel:b', level=2, sleep=0)),
+    Task(level=2, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('2:run in parallel:c', level=2, sleep=1)),
+    Task(level=2, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('2:run in parallel:d', level=2, sleep=2)),
+    Task(level=2, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('2:run in parallel:e', level=2, sleep=3)),
+    Task(level=2, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('2:run in parallel:f', level=2, sleep=0)),
+    Task(level=2, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('2:run in parallel:g', level=2, sleep=1)),
+    Task(level=2, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('2:run in parallel:h', level=2, sleep=2)),
+    Task(level=2, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('2:run in parallel:i', level=2, sleep=3)),
+    Task(level=2, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('2:run in parallel:j', level=2, sleep=0)),
 
-    Task(level=3, entrypoint='examples.exmodule.entrypoint_with_args', targs=targs('3:end', level=3)),
+    Task(level=3, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('3:end', level=3)),
 ])
 # tr.log_tasks()
 

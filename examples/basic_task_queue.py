@@ -3,7 +3,7 @@ import os
 import logging 
 sys.path.append(os.path.dirname(__file__) + '/..')
 
-from ataskq.task_runner import TaskRunner, Task
+from ataskq.task_runner import TaskRunner, Task, targs
 
 # init logger
 logger = logging.getLogger('ataskq')
@@ -16,15 +16,13 @@ logger.setLevel(logging.INFO)
 # create  job
 tr = TaskRunner(logger=logger).create_job(overwrite=True)    
 
-def targs(*args, **kwargs):
-    return (args, kwargs)
 
 # add tasks
 tr.add_tasks([
-    Task(level=1, entrypoint='examples.exmodule.hello_world'),
-    Task(level=1.1, entrypoint='examples.exmodule.entrypoint_with_args', targs=targs('1.1a', level=1.1)),
-    Task(level=1.1, entrypoint='examples.exmodule.entrypoint_with_args', targs=targs('1.1b', level=1.1)),
-    Task(level=2, entrypoint='examples.exmodule.entrypoint_with_args', targs=targs('args for entrypoint_with_args')),
+    Task(level=1, entrypoint='ataskq.tasks_utils.hello_world'),
+    Task(level=1.1, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('1.1a', level=1.1)),
+    Task(level=1.1, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('1.1b', level=1.1)),
+    Task(level=2, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('args for entrypoint_with_args')),
 ])
 logger.info('tasks:')
 tr.log_tasks()
