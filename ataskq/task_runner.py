@@ -30,6 +30,11 @@ class EAction(str, Enum):
     STOP = 'stop'
 
 
+class ESummaryType(Enum):
+    TASKS = 1,
+    NUM_UNITS = 2,
+
+
 def targs(*args, **kwargs):
     return (args, kwargs)
 
@@ -54,16 +59,15 @@ def keyval_store_retry(retries=1000, polling_delta=0.1):
 
 
 class Task:
-    def __init__(self, tid = None, level: float = -1, entrypoint: str = "", targs: tuple or None = None, status: EStatus = EStatus.PENDING, take_time = None) -> None:
+    def __init__(self, tid = None, name: str = '', level: float = 0, entrypoint: str = "", targs: tuple or None = None, status: EStatus = EStatus.PENDING, take_time = None, num_units = None) -> None:
         self.tid = tid
+        self.name = name
         self.level = level
         self.entrypoint = entrypoint
         self.targs = targs
         self.status = status
         self.take_time = take_time
-
-    def db_vals(self):
-        return (self.level, self.entrypoint, self.targs, self.status.value)
+        self.num_units = num_units
 
 class TaskRunner(Logger):
     def __init__(self, job_path="./ataskqjob", run_task_raise_exception=False, task_wait_delta=0.2, logger: logging.Logger or None=None) -> None:
@@ -104,13 +108,15 @@ class TaskRunner(Logger):
 
                 # Create tasks table
                 statuses = ", ".join([f'\"{a}\"' for a in EStatus])
-                c.execute(f"CREATE TABLE tasks ("\
-                    "tid INTEGER PRIMARY KEY, "\
-                    "level REAL, "\
-                    "entrypoint TEXT NOT NULL, "\
-                    "targs BLOB, "\
-                    f"status TEXT CHECK(status in ({statuses})),"\
-                    "take_time DATETIME"\
+                c.execute(f"CREATE TABLE tasks (" \
+                    "tid INTEGER PRIMARY KEY, " \
+                    "level REAL, " \
+                    "name TEXT, " \
+                    "entrypoint TEXT NOT NULL, " \
+                    "targs BLOB, " \
+                    f"status TEXT CHECK(status in ({statuses}))," \
+                    "take_time DATETIME," \
+                    "num_units INTEGER" \
                 ")")
 
         # key value store
@@ -159,19 +165,41 @@ class TaskRunner(Logger):
         
         return self
 
-    def summary(self):
+    def summary_task_query(self):
+        query = "SELECT level, name," \
+            "COUNT(*) as total, " + \
+            ",".join(
+                [f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status} " for status in  EStatus]
+            ) + \
+            "FROM tasks " \
+            "GROUP BY level, name;"
+        
+        return query
+
+    def summary_num_units_query(self):
+        query = "SELECT level, name," \
+                "SUM(num_units) as total, " + \
+                ",".join(
+                    [f"SUM(CASE WHEN status = '{status}' THEN num_units ELSE 0 END) AS {status} " for status in  EStatus]
+                ) + \
+                "FROM tasks " \
+                "GROUP BY level, name;"
+        
+        return query
+
+    def tasks_summary(self, summary_type=ESummaryType.TASKS):
         with sqlite3.connect(str(self._taskdb)) as conn:
             # Start a transaction
             with conn:
                 # Create a cursor object
                 c = conn.cursor()
-                query = "SELECT level, " \
-                        "COUNT(*) as total, " + \
-                        ",".join(
-                            [f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status} " for status in  EStatus]
-                        ) + \
-                        "FROM tasks " \
-                        "GROUP BY level;"
+                if summary_type == ESummaryType.TASKS:
+                    query = self.summary_task_query()
+                elif summary_type == ESummaryType.NUM_UNITS:
+                    query = self.summary_num_units_query()
+                else:
+                    # should never get here
+                    raise RuntimeError(f"Unknown summary type: {summary_type}")
 
                 c.execute(query)
                 rows = c.fetchall()
@@ -181,11 +209,11 @@ class TaskRunner(Logger):
 
         return col_names, rows
 
-    def summary_table(self):
+    def summary_table(self, summary_type=ESummaryType.TASKS):
         """ 
         
         """
-        col_names, rows = self.summary()
+        col_names, rows = self.tasks_summary(summary_type)
         pad = '  '
         ret = [
             '<table>',
@@ -207,11 +235,11 @@ class TaskRunner(Logger):
                     
         return table
 
-    def summary_html(self, file=None):
+    def summary_html(self, file=None, summary_type=ESummaryType.TASKS):
         with open(self._templates_dir / 'base.html') as f:
             html = f.read()
         
-        table = self.summary_table()
+        table = self.summary_table(summary_type)
         html = html.replace('{{table}}', table)
 
         if file is not None:

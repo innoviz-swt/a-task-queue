@@ -14,20 +14,21 @@ logger = init_logger()
 tr = TaskRunner(logger=logger).create_job(overwrite=True) 
 run_server(tr, background=True)   
 webbrowser.open('http://localhost:8000?auto_refresh=true')
+webbrowser.open('http://localhost:8000/num_units_summary?auto_refresh=true')
 
 # add tasks
 tr.add_tasks([
-    Task(level=1, entrypoint='ataskq.tasks_utils.hello_world'),
-    Task(level=1.1, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('1.1a', level=1.1, sleep=10)),
-    Task(level=1.1, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('1.1b', level=1.1, sleep=5)),
-    Task(level=1.1, entrypoint='ataskq.tasks_utils.exception_task'),
-    Task(level=2, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('args for entrypoint_with_args')),
+    Task(level=1, name='hello task', entrypoint='ataskq.tasks_utils.hello_world', num_units=1),
+    Task(level=1.1, name="sleep task", entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('1.1a', level=1.1, sleep=10), num_units=10),
+    Task(level=1.1, name="sleep task", entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('1.1b', level=1.1, sleep=5), num_units=5),
+    Task(level=1.1, name="failure task", entrypoint='ataskq.tasks_utils.exception_task', num_units=1),
+    Task(level=2, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('args for entrypoint_with_args'), num_units=2),
 ])
 
 logger.info('running tasks...')
 tr.run()
 
-print(tr.summary())
+print(tr.tasks_summary())
 tr.summary_html(file=tr.job_path / 'summary.html')
 
 time.sleep(5)
