@@ -30,9 +30,10 @@ class EAction(str, Enum):
     STOP = 'stop'
 
 
-class ESummaryType(Enum):
-    TASKS = 1,
-    NUM_UNITS = 2,
+class EQueryType(Enum):
+    TASKS_SUMMARY = 1,
+    NUM_UNITS_SUMMARY = 2,
+    TASKS = 3,
 
 
 def targs(*args, **kwargs):
@@ -73,8 +74,8 @@ class TaskRunner(Logger):
     def __init__(self, job_path="./ataskqjob", run_task_raise_exception=False, task_wait_delta=0.2, logger: logging.Logger or None=None) -> None:
         super().__init__(logger)
         self._job_path = Path(job_path)
-        self._taskdb = self._job_path / 'tasks.db'
-        self._keyvaldb = self._job_path / 'keyvalue'
+        self._taskdb = self._job_path / 'tasks.sqlite.db'
+        self._keyvaldb = self._job_path / 'keyvalue.dbm'
         self._run_task_raise_exception = run_task_raise_exception
         self._task_wait_delta = task_wait_delta
 
@@ -130,7 +131,6 @@ class TaskRunner(Logger):
         with dbm.open(str(self._keyvaldb), 'c') as db:
             db[key] = val
 
-    
     def _get_keval(self, key):
         with dbm.open(str(self._keyvaldb)) as db:
             val = db[key]
@@ -165,7 +165,7 @@ class TaskRunner(Logger):
         
         return self
 
-    def summary_task_query(self):
+    def tasks_summary_query(self):
         query = "SELECT level, name," \
             "COUNT(*) as total, " + \
             ",".join(
@@ -176,7 +176,7 @@ class TaskRunner(Logger):
         
         return query
 
-    def summary_num_units_query(self):
+    def num_units_summary_query(self):
         query = "SELECT level, name," \
                 "SUM(num_units) as total, " + \
                 ",".join(
@@ -187,33 +187,39 @@ class TaskRunner(Logger):
         
         return query
 
-    def tasks_summary(self, summary_type=ESummaryType.TASKS):
+    def task_status_query(self):
+        query = 'SELECT * FROM tasks'
+        return query
+
+    def query(self, query_type=EQueryType.TASKS_SUMMARY):
         with sqlite3.connect(str(self._taskdb)) as conn:
             # Start a transaction
             with conn:
                 # Create a cursor object
                 c = conn.cursor()
-                if summary_type == ESummaryType.TASKS:
-                    query = self.summary_task_query()
-                elif summary_type == ESummaryType.NUM_UNITS:
-                    query = self.summary_num_units_query()
+                if query_type == EQueryType.TASKS_SUMMARY:
+                    query = self.tasks_summary_query()
+                elif query_type == EQueryType.NUM_UNITS_SUMMARY:
+                    query = self.num_units_summary_query()
+                elif query_type == EQueryType.TASKS:
+                    query = self.task_status_query()
                 else:
                     # should never get here
-                    raise RuntimeError(f"Unknown summary type: {summary_type}")
+                    raise RuntimeError(f"Unknown summary type: {query_type}")
 
                 c.execute(query)
                 rows = c.fetchall()
                 col_names = [description[0] for description in c.description]
                 # col_types = [description[1] for description in c.description]
 
+        return rows, col_names
 
-        return col_names, rows
-
-    def summary_table(self, summary_type=ESummaryType.TASKS):
-        """ 
-        
+    @staticmethod
+    def table(col_names, rows):
         """
-        col_names, rows = self.tasks_summary(summary_type)
+        Return a html table
+        """
+        
         pad = '  '
         ret = [
             '<table>',
@@ -235,11 +241,24 @@ class TaskRunner(Logger):
                     
         return table
 
-    def summary_html(self, file=None, summary_type=ESummaryType.TASKS):
+    def html_table(self, query_type=EQueryType.TASKS_SUMMARY):
+        """
+        Return a html table of the summary
+        """
+        rows, col_names = self.query(query_type)
+        table = self.table(col_names, rows)
+
+        return table
+
+    def html(self, query_type, file=None):
+        """
+        Return a html of the summary and write to file if given.
+        """
         with open(self._templates_dir / 'base.html') as f:
             html = f.read()
         
-        table = self.summary_table(summary_type)
+        table = self.html_table(query_type)
+        html = html.replace('{{title}}', query_type.name.lower().replace('_', ' '))
         html = html.replace('{{table}}', table)
 
         if file is not None:
@@ -254,14 +273,7 @@ class TaskRunner(Logger):
         return html
 
     def log_tasks(self):
-        with sqlite3.connect(str(self._taskdb)) as conn:
-            # Start a transaction
-            with conn:
-                # Create a cursor object
-                c = conn.cursor()
-
-                c.execute('SELECT * FROM tasks')
-                rows = c.fetchall()
+        rows, _ = self.query(query_type=EQueryType.TASKS)
 
         self.info("tasks:")
         for row in rows:
@@ -336,8 +348,7 @@ class TaskRunner(Logger):
                 c = conn.cursor()
                 c.execute(f'UPDATE tasks SET status = "{status}" WHERE tid = {task.tid}')
         task.status = status
-
-        
+    
     def _run_task(self, task):
         # get entry point func to execute
         ep = task.entrypoint
@@ -368,7 +379,6 @@ class TaskRunner(Logger):
                 raise ex
 
         self.update_task_status(task, status)
-
 
     def run_all_sequential(self):
         action, task = self._take_next_task()

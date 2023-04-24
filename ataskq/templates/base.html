@@ -1,15 +1,15 @@
 <html>
 <header>
     <style>
-        /* general style */
-        html,body {
+        html,
+        body {
             -webkit-box-sizing: border-box;
             -moz-box-sizing: border-box;
             box-sizing: border-box;
             font-size: 16px;
         }
 
-        body{
+        body {
             margin: 2em;
         }
 
@@ -19,7 +19,6 @@
             box-sizing: inherit;
         }
 
-        /* table style */
         table {
             border-collapse: collapse;
             border-radius: 5px;
@@ -34,29 +33,69 @@
         }
 
         th {
-            background: rgb(115,128,139);
-            background: linear-gradient(0deg, rgba(115,128,139,1) 22%, rgb(173, 205, 214) 100%);
+            background: rgb(115, 128, 139);
+            background: linear-gradient(0deg, rgba(115, 128, 139, 1) 22%, rgba(149, 174, 181, 1) 100%);
             color: #333;
         }
 
         tr:nth-child(even) {
             background-color: #f2f2f2;
         }
+
+        /* no link underline */
+        a:link {
+            text-decoration: none;
+        }
+
+        a:visited {
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: none;
+        }
+
+        a:active {
+            text-decoration: none;
+        }
     </style>
 </header>
 
 <body>
-    <div style="padding-bottom: 1em; margin-bottom: 1em; border-bottom: 1px solid;">
-        <input id="auto_refresh" type="checkbox" onclick="handleOnAutoRefreshClick();" />
-        <label for="auto_refresh">Auto Refresh</label>
+    <div
+        style="display:flex; justify-content: space-between; padding-bottom: 1em; margin-bottom: 1em; border-bottom: 1px solid;">
+        <div>
+            <input id="auto_refresh" type="checkbox" onclick="handleOnAutoRefreshClick();" />
+            <label for="auto_refresh">Auto Refresh</label>
+        </div>
+        <div style="display: flex; flex-direction: row-reverse;">
+            <a style="margin-left: 1em;" class="preserve-query-params" href="/tasks">tasks</a>
+            <a style="margin-left: 1em;" class="preserve-query-params" href="/num_units_summary">units summary</a>
+            <a style="margin-left: 1em;" class="preserve-query-params" href="/tasks_summary">tasks summary</a>
+        </div>
     </div>
+    <div style="font-size: 1.5em; font-weight: bold; margin-bottom: 1em;">{{title}}</div>
     {{table}}
     <script>
+        const preserveSearchParams = (event) => {
+            const link = event.target;
+            const url = new URL(window.location);
+            const href = link.getAttribute('href');
+            link.setAttribute('href', href + '?' + url.searchParams.toString());
+        }
+        
         window.addEventListener('load', () => {
             const url = new URL(window.location);
             if (url.searchParams.get('auto_refresh')) {
                 document.getElementById('auto_refresh').checked = true;
             }
+
+            // Add the query parameters to all links with class "preserve-query-params"
+            const links = document.querySelectorAll('.preserve-query-params');
+            links.forEach(link => {
+                link.addEventListener('click', preserveSearchParams);
+            });
+
         })
 
         handleOnAutoRefreshClick = (ev) => {
@@ -64,11 +103,13 @@
             url.searchParams.set('auto_refresh', document.getElementById('auto_refresh').checked);
             window.history.replaceState({}, '', url);
         }
+
         setInterval(() => {
             if (document.getElementById('auto_refresh').checked) {
                 window.location.reload()
             }
         }, 1000)
+
     </script>
 </body>
 

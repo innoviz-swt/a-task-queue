@@ -9,12 +9,12 @@ def test_create_job(tmp_path: Path):
     assert tmp_path.exists()
     assert (tmp_path / '.ataskqjob').exists()
 
-    assert (tmp_path / 'tasks.db').exists()
-    assert (tmp_path / 'tasks.db').is_file()
+    assert (tmp_path / 'tasks.sqlite.db').exists()
+    assert (tmp_path / 'tasks.sqlite.db').is_file()
 
     # dbm db
-    assert (tmp_path / 'keyvalue.dir').exists()
-    assert (tmp_path / 'keyvalue.dat').exists()
+    assert (tmp_path / 'keyvalue.dbm.dir').exists()
+    assert (tmp_path / 'keyvalue.dbm.dat').exists()
 
 
 def test_run_default(tmp_path: Path):
