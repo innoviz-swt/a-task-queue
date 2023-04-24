@@ -1,3 +1,4 @@
+from errno import ESTALE
 from io import TextIOWrapper
 import multiprocessing
 import pickle
@@ -15,13 +16,8 @@ import time
 import dbm
 
 from .logger import Logger
-
-
-class EStatus(str, Enum):
-    PENDING = 'pending'
-    RUNNING = 'running'
-    SUCCESS = 'success'
-    FAILURE = 'failure'
+from .task import Task, EStatus
+from .task_monitor import MonitorThread
 
 
 class EAction(str, Enum):
@@ -58,26 +54,20 @@ def keyval_store_retry(retries=1000, polling_delta=0.1):
     return decorator
 
 
-
-class Task:
-    def __init__(self, tid = None, name: str = '', level: float = 0, entrypoint: str = "", targs: tuple or None = None, status: EStatus = EStatus.PENDING, take_time = None, num_units = None) -> None:
-        self.tid = tid
-        self.name = name
-        self.level = level
-        self.entrypoint = entrypoint
-        self.targs = targs
-        self.status = status
-        self.take_time = take_time
-        self.num_units = num_units
-
 class TaskRunner(Logger):
-    def __init__(self, job_path="./ataskqjob", run_task_raise_exception=False, task_wait_delta=0.2, logger: logging.Logger or None=None) -> None:
+    def __init__(self, job_path="./ataskqjob", run_task_raise_exception=False, task_wait_interval=0.2, monitor_pulse_interval = 60, logger: logging.Logger or None=None) -> None:
+        """
+        task_wait_interval: pulling interval for task to complete in seconds.
+        monitor_pulse_interval: update interval for pulse in seconds while taks is running.
+        run_task_raise_exception: if True, run_task will raise exception when task fails. This is for debugging purpose only and will fail production flow.
+        """
         super().__init__(logger)
         self._job_path = Path(job_path)
         self._taskdb = self._job_path / 'tasks.sqlite.db'
         self._keyvaldb = self._job_path / 'keyvalue.dbm'
         self._run_task_raise_exception = run_task_raise_exception
-        self._task_wait_delta = task_wait_delta
+        self._task_wait_interval = task_wait_interval
+        self._monitor_pulse_interval = monitor_pulse_interval
 
         self._running = False
         self._templates_dir = Path(__file__).parent / 'templates'
@@ -86,6 +76,14 @@ class TaskRunner(Logger):
     @property
     def job_path(self):
         return self._job_path
+
+    @property
+    def task_wait_interval(self):
+        return self._task_wait_interval
+
+    @property
+    def monitor_pulse_interval(self):
+        return self._monitor_pulse_interval
 
     def create_job(self, parents=False, overwrite=False):
         job_path = self._job_path
@@ -117,6 +115,9 @@ class TaskRunner(Logger):
                     "targs BLOB, " \
                     f"status TEXT CHECK(status in ({statuses}))," \
                     "take_time DATETIME," \
+                    "start_time DATETIME," \
+                    "done_time DATETIME," \
+                    "pulse_time DATETIME," \
                     "num_units INTEGER" \
                 ")")
 
@@ -323,8 +324,11 @@ class TaskRunner(Logger):
                         action = EAction.RUN_TASK
 
                 if action == EAction.RUN_TASK:
-                    c.execute(f'UPDATE tasks SET status = "{EStatus.RUNNING}", take_time = "{datetime.now()}" WHERE tid = {ptask.tid};')
+                    now = datetime.now()
+                    c.execute(f'UPDATE tasks SET status = "{EStatus.RUNNING}", take_time = "{now}", pulse_time = "{now}" WHERE tid = {ptask.tid};')
                     ptask.status = EStatus.RUNNING
+                    ptask.take_time = now
+                    ptask.pulse_time = now
                     task = ptask
                 elif action == EAction.WAIT:
                     task = None
@@ -339,6 +343,18 @@ class TaskRunner(Logger):
         # self.log_tasks()
         return action, task
 
+    def update_task_start_time(self, task, time=None):
+        if time is None:
+            time = datetime.now()
+        
+        with sqlite3.connect(str(self._taskdb)) as conn:
+            # Start a transaction
+            with conn:
+                # Create a cursor object
+                c = conn.cursor()
+                c.execute(f'UPDATE tasks SET start_time = "{time}" WHERE tid = {task.tid};')
+                task.start_time = time
+
     def update_task_status(self, task, status):
         # update status
         with sqlite3.connect(str(self._taskdb)) as conn:
@@ -346,9 +362,20 @@ class TaskRunner(Logger):
             with conn:
                 # Create a cursor object
                 c = conn.cursor()
-                c.execute(f'UPDATE tasks SET status = "{status}" WHERE tid = {task.tid}')
-        task.status = status
-    
+                now = datetime.now()
+                if status == EStatus.RUNNING:
+                    # for running task update pulse_time
+                    c.execute(f'UPDATE tasks SET status = "{status}", pulse_time = "{now}" WHERE tid = {task.tid}')
+                    task.status = status
+                    task.pulse_time = now
+                elif status == EStatus.SUCCESS or status == EStatus.FAILURE:
+                    # for done task update pulse_time and done_time time as well
+                    c.execute(f'UPDATE tasks SET status = "{status}", pulse_time = "{now}", done_time = "{now}" WHERE tid = {task.tid}')
+                    task.status = status
+                    task.pulse_time = now
+                else:
+                    raise RuntimeError(f"Unsupported status '{status}' for status update")
+
     def _run_task(self, task):
         # get entry point func to execute
         ep = task.entrypoint
@@ -369,25 +396,29 @@ class TaskRunner(Logger):
         else:
             targs = ((), {})
 
+
+        # update task start time
+        self.update_task_start_time(task)
+
+        # run task
+        monitor = MonitorThread(task, self, pulse_interval=self._monitor_pulse_interval)
+        monitor.start()
+        
+        ex = None
         try:
             func(*targs[0], **targs[1])  
             status = EStatus.SUCCESS
-        except Exception as ex:
-            self.info("running task entry point failed with exception.", exc_info=True)
+        except Exception as e:
+            self.info("Running task entry point failed with exception.", exc_info=True)
+            ex = e
             status = EStatus.FAILURE
-            if self._run_task_raise_exception:
-                raise ex
-
+        
+        monitor.stop()
+        monitor.join()
         self.update_task_status(task, status)
 
-    def run_all_sequential(self):
-        action, task = self._take_next_task()
-        while action != EAction.STOP:
-            if action == EAction.RUN_TASK:
-                self._run_task(task)
-            else:
-                raise RuntimeError("Run sequential should never hit action either than run or stop")
-            action, task = self._take_next_task()
+        if ex is not None and self._run_task_raise_exception: # for debug purposes only
+            raise ex
 
     def _run(self):
         # check for error code
@@ -401,8 +432,8 @@ class TaskRunner(Logger):
             if action == EAction.RUN_TASK:
                 self._run_task(task)
             elif action == EAction.WAIT:
-                self.debug(f"waiting for {self._task_wait_delta} sec before taking next task")
-                time.sleep(self._task_wait_delta)
+                self.debug(f"waiting for {self._task_wait_interval} sec before taking next task")
+                time.sleep(self._task_wait_interval)
 
     def run(self, num_processes=None):
         self._running = True

@@ -11,7 +11,8 @@ from common import init_logger
 
 # create  job
 logger = init_logger()
-tr = TaskRunner(logger=logger).create_job(overwrite=True) 
+# set monitor update interval to 1 second for example to show monitor pulse update
+tr = TaskRunner(monitor_pulse_interval=1, logger=logger).create_job(overwrite=True) 
 run_server(tr, background=True)   
 webbrowser.open('http://localhost:8000?auto_refresh=true')
 
