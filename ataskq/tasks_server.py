@@ -26,7 +26,7 @@ def run_server(task_runner:TaskRunner, port=8000, background=False):
 
         def do_404(self):
             self.send_error(HTTPStatus.NOT_FOUND, 'Not found')
-            return self.wfile.write(bytes(task_runner.status_html()), 'utf-8')
+            return self.wfile.write(bytes('Not found'), 'utf-8')
 
 
         def do_GET(self):
