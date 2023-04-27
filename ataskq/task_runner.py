@@ -1,3 +1,4 @@
+from ast import Return
 from errno import ESTALE
 from io import TextIOWrapper
 import multiprocessing
@@ -13,7 +14,6 @@ from enum import Enum
 from datetime import datetime
 from multiprocessing import Process
 import time
-import dbm
 
 from .logger import Logger
 from .task import Task, EStatus
@@ -64,7 +64,6 @@ class TaskRunner(Logger):
         super().__init__(logger)
         self._job_path = Path(job_path)
         self._taskdb = self._job_path / 'tasks.sqlite.db'
-        self._keyvaldb = self._job_path / 'keyvalue.dbm'
         self._run_task_raise_exception = run_task_raise_exception
         self._task_wait_interval = task_wait_interval
         self._monitor_pulse_interval = monitor_pulse_interval
@@ -112,7 +111,7 @@ class TaskRunner(Logger):
                     "level REAL, " \
                     "name TEXT, " \
                     "entrypoint TEXT NOT NULL, " \
-                    "targs BLOB, " \
+                    "targs MEDIUMBLOB, " \
                     f"status TEXT CHECK(status in ({statuses}))," \
                     "take_time DATETIME," \
                     "start_time DATETIME," \
@@ -121,22 +120,7 @@ class TaskRunner(Logger):
                     "num_units INTEGER" \
                 ")")
 
-        # key value store
-        with dbm.open(str(self._keyvaldb), 'n') as db:
-            pass
-
         return self
-
-    def _set_keyval(self, key, val):
-        assert not self._running, "Can't update keyval store while running."
-        with dbm.open(str(self._keyvaldb), 'c') as db:
-            db[key] = val
-
-    def _get_keval(self, key):
-        with dbm.open(str(self._keyvaldb)) as db:
-            val = db[key]
-
-        return val
 
     def add_tasks(self, tasks: List[Task] or Task):
         if isinstance(tasks, (Task)):
@@ -156,10 +140,7 @@ class TaskRunner(Logger):
                         assert len(t.targs) == 2
                         assert isinstance(t.targs[0], tuple)
                         assert isinstance(t.targs[1], dict)
-                        data = pickle.dumps(t.targs)
-                        key_hash = hashlib.md5(data).digest() 
-                        self._set_keyval(key_hash, pickle.dumps(t.targs)) 
-                        t.targs = key_hash
+                        t.targs = pickle.dumps(t.targs)
                     keys = list(t.__dict__.keys())
                     values = list(t.__dict__.values())
                     c.execute(f'INSERT INTO tasks ({", ".join(keys)}) VALUES ({", ".join(["?"] * len(keys))})', values)
@@ -391,8 +372,17 @@ class TaskRunner(Logger):
         
         # get targs
         if task.targs is not None:
-            targs_data = self._get_keval(task.targs)
-            targs = pickle.loads(targs_data)
+            try:    
+                targs = pickle.loads(task.targs)
+            except Exception as ex:
+                # failed to load targs, report task failure and return
+                self.info("Getting tasks args failed.", exc_info=True)
+                self.update_task_status(task, EStatus.FAILURE)
+
+                if  self._run_task_raise_exception: # for debug purposes only
+                    raise ex
+
+                return
         else:
             targs = ((), {})
 
