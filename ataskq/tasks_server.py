@@ -17,6 +17,7 @@ def run_server(task_runner:TaskRunner, port=8000, background=False):
         p.start()
     
         return p
+        
     class SimpleHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         def html(self, query_type:EQueryType):
             self.send_response(200)
@@ -32,9 +33,14 @@ def run_server(task_runner:TaskRunner, port=8000, background=False):
         def do_GET(self):
             """Handle GET requests"""
             parsed_url = urlparse(self.path)    
-            if parsed_url.path == '/' or parsed_url.path == '/tasks_summary':
+            if self.path == '/favicon.ico':
+                self.send_response(200)
+                self.send_header('Content-type', 'image/x-icon')
+                self.end_headers()
+                return
+            elif parsed_url.path == '/' or parsed_url.path == '/tasks_summary':
                 return self.html(EQueryType.TASKS_SUMMARY) 
-            if parsed_url.path == '/' or parsed_url.path == '/num_units_summary':
+            elif parsed_url.path == '/' or parsed_url.path == '/num_units_summary':
                 return self.html(EQueryType.NUM_UNITS_SUMMARY)
             elif parsed_url.path == '/tasks':
                 return self.html(EQueryType.TASKS) 
