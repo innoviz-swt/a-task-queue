@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from ataskq.task_runner import TaskRunner, EQueryType
+from ataskq.runner import TaskRunner, EQueryType
 
 
 def test_table(tmp_path):

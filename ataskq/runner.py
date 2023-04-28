@@ -17,7 +17,7 @@ import time
 
 from .logger import Logger
 from .task import Task, EStatus
-from .task_monitor import MonitorThread
+from .monitor import MonitorThread
 
 
 class EAction(str, Enum):
@@ -203,17 +203,21 @@ class TaskRunner(Logger):
         """
         
         pad = '  '
+
+        # targs is byte array, so we need to limits its width
+        targsi = col_names.index('targs') if 'targs' in col_names else -1
+        colstyle = lambda i:" class=targs-col" if i == targsi else '' 
         ret = [
             '<table>',
             pad + '<tr>',
-            *[ pad + pad + '<th> ' + col + ' </th>' for col in col_names],
+            *[ pad + pad + f'<th{colstyle(i)}> ' + f'{col}'+ ' </th>' for i, col in enumerate(col_names)],
             pad + '</tr>',
         ]
 
         for row in rows:
             ret += [
                 pad + '<tr>',
-                *[ pad + pad + '<td> ' + f'{col}'+ ' </td>' for col in row],
+                *[ pad + pad + f"<td{colstyle(i)}> " + f'{col}'+ ' </td>' for i, col in enumerate(row)],
                 pad + '</tr>',
             ]
 

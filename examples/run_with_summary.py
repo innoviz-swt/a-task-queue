@@ -4,8 +4,8 @@ import time
 import webbrowser
 
 sys.path.append(os.path.dirname(__file__) + '/..')
-from ataskq.task_runner import EQueryType, TaskRunner, Task, targs
-from ataskq.tasks_server import run_server
+from ataskq.runner import EQueryType, TaskRunner, Task, targs
+from ataskq.server import run_server
 
 from common import init_logger
 

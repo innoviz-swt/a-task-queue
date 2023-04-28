@@ -5,7 +5,7 @@ import socket
 from urllib.parse import urlparse
 from http import HTTPStatus
 
-from .task_runner import TaskRunner, EQueryType
+from .runner import TaskRunner, EQueryType
 PORT = 8000
 
 

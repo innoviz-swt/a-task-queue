@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from ataskq.task_runner import TaskRunner, Task, targs
+from ataskq.runner import TaskRunner, Task, targs
 
 def test_create_job(tmp_path: Path):
     runner = TaskRunner(job_path=tmp_path).create_job(overwrite=True)

@@ -3,7 +3,7 @@ import os
 import logging 
 sys.path.append(os.path.dirname(__file__) + '/..')
 
-from ataskq.task_runner import TaskRunner, Task, targs
+from ataskq.runner import TaskRunner, Task, targs
 
 # init logger
 log_level = logging.INFO
