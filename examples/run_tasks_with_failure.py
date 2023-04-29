@@ -14,8 +14,7 @@ logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
 # create  job
-tr = TaskRunner(logger=logger).create_job(overwrite=True)    
-
+tr = TaskRunner(logger=logger).create_job()    
 
 # add tasks
 tr.add_tasks([

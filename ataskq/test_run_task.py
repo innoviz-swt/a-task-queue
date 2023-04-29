@@ -3,7 +3,7 @@ from pathlib import Path
 from ataskq.runner import TaskRunner, Task, targs
 
 def test_create_job(tmp_path: Path):
-    runner = TaskRunner(job_path=tmp_path).create_job(overwrite=True)
+    runner = TaskRunner(_db=tmp_path).create_job(overwrite=True)
     assert isinstance(runner, TaskRunner)
 
     assert tmp_path.exists()
@@ -17,7 +17,7 @@ def test_run_default(tmp_path: Path):
     job_path = tmp_path / 'ataskq'
     filepath = tmp_path / 'file.txt'
 
-    runner = TaskRunner(job_path=job_path).create_job(overwrite=True)
+    runner = TaskRunner(_db=job_path).create_job(overwrite=True)
 
     runner.add_tasks([
         Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file", targs=targs(tmp_path / 'file.txt', 'task 0\n')),
@@ -37,7 +37,7 @@ def test_run_2_processes(tmp_path: Path):
     job_path = tmp_path / 'ataskq'
     filepath = tmp_path / 'file.txt'
 
-    runner = TaskRunner(job_path=job_path).create_job(overwrite=True)
+    runner = TaskRunner(_db=job_path).create_job(overwrite=True)
 
     runner.add_tasks([
         Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock", targs=targs(tmp_path / 'file.txt', 'task 0\n')),

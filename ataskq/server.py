@@ -1,49 +1,49 @@
 from curses.ascii import ESC
 import http.server
 import socketserver
-import socket 
+import socket
 from urllib.parse import urlparse
 from http import HTTPStatus
 
-from .runner import TaskRunner, EQueryType
+from .runner import EQueryType
 PORT = 8000
 
 
-def run_server(task_runner:TaskRunner, port=8000, background=False):
+def run_server(db_hanlder, port=8000, background=False):
     # run server in background process
     if background:
         import multiprocessing
-        p = multiprocessing.Process(target=run_server, args=(task_runner, port), daemon=True)
+        p = multiprocessing.Process(
+            target=run_server, args=(port,), daemon=True)
         p.start()
-    
+
         return p
-        
+
     class SimpleHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
-        def html(self, query_type:EQueryType):
+        def html(self, query_type: EQueryType):
             self.send_response(200)
             self.send_header('Content-type', 'text/html')
             self.end_headers()
-            return self.wfile.write(bytes(task_runner.html(query_type), 'utf-8'))
+            return self.wfile.write(bytes(db_hanlder.html(query_type), 'utf-8'))
 
         def do_404(self):
             self.send_error(HTTPStatus.NOT_FOUND, 'Not found')
             return self.wfile.write(bytes('Not found'), 'utf-8')
 
-
         def do_GET(self):
             """Handle GET requests"""
-            parsed_url = urlparse(self.path)    
+            parsed_url = urlparse(self.path)
             if self.path == '/favicon.ico':
                 self.send_response(200)
                 self.send_header('Content-type', 'image/x-icon')
                 self.end_headers()
                 return
             elif parsed_url.path == '/' or parsed_url.path == '/tasks_summary':
-                return self.html(EQueryType.TASKS_SUMMARY) 
+                return self.html(EQueryType.TASKS_SUMMARY)
             elif parsed_url.path == '/' or parsed_url.path == '/num_units_summary':
                 return self.html(EQueryType.NUM_UNITS_SUMMARY)
             elif parsed_url.path == '/tasks':
-                return self.html(EQueryType.TASKS) 
+                return self.html(EQueryType.TASKS)
             else:
                 return self.do_404()
 
