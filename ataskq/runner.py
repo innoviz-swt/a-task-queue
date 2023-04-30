@@ -3,9 +3,9 @@ import pickle
 from pathlib import Path
 import logging
 from importlib import import_module
-from enum import Enum
 from multiprocessing import Process
 import time
+import shutil
 
 from .logger import Logger
 from .task import EStatus
@@ -36,7 +36,7 @@ def keyval_store_retry(retries=1000, polling_delta=0.1):
 
 
 class TaskRunner(Logger):
-    def __init__(self, db=None, run_task_raise_exception=False, task_wait_interval=0.2, monitor_pulse_interval = 60, logger: logging.Logger or None=None) -> None:
+    def __init__(self, job_path="./ataskqjob", run_task_raise_exception=False, task_wait_interval=0.2, monitor_pulse_interval = 60, logger: logging.Logger or None=None) -> None:
         """
         Args:
         task_wait_interval: pulling interval for task to complete in seconds.
@@ -46,31 +46,21 @@ class TaskRunner(Logger):
         super().__init__(logger)
 
         # init db handler
-        if isinstance(db, str):
-            self._db_handler = DBHandler(db)
-        elif isinstance(db, DBHandler):
-            self._db_handler = db
-        else:
-            self._db_handler = DBHandler()
+        self._job_path = Path(job_path)
+        self._db_handler = DBHandler(f'sqlite://{self.job_path}/tasks.sqlite.db')
             
         self._run_task_raise_exception = run_task_raise_exception
         self._task_wait_interval = task_wait_interval
         self._monitor_pulse_interval = monitor_pulse_interval
 
-        self._running = False
-        self._templates_dir = Path(__file__).parent / 'templates'
+        self._running = False        
     
-    def __enter__(self):
-        # open db handler
-        self._db_handler.__enter__()
-        
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self._db_handler.__exit__(exc_type, exc_value, traceback)
-
     @property
     def job_path(self):
+        return self._job_path
+
+    @property
+    def db_handler(self):
         return self._db_handler
 
     @property
@@ -81,11 +71,26 @@ class TaskRunner(Logger):
     def monitor_pulse_interval(self):
         return self._monitor_pulse_interval
 
-    def create_job(self):
+    def create_job(self, parents=False, overwrite=False):
+        job_path = self._job_path
+
+        if job_path.exists() and overwrite:
+            shutil.rmtree(job_path)
+        elif job_path.exists():
+            self.warning(f"job path '{job_path}' already exists.")
+            return self
+
+        job_path.mkdir(parents=parents)
+        (job_path / '.ataskqjob').write_text('')
+
         self._db_handler.create_job()
+
+        return self
 
     def add_tasks(self, tasks):
         self._db_handler.add_tasks(tasks)
+
+        return self
     
     def log_tasks(self):
         rows, _ = self._db_handler.query(query_type=EQueryType.TASKS)

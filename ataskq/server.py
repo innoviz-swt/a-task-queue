@@ -14,7 +14,7 @@ def run_server(db_hanlder, port=8000, background=False):
     if background:
         import multiprocessing
         p = multiprocessing.Process(
-            target=run_server, args=(port,), daemon=True)
+            target=run_server, args=(db_hanlder, port,), daemon=True)
         p.start()
 
         return p

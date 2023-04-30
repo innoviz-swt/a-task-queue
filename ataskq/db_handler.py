@@ -24,15 +24,16 @@ class EAction(str, Enum):
 
 def transaction_decorator(func):
     def wrapper(self, *args, **kwargs):
-        c = self._conn.cursor()
-        try:
-            ret = func(self, c, *args, **kwargs)
-        except Exception as e:
-            self._conn.commit()
-            self.error(f"Failed to execute transaction: {e}")
-            raise e
-        
-        self._conn.commit()
+        with self.connect() as conn:
+            c = conn.cursor()
+            try:
+                ret = func(self, c, *args, **kwargs)
+            except Exception as e:
+                conn.commit()
+                self.error(f"Failed to execute transaction: {e}")
+                raise e
+
+        conn.commit()
         return ret
 
     return wrapper
@@ -43,27 +44,23 @@ class DBHandler(Logger):
         super().__init__(logger)
 
         self._db = db
-        self._conn = None
-        pass
+        self._templates_dir = Path(__file__).parent / 'templates'        
 
     @property
     def db(self):
         return self._db
 
-    def __enter__(self):
+    def connect(self):
         if self._db.startswith('sqlite://'):
-            self.info(f"Connect db '{self._db}'.")
-            self._conn = sqlite3.connect(self._db[9:])
+            conn = sqlite3.connect(self._db[9:])
         else:
             raise RuntimeError(f"Unsupported db '{self._db}'.")
 
-    def __exit__(self, exc_type, exc_value, traceback):
-        if self._conn:
-            self._conn.close()
+        return conn
 
     @transaction_decorator
     def create_job(self, c):
-        # Create tasks table
+        # Create tasks table if not exists
         statuses = ", ".join([f'\"{a}\"' for a in EStatus])
         c.execute(f"CREATE TABLE IF NOT EXISTS tasks ("
                   "tid INTEGER PRIMARY KEY, "
@@ -78,6 +75,8 @@ class DBHandler(Logger):
                   "pulse_time DATETIME,"
                   "num_units INTEGER"
                   ")")
+
+        return self
 
     @transaction_decorator
     def add_tasks(self, c, tasks: List[Task] or Task):
@@ -97,6 +96,8 @@ class DBHandler(Logger):
             values = list(t.__dict__.values())
             c.execute(
                 f'INSERT INTO tasks ({", ".join(keys)}) VALUES ({", ".join(["?"] * len(keys))})', values)
+        
+        return self
 
     def tasks_summary_query(self):
         query = "SELECT level, name," \
@@ -260,12 +261,7 @@ class DBHandler(Logger):
         elif action == EAction.STOP:
             task = None
         else:
-            # end transaction
-            self._conn.commit()
             raise RuntimeError(f"Unsupported action '{EAction}'")
-
-        # end transaction
-        self._conn.commit()
 
         # self.log_tasks()
         return action, task
