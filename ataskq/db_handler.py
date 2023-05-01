@@ -210,18 +210,26 @@ class DBHandler(Logger):
         return html
 
     @transaction_decorator
-    def _take_next_task(self, c) -> Tuple[EAction, Task]:
+    def count_pending_tasks_below_level(self, c, level) -> int:
+        c.execute(f'SELECT COUNT(*) FROM tasks WHERE level < {level} AND status in ("{EStatus.PENDING}")')
+
+        row = c.fetchone()
+        return row[0]
+
+    @transaction_decorator
+    def _take_next_task(self, c, level) -> Tuple[EAction, Task]:
         c.execute('BEGIN EXCLUSIVE;')
 
+        level_query = f' AND level >= {level.start} AND level < {level.stop}' if level is not None else ''
         # get pending task with minimum level
-        c.execute(f'SELECT * FROM tasks WHERE status IN ("{EStatus.PENDING}") AND level = '
-                  f'(SELECT MIN(level) FROM tasks WHERE status IN ("{EStatus.PENDING}"));')
+        c.execute(f'SELECT * FROM tasks WHERE status IN ("{EStatus.PENDING}"){level_query} AND level = '
+                  f'(SELECT MIN(level) FROM tasks WHERE status IN ("{EStatus.PENDING}"){level_query});')
         row = c.fetchone()
         ptask = row if row is None else Task(*row)
 
         # get running task with minimum level
-        c.execute(f'SELECT * FROM tasks WHERE status IN ("{EStatus.RUNNING}") AND level = '
-                  f'(SELECT MIN(level) FROM tasks WHERE status IN ("{EStatus.RUNNING}"));')
+        c.execute(f'SELECT * FROM tasks WHERE status IN ("{EStatus.RUNNING}"){level_query} AND level = '
+                  f'(SELECT MIN(level) FROM tasks WHERE status IN ("{EStatus.RUNNING}"){level_query});')
         row = c.fetchone()
         rtask = row if row is None else Task(*row)
 

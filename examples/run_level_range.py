@@ -21,15 +21,17 @@ tr = TaskRunner(logger=logger).create_job(overwrite=True)
 # add tasks
 tr.add_tasks([
     Task(level=1, entrypoint='ataskq.tasks_utils.hello_world'),
-    Task(level=1.1, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('1.1a', level=1.1)),
-    Task(level=1.1, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('1.1b', level=1.1)),
-    Task(level=2, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('args for entrypoint_with_args')),
+    Task(level=2, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('2a', level=2)),
+    Task(level=2, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('2b', level=2)),
+    Task(level=3, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('args for entrypoint_with_args')),
 ])
 tr.log_tasks()
 logger.info('-' * 80)
 
-logger.info('running tasks...')
-tr.run()
+for i in range(1, 4):
+    logger.info(f'running tasks level {i}...')
+    tr.run(level=i)
+    logger.info('-' * 80)
 
-logger.info('-' * 80)
 tr.log_tasks()
+logger.info('-' * 80)

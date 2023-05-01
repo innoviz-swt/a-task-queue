@@ -92,10 +92,13 @@ class TaskRunner(Logger):
 
         return self
     
+    def count_pending_tasks_below_level(self, level):
+        return self._db_handler.count_pending_tasks_below_level(level)
+
     def log_tasks(self):
         rows, _ = self._db_handler.query(query_type=EQueryType.TASKS)
 
-        self.info("tasks:")
+        self.info("# tasks:")
         for row in rows:
             self.info(row)
 
@@ -158,11 +161,11 @@ class TaskRunner(Logger):
         if ex is not None and self._run_task_raise_exception: # for debug purposes only
             raise ex
 
-    def _run(self):
+    def _run(self, level):
         # check for error code
         while True:
             # grab tasks and set them in Q
-            action, task = self._db_handler._take_next_task()
+            action, task = self._db_handler._take_next_task(level)
 
             # handle no task available
             if action == EAction.STOP:
@@ -172,13 +175,31 @@ class TaskRunner(Logger):
             elif action == EAction.WAIT:
                 self.debug(f"waiting for {self._task_wait_interval} sec before taking next task")
                 time.sleep(self._task_wait_interval)
+    
+    def assert_level(self, level):
+        if isinstance(level, int):
+            level = range(level, level+1)
+        elif isinstance(level, (list, tuple)):
+            assert len(level) == 2, 'level of type list or tuple must have length of 2'
+            level = range(level[0], level[1])
+        else:
+            assert isinstance(level, range), 'level must be int, list, tuple or range'
 
-    def run(self, num_processes=None):
+        # check all task < level.start are done
+        count = self.count_pending_tasks_below_level(level.start)
+        assert count == 0, f'all tasks below level must be done before running tasks at levels {level}'
+
+        return level
+
+    def run(self, num_processes=None, level=None):
+        if level is not None:
+            level = self.assert_level(level)
+
         self._running = True
 
         # default to run in current process
         if num_processes is None:
-            self._run()
+            self._run(level)
             return
 
         assert isinstance(num_processes, (int, float))
@@ -192,7 +213,7 @@ class TaskRunner(Logger):
             nprocesses = num_processes
 
         # set processes and Q
-        processes = [Process(target=self._run, daemon=True) for i in range(nprocesses)]
+        processes = [Process(target=self._run, args=(level,), daemon=True) for i in range(nprocesses)]
         [p.start() for p in processes]
 
         # join all processes
