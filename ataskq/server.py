@@ -5,7 +5,7 @@ import socket
 from urllib.parse import urlparse
 from http import HTTPStatus
 
-from .runner import EQueryType
+from .db_handler import EQueryType
 PORT = 8000
 
 
@@ -38,10 +38,10 @@ def run_server(db_hanlder, port=8000, background=False):
                 self.send_header('Content-type', 'image/x-icon')
                 self.end_headers()
                 return
-            elif parsed_url.path == '/' or parsed_url.path == '/tasks_summary':
-                return self.html(EQueryType.TASKS_SUMMARY)
-            elif parsed_url.path == '/' or parsed_url.path == '/num_units_summary':
-                return self.html(EQueryType.NUM_UNITS_SUMMARY)
+            elif parsed_url.path == '/' or parsed_url.path == '/tasks_status':
+                return self.html(EQueryType.TASKS_STATUS)
+            elif parsed_url.path == '/' or parsed_url.path == '/num_units_status':
+                return self.html(EQueryType.NUM_UNITS_STATUS)
             elif parsed_url.path == '/tasks':
                 return self.html(EQueryType.TASKS)
             else:

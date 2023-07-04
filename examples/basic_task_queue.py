@@ -3,8 +3,7 @@ import os
 import logging 
 sys.path.append(os.path.dirname(__file__) + '/..')
 
-from ataskq.task import Task
-from ataskq.runner import TaskRunner, targs
+from ataskq import TaskQ, Task, targs
 
 
 # init logger
@@ -16,7 +15,7 @@ logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
 # create  job
-tr = TaskRunner(logger=logger).create_job(overwrite=True)
+tr = TaskQ(logger=logger).create_job(overwrite=True)
 
 # add tasks
 tr.add_tasks([

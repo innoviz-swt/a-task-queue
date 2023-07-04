@@ -11,8 +11,8 @@ from .logger import Logger
 
 
 class EQueryType(Enum):
-    TASKS_SUMMARY = 1,
-    NUM_UNITS_SUMMARY = 2,
+    TASKS_STATUS = 1,
+    NUM_UNITS_STATUS = 2,
     TASKS = 3,
 
 
@@ -99,7 +99,7 @@ class DBHandler(Logger):
         
         return self
 
-    def tasks_summary_query(self):
+    def tasks_status_query(self):
         query = "SELECT level, name," \
             "COUNT(*) as total, " + \
             ",".join(
@@ -110,7 +110,7 @@ class DBHandler(Logger):
 
         return query
 
-    def num_units_summary_query(self):
+    def num_units_status_query(self):
         query = "SELECT level, name," \
                 "SUM(num_units) as total, " + \
                 ",".join(
@@ -126,16 +126,16 @@ class DBHandler(Logger):
         return query
 
     @transaction_decorator
-    def query(self, c, query_type=EQueryType.TASKS_SUMMARY):
-        if query_type == EQueryType.TASKS_SUMMARY:
-            query = self.tasks_summary_query()
-        elif query_type == EQueryType.NUM_UNITS_SUMMARY:
-            query = self.num_units_summary_query()
+    def query(self, c, query_type=EQueryType.TASKS_STATUS):
+        if query_type == EQueryType.TASKS_STATUS:
+            query = self.tasks_status_query()
+        elif query_type == EQueryType.NUM_UNITS_STATUS:
+            query = self.num_units_status_query()
         elif query_type == EQueryType.TASKS:
             query = self.task_status_query()
         else:
             # should never get here
-            raise RuntimeError(f"Unknown summary type: {query_type}")
+            raise RuntimeError(f"Unknown status type: {query_type}")
 
         c.execute(query)
         rows = c.fetchall()
@@ -177,9 +177,9 @@ class DBHandler(Logger):
 
         return table
 
-    def html_table(self, query_type=EQueryType.TASKS_SUMMARY):
+    def html_table(self, query_type=EQueryType.TASKS_STATUS):
         """
-        Return a html table of the summary
+        Return a html table of the status
         """
         rows, col_names = self.query(query_type)
         table = self.table(col_names, rows)
@@ -188,7 +188,7 @@ class DBHandler(Logger):
 
     def html(self, query_type, file=None):
         """
-        Return a html of the summary and write to file if given.
+        Return a html of the status and write to file if given.
         """
         with open(self._templates_dir / 'base.html') as f:
             html = f.read()

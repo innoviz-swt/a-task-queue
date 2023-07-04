@@ -35,7 +35,7 @@ def keyval_store_retry(retries=1000, polling_delta=0.1):
     return decorator
 
 
-class TaskRunner(Logger):
+class TaskQ(Logger):
     def __init__(self, job_path="./ataskqjob", run_task_raise_exception=False, task_wait_interval=0.2, monitor_pulse_interval = 60, logger: logging.Logger or None=None) -> None:
         """
         Args:

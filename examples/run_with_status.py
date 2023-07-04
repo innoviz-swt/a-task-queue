@@ -5,16 +5,16 @@ import webbrowser
 from pathlib import Path
 
 sys.path.append(os.path.dirname(__file__) + '/..')
-from ataskq.runner import EQueryType, TaskRunner, targs
+from ataskq import TaskQ, Task, targs
+from ataskq.db_handler import EQueryType
 from ataskq.server import run_server
-from ataskq.task import Task
 
 from common import init_logger
 
 # create  job
 logger = init_logger()
 
-tr = TaskRunner(monitor_pulse_interval=1, logger=logger)
+tr = TaskQ(monitor_pulse_interval=1, logger=logger)
 # set monitor update interval to 1 second for example to show monitor pulse update
 tr.create_job(overwrite=True) 
 run_server(tr.db_handler, background=True)   

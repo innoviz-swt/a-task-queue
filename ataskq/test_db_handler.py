@@ -1,8 +1,6 @@
 from pathlib import Path
 
-from ataskq.db_handler import DBHandler
-
-from .runner import TaskRunner, EQueryType
+from .db_handler import DBHandler, EQueryType
 
 
 def test_table(tmp_path):
@@ -16,7 +14,7 @@ def test_table(tmp_path):
 def test_html(tmp_path: Path):
     # very general sanity test
     db_handler = DBHandler(db=f'sqlite://{tmp_path}/ataskq.db').create_job()
-    html = db_handler.html(query_type=EQueryType.TASKS_SUMMARY)
+    html = db_handler.html(query_type=EQueryType.TASKS_STATUS)
     assert '<body>' in html
     assert '</body>' in html
     
@@ -29,7 +27,7 @@ def test_html_file_str_dump(tmp_path: Path):
     # very general sanity test
     db_handler = DBHandler(db=f'sqlite://{tmp_path}/ataskq.db').create_job()
     file=tmp_path / 'test.html'
-    html = db_handler.html(query_type=EQueryType.TASKS_SUMMARY, file=file)
+    html = db_handler.html(query_type=EQueryType.TASKS_STATUS, file=file)
     
     assert file.exists()
     assert html == file.read_text()
@@ -40,7 +38,7 @@ def test_html_file_io_dump(tmp_path: Path):
     db_handler = DBHandler(db=f'sqlite://{tmp_path}/ataskq.db').create_job()
     file=tmp_path / 'test.html'
     with open(file, 'w') as f:
-        html = db_handler.html(query_type=EQueryType.TASKS_SUMMARY, file=f)
+        html = db_handler.html(query_type=EQueryType.TASKS_STATUS, file=f)
         
     assert file.exists()
     assert html == file.read_text()
