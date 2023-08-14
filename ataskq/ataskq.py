@@ -8,7 +8,7 @@ import time
 import shutil
 
 from .logger import Logger
-from .task import EStatus
+from .task import EStatus, Task
 from .monitor import MonitorThread
 from .db_handler import DBHandler, EQueryType, EAction
 
@@ -36,11 +36,12 @@ def keyval_store_retry(retries=1000, polling_delta=0.1):
 
 
 class TaskQ(Logger):
-    def __init__(self, job_path="./ataskqjob", run_task_raise_exception=False, task_wait_interval=0.2, monitor_pulse_interval = 60, logger: logging.Logger or None=None) -> None:
+    def __init__(self, job_path="./ataskqjob", run_task_raise_exception=False, task_pull_intervnal=0.2, monitor_pulse_interval = 60, monitor_timeout_internal = 60 * 5, logger: logging.Logger or None=None) -> None:
         """
         Args:
-        task_wait_interval: pulling interval for task to complete in seconds.
+        task_pull_intervnal: pulling interval for task to complete in seconds.
         monitor_pulse_interval: update interval for pulse in seconds while taks is running.
+        monitor_timeout_internal: timeout for task last monitor pulse in seconds, if passed before getting next task, set to Failure.
         run_task_raise_exception: if True, run_task will raise exception when task fails. This is for debugging purpose only and will fail production flow.
         """
         super().__init__(logger)
@@ -50,8 +51,9 @@ class TaskQ(Logger):
         self._db_handler = DBHandler(f'sqlite://{self.job_path}/tasks.sqlite.db')
             
         self._run_task_raise_exception = run_task_raise_exception
-        self._task_wait_interval = task_wait_interval
+        self._task_pull_interval = task_pull_intervnal
         self._monitor_pulse_interval = monitor_pulse_interval
+        self._monitor_timeout_internal = monitor_timeout_internal
 
         self._running = False        
     
@@ -65,7 +67,7 @@ class TaskQ(Logger):
 
     @property
     def task_wait_interval(self):
-        return self._task_wait_interval
+        return self._task_pull_interval
 
     @property
     def monitor_pulse_interval(self):
@@ -102,6 +104,12 @@ class TaskQ(Logger):
         for row in rows:
             self.info(row)
 
+    def get_tasks(self):
+        rows, col_names = self._db_handler.query(query_type=EQueryType.TASKS)
+        tasks = [Task(**dict(zip(col_names, row))) for row in rows]
+
+        return tasks
+
     def update_task_start_time(self, task):
         self._db_handler.update_task_start_time(task)
 
@@ -111,6 +119,10 @@ class TaskQ(Logger):
     def _run_task(self, task):
         # get entry point func to execute
         ep = task.entrypoint
+        if ep == 'ataskq.skip_run_task':
+            self.info(f"task '{task.tid}' is marked as 'skip_run_task', skipping run task.")
+            return
+        
         assert '.' in ep, 'entry point must be inside a module.'
         module_name, func_name = ep.rsplit('.', 1)
         try:
@@ -164,6 +176,8 @@ class TaskQ(Logger):
     def _run(self, level):
         # check for error code
         while True:
+            # update tasks timeout
+            self._db_handler._set_timeout_tasks(self._monitor_timeout_internal)
             # grab tasks and set them in Q
             action, task = self._db_handler._take_next_task(level)
 
@@ -173,8 +187,8 @@ class TaskQ(Logger):
             if action == EAction.RUN_TASK:
                 self._run_task(task)
             elif action == EAction.WAIT:
-                self.debug(f"waiting for {self._task_wait_interval} sec before taking next task")
-                time.sleep(self._task_wait_interval)
+                self.debug(f"waiting for {self._task_pull_interval} sec before taking next task")
+                time.sleep(self._task_pull_interval)
     
     def assert_level(self, level):
         if isinstance(level, int):

@@ -1,11 +1,13 @@
 from pathlib import Path
+from datetime import datetime, timedelta
 
-from ataskq import TaskQ, Task, targs
+from ataskq import TaskQ, Task, targs, EStatus
+
 
 
 def test_create_job(tmp_path: Path):
-    runner = TaskQ(job_path=tmp_path).create_job(overwrite=True)
-    assert isinstance(runner, TaskQ)
+    taskq = TaskQ(job_path=tmp_path).create_job(overwrite=True)
+    assert isinstance(taskq, TaskQ)
 
     assert tmp_path.exists()
     assert (tmp_path / '.ataskqjob').exists()
@@ -18,9 +20,9 @@ def test_run_default(tmp_path: Path):
     job_path = tmp_path / 'ataskq'
     filepath = tmp_path / 'file.txt'
 
-    runner = TaskQ(job_path=job_path).create_job(overwrite=True)
+    taskq = TaskQ(job_path=job_path).create_job(overwrite=True)
 
-    runner.add_tasks([
+    taskq.add_tasks([
         Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file",
              targs=targs(filepath, 'task 0\n')),
         Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file",
@@ -29,7 +31,7 @@ def test_run_default(tmp_path: Path):
              targs=targs(filepath, 'task 2\n')),
     ])
 
-    runner.run()
+    taskq.run()
 
     assert filepath.exists()
     assert filepath.read_text() == \
@@ -42,9 +44,9 @@ def test_run_2_processes(tmp_path: Path):
     job_path = tmp_path / 'ataskq'
     filepath = tmp_path / 'file.txt'
 
-    runner = TaskQ(job_path=job_path).create_job(overwrite=True)
+    taskq = TaskQ(job_path=job_path).create_job(overwrite=True)
 
-    runner.add_tasks([
+    taskq.add_tasks([
         Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
              targs=targs(filepath, 'task 0\n')),
         Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
@@ -53,7 +55,7 @@ def test_run_2_processes(tmp_path: Path):
              targs=targs(filepath, 'task 2\n')),
     ])
 
-    runner.run(num_processes=2)
+    taskq.run(num_processes=2)
 
     assert filepath.exists()
     text = filepath.read_text()
@@ -66,9 +68,9 @@ def _test_run_by_level(tmp_path: Path, num_processes: int):
     job_path = tmp_path / 'ataskq'
     filepath = tmp_path / 'file.txt'
 
-    runner = TaskQ(job_path=job_path).create_job(overwrite=True)
+    taskq = TaskQ(job_path=job_path).create_job(overwrite=True)
 
-    runner.add_tasks([
+    taskq.add_tasks([
         Task(level=0, entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
              targs=targs(filepath, 'task 0\n')),
         Task(level=1, entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
@@ -79,26 +81,26 @@ def _test_run_by_level(tmp_path: Path, num_processes: int):
              targs=targs(filepath, 'task 3\n')),
     ])
 
-    assert runner.count_pending_tasks_below_level(3) == 4
+    assert taskq.count_pending_tasks_below_level(3) == 4
 
-    assert runner.count_pending_tasks_below_level(1) == 1
-    runner.run(level=0, num_processes=num_processes)
-    runner.count_pending_tasks_below_level(1) == 0
+    assert taskq.count_pending_tasks_below_level(1) == 1
+    taskq.run(level=0, num_processes=num_processes)
+    taskq.count_pending_tasks_below_level(1) == 0
     assert filepath.exists()
     text = filepath.read_text()
     assert "task 0\n" in text
 
-    assert runner.count_pending_tasks_below_level(2) == 2
-    runner.run(level=1, num_processes=num_processes)
-    runner.count_pending_tasks_below_level(2) == 0
+    assert taskq.count_pending_tasks_below_level(2) == 2
+    taskq.run(level=1, num_processes=num_processes)
+    taskq.count_pending_tasks_below_level(2) == 0
     text = filepath.read_text()
     assert "task 0\n" in text
     assert "task 1\n" in text
     assert "task 2\n" in text
 
-    assert runner.count_pending_tasks_below_level(3) == 1
-    runner.run(level=2, num_processes=num_processes)
-    runner.count_pending_tasks_below_level(3) == 0
+    assert taskq.count_pending_tasks_below_level(3) == 1
+    taskq.run(level=2, num_processes=num_processes)
+    taskq.count_pending_tasks_below_level(3) == 0
     text = filepath.read_text()
     assert "task 0\n" in text
     assert "task 1\n" in text
@@ -112,3 +114,22 @@ def test_run_by_level(tmp_path: Path):
 
 def test_run_by_level_2_processes(tmp_path: Path):
     _test_run_by_level(tmp_path, num_processes=2)
+
+def test_monitor_pulse_failure(tmp_path):
+    # set monitor pulse longer than timeout
+    taskq = TaskQ(job_path=tmp_path, monitor_pulse_interval=10, monitor_timeout_internal=1.5).create_job(overwrite=True)
+    taskq.add_tasks([
+        Task(entrypoint='ataskq.skip_run_task', targs=targs('task will fail')), # reserved keyward for ignored task for testing
+        Task(entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('task will success')),
+    ])
+    start = datetime.now()
+    taskq.run()
+    stop = datetime.now()
+
+    tasks = taskq.get_tasks()
+
+
+    assert tasks[0].status == EStatus.FAILURE
+    assert tasks[1].status == EStatus.SUCCESS
+    assert stop - start > timedelta(seconds=1.5)
+

@@ -1,5 +1,5 @@
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timedelta
 import pickle
 import sqlite3
 from typing import List, Tuple
@@ -8,7 +8,7 @@ from io import TextIOWrapper
 
 from .task import Task, EStatus
 from .logger import Logger
-
+from . import __schema_version__
 
 class EQueryType(Enum):
     TASKS_STATUS = 1,
@@ -40,11 +40,11 @@ def transaction_decorator(func):
 
 
 class DBHandler(Logger):
-    def __init__(self, db='sqlite://:memory:', logger=None) -> None:
+    def __init__(self, db='sqlite://', logger=None) -> None:
         super().__init__(logger)
 
         self._db = db
-        self._templates_dir = Path(__file__).parent / 'templates'        
+        self._templates_dir = Path(__file__).parent / 'templates'
 
     @property
     def db(self):
@@ -60,6 +60,12 @@ class DBHandler(Logger):
 
     @transaction_decorator
     def create_job(self, c):
+        # Create schema version table if not exists
+        c.execute("CREATE TABLE IF NOT EXISTS schema_version ("
+                  "version INTEGER PRIMARY KEY"
+                  ")")
+        c.execute(f"INSERT INTO schema_version (version) VALUES ({__schema_version__})")
+
         # Create tasks table if not exists
         statuses = ", ".join([f'\"{a}\"' for a in EStatus])
         c.execute(f"CREATE TABLE IF NOT EXISTS tasks ("
@@ -73,7 +79,8 @@ class DBHandler(Logger):
                   "start_time DATETIME,"
                   "done_time DATETIME,"
                   "pulse_time DATETIME,"
-                  "num_units INTEGER"
+                  "num_units INTEGER,"
+                  "description TEXT"
                   ")")
 
         return self
@@ -96,7 +103,7 @@ class DBHandler(Logger):
             values = list(t.__dict__.values())
             c.execute(
                 f'INSERT INTO tasks ({", ".join(keys)}) VALUES ({", ".join(["?"] * len(keys))})', values)
-        
+
         return self
 
     def tasks_status_query(self):
@@ -121,7 +128,7 @@ class DBHandler(Logger):
 
         return query
 
-    def task_status_query(self):
+    def task_query(self):
         query = 'SELECT * FROM tasks'
         return query
 
@@ -132,7 +139,7 @@ class DBHandler(Logger):
         elif query_type == EQueryType.NUM_UNITS_STATUS:
             query = self.num_units_status_query()
         elif query_type == EQueryType.TASKS:
-            query = self.task_status_query()
+            query = self.task_query()
         else:
             # should never get here
             raise RuntimeError(f"Unknown status type: {query_type}")
@@ -211,10 +218,17 @@ class DBHandler(Logger):
 
     @transaction_decorator
     def count_pending_tasks_below_level(self, c, level) -> int:
-        c.execute(f'SELECT COUNT(*) FROM tasks WHERE level < {level} AND status in ("{EStatus.PENDING}")')
+        c.execute(
+            f'SELECT COUNT(*) FROM tasks WHERE level < {level} AND status in ("{EStatus.PENDING}")')
 
         row = c.fetchone()
         return row[0]
+    
+    @transaction_decorator
+    def _set_timeout_tasks(self, c, timeout_sec):
+        # set timeout tasks
+        last_valid_pulse = datetime.now() - timedelta(seconds=timeout_sec)
+        c.execute(f'UPDATE tasks SET status = "{EStatus.FAILURE}" WHERE pulse_time < "{last_valid_pulse}" AND status NOT IN ("{EStatus.SUCCESS}", "{EStatus.FAILURE}");')
 
     @transaction_decorator
     def _take_next_task(self, c, level) -> Tuple[EAction, Task]:
@@ -270,7 +284,7 @@ class DBHandler(Logger):
             task = None
         else:
             raise RuntimeError(f"Unsupported action '{EAction}'")
-
+    
         # self.log_tasks()
         return action, task
 

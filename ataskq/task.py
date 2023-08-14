@@ -20,7 +20,8 @@ class Task:
             start_time = None, 
             done_time = None,  
             pulse_time = None,  
-            num_units = None
+            num_units = None,
+            description = None,
         ) -> None:
 
         self.tid = tid
@@ -34,3 +35,4 @@ class Task:
         self.done_time = done_time
         self.pulse_time = pulse_time
         self.num_units = num_units
+        self.description = description
