@@ -16,11 +16,13 @@
             "justMyCode": true
         },
         {
-            "name": "Pytest",
+            "name": "Pytest Current",
             "type": "python",
             "request": "launch",
             "module": "pytest",
-            "args": ["-vs", "-k", "${fileBasenameNoExtension}"],
+            "args": ["${file}", "-vs"],
+            // "args": ["${file}", "-vs"],
+            // "args": ["${file}", "-vs", "-k", "<test_name>"],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal"
         },

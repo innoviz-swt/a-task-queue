@@ -1,5 +1,8 @@
 {
     "terminal.integrated.env.linux": {
         "PYTHONPATH": "${workspacefolder}:$PYTHONPATH"
-    }
+    },
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "python.formatting.autopep8Args": ["--max-line-length", "120"],
 }

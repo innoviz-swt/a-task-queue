@@ -1,4 +1,3 @@
-from curses.ascii import ESC
 import http.server
 import socketserver
 import socket
@@ -6,7 +5,6 @@ from urllib.parse import urlparse
 from http import HTTPStatus
 
 from .db_handler import EQueryType
-PORT = 8000
 
 
 def run_server(db_hanlder, port=8000, background=False):
@@ -38,7 +36,7 @@ def run_server(db_hanlder, port=8000, background=False):
                 self.send_header('Content-type', 'image/x-icon')
                 self.end_headers()
                 return
-            elif parsed_url.path == '/' or parsed_url.path == '/tasks_status':
+            elif parsed_url.path == '/tasks_status':
                 return self.html(EQueryType.TASKS_STATUS)
             elif parsed_url.path == '/' or parsed_url.path == '/num_units_status':
                 return self.html(EQueryType.NUM_UNITS_STATUS)
@@ -47,9 +45,9 @@ def run_server(db_hanlder, port=8000, background=False):
             else:
                 return self.do_404()
 
-    with socketserver.TCPServer(("", PORT), SimpleHTTPRequestHandler, bind_and_activate=False) as server:
+    with socketserver.TCPServer(("", port), SimpleHTTPRequestHandler, bind_and_activate=False) as server:
         server.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server.server_bind()
         server.server_activate()
-        print("Server listening on port", PORT)
+        print("Server listening on port", port)
         server.serve_forever()

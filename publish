@@ -24,4 +24,4 @@ python -m twine upload --repository pypi dist/*
 rm ./ataskq/version.py
 
 # remove build and dist folder
-# rm -rf ./build ./dist ./*.egg-info
+rm -rf ./build ./dist ./*.egg-info

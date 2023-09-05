@@ -132,4 +132,3 @@ def test_monitor_pulse_failure(tmp_path):
     assert tasks[0].status == EStatus.FAILURE
     assert tasks[1].status == EStatus.SUCCESS
     assert stop - start > timedelta(seconds=1.5)
-
