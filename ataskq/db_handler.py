@@ -12,8 +12,7 @@ from . import __schema_version__
 
 class EQueryType(Enum):
     TASKS_STATUS = 1,
-    NUM_UNITS_STATUS = 2,
-    TASKS = 3,
+    TASKS = 2,
 
 
 class EAction(str, Enum):
@@ -42,16 +41,42 @@ def transaction_decorator(func):
 class DBHandler(Logger):
     def __init__(self, db='sqlite://', logger=None) -> None:
         super().__init__(logger)
-
+        
+        sep = '://'
+        sep_index = db.find(sep)
+        if sep_index == -1:
+            raise RuntimeError(f'db must be of format <type>://<connection string>')
         self._db = db
+        self._db_type = db[:sep_index]
+        if not self._db_type:
+            raise RuntimeError(f'missing db type, db must be of format <type>://<connection string>')
+        self._db_conn = db[sep_index+len(sep):]
+        if not self._db_conn:
+            raise RuntimeError(f'missing db connection string, db must be of format <type>://<connection string>')
+
         self._templates_dir = Path(__file__).parent / 'templates'
 
     @property
     def db(self):
         return self._db
 
+    @property
+    def db_type(self):
+        return self._db_type
+
+    @property
+    def db_conn(self):
+        return self._db_conn
+
+    @property
+    def db_path(self):
+        if self._db_type == "sqlite":
+            return self._db_conn
+        else:
+            return None
+
     def connect(self):
-        if self._db.startswith('sqlite://'):
+        if self._db_type == "sqlite":
             conn = sqlite3.connect(self._db[9:])
         else:
             raise RuntimeError(f"Unsupported db '{self._db}'.")
@@ -79,7 +104,6 @@ class DBHandler(Logger):
                   "start_time DATETIME,"
                   "done_time DATETIME,"
                   "pulse_time DATETIME,"
-                  "num_units INTEGER,"
                   "description TEXT"
                   ")")
 
@@ -117,17 +141,6 @@ class DBHandler(Logger):
 
         return query
 
-    def num_units_status_query(self):
-        query = "SELECT level, name," \
-                "SUM(num_units) as total, " + \
-                ",".join(
-                    [f"SUM(CASE WHEN status = '{status}' THEN num_units ELSE 0 END) AS {status} " for status in EStatus]
-                ) + \
-            "FROM tasks " \
-            "GROUP BY level, name;"
-
-        return query
-
     def task_query(self):
         query = 'SELECT * FROM tasks'
         return query
@@ -136,8 +149,6 @@ class DBHandler(Logger):
     def query(self, c, query_type=EQueryType.TASKS_STATUS):
         if query_type == EQueryType.TASKS_STATUS:
             query = self.tasks_status_query()
-        elif query_type == EQueryType.NUM_UNITS_STATUS:
-            query = self.num_units_status_query()
         elif query_type == EQueryType.TASKS:
             query = self.task_query()
         else:

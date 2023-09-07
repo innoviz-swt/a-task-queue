@@ -1,11 +1,10 @@
 import multiprocessing
+import os
 import pickle
-from pathlib import Path
 import logging
 from importlib import import_module
 from multiprocessing import Process
 import time
-import shutil
 
 from .logger import Logger
 from .task import EStatus, Task
@@ -36,7 +35,7 @@ def keyval_store_retry(retries=1000, polling_delta=0.1):
 
 
 class TaskQ(Logger):
-    def __init__(self, job_path="./ataskqjob", run_task_raise_exception=False, task_pull_intervnal=0.2, monitor_pulse_interval = 60, monitor_timeout_internal = 60 * 5, logger: logging.Logger or None=None) -> None:
+    def __init__(self, db="sqlite://ataskq.sqlite.db", run_task_raise_exception=False, task_pull_intervnal=0.2, monitor_pulse_interval = 60, monitor_timeout_internal = 60 * 5, logger: logging.Logger or None=None) -> None:
         """
         Args:
         task_pull_intervnal: pulling interval for task to complete in seconds.
@@ -47,8 +46,7 @@ class TaskQ(Logger):
         super().__init__(logger)
 
         # init db handler
-        self._job_path = Path(job_path)
-        self._db_handler = DBHandler(f'sqlite://{self.job_path}/tasks.sqlite.db')
+        self._db_handler = DBHandler(db=db)
             
         self._run_task_raise_exception = run_task_raise_exception
         self._task_pull_interval = task_pull_intervnal
@@ -57,10 +55,6 @@ class TaskQ(Logger):
 
         self._running = False        
     
-    @property
-    def job_path(self):
-        return self._job_path
-
     @property
     def db_handler(self):
         return self._db_handler
@@ -73,18 +67,9 @@ class TaskQ(Logger):
     def monitor_pulse_interval(self):
         return self._monitor_pulse_interval
 
-    def create_job(self, parents=False, overwrite=False):
-        job_path = self._job_path
-
-        if job_path.exists() and overwrite:
-            shutil.rmtree(job_path)
-        elif job_path.exists():
-            self.warning(f"job path '{job_path}' already exists.")
-            return self
-
-        job_path.mkdir(parents=parents)
-        (job_path / '.ataskqjob').write_text('')
-
+    def create_job(self, overwrite=False):
+        if overwrite and self._db_handler.db_path and os.path.exists(self._db_handler.db_path):
+            os.remove(self._db_handler.db_path)
         self._db_handler.create_job()
 
         return self

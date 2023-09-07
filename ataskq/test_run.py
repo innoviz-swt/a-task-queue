@@ -4,23 +4,21 @@ from datetime import datetime, timedelta
 from ataskq import TaskQ, Task, targs, EStatus
 
 
+def db_path(tmp_path):
+    return f'sqlite://{tmp_path}/ataskq.db'
 
 def test_create_job(tmp_path: Path):
-    taskq = TaskQ(job_path=tmp_path).create_job(overwrite=True)
+    taskq = TaskQ(db=db_path(tmp_path)).create_job(overwrite=True)
     assert isinstance(taskq, TaskQ)
 
-    assert tmp_path.exists()
-    assert (tmp_path / '.ataskqjob').exists()
-
-    assert (tmp_path / 'tasks.sqlite.db').exists()
-    assert (tmp_path / 'tasks.sqlite.db').is_file()
+    assert (tmp_path / 'ataskq.db').exists()
+    assert (tmp_path / 'ataskq.db').is_file()
 
 
 def test_run_default(tmp_path: Path):
-    job_path = tmp_path / 'ataskq'
     filepath = tmp_path / 'file.txt'
 
-    taskq = TaskQ(job_path=job_path).create_job(overwrite=True)
+    taskq = TaskQ(db=db_path(tmp_path)).create_job(overwrite=True)
 
     taskq.add_tasks([
         Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file",
@@ -41,10 +39,9 @@ def test_run_default(tmp_path: Path):
 
 
 def test_run_2_processes(tmp_path: Path):
-    job_path = tmp_path / 'ataskq'
     filepath = tmp_path / 'file.txt'
 
-    taskq = TaskQ(job_path=job_path).create_job(overwrite=True)
+    taskq = TaskQ(db=db_path(tmp_path)).create_job(overwrite=True)
 
     taskq.add_tasks([
         Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
@@ -65,10 +62,9 @@ def test_run_2_processes(tmp_path: Path):
 
 
 def _test_run_by_level(tmp_path: Path, num_processes: int):
-    job_path = tmp_path / 'ataskq'
     filepath = tmp_path / 'file.txt'
 
-    taskq = TaskQ(job_path=job_path).create_job(overwrite=True)
+    taskq = TaskQ(db=db_path(tmp_path)).create_job(overwrite=True)
 
     taskq.add_tasks([
         Task(level=0, entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
@@ -117,7 +113,7 @@ def test_run_by_level_2_processes(tmp_path: Path):
 
 def test_monitor_pulse_failure(tmp_path):
     # set monitor pulse longer than timeout
-    taskq = TaskQ(job_path=tmp_path, monitor_pulse_interval=10, monitor_timeout_internal=1.5).create_job(overwrite=True)
+    taskq = TaskQ(db=db_path(tmp_path), monitor_pulse_interval=10, monitor_timeout_internal=1.5).create_job(overwrite=True)
     taskq.add_tasks([
         Task(entrypoint='ataskq.skip_run_task', targs=targs('task will fail')), # reserved keyward for ignored task for testing
         Task(entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('task will success')),
