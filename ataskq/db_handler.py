@@ -250,13 +250,21 @@ class DBHandler(Logger):
         c.execute(f'SELECT * FROM tasks WHERE status IN ("{EStatus.PENDING}"){level_query} AND level = '
                   f'(SELECT MIN(level) FROM tasks WHERE status IN ("{EStatus.PENDING}"){level_query});')
         row = c.fetchone()
-        ptask = row if row is None else Task(*row)
+        if row is None:
+            ptask = None
+        else:
+            col_names = [description[0] for description in c.description]
+            ptask = Task(**dict(zip(col_names, row)))
 
         # get running task with minimum level
         c.execute(f'SELECT * FROM tasks WHERE status IN ("{EStatus.RUNNING}"){level_query} AND level = '
                   f'(SELECT MIN(level) FROM tasks WHERE status IN ("{EStatus.RUNNING}"){level_query});')
         row = c.fetchone()
-        rtask = row if row is None else Task(*row)
+        if row is None:
+            rtask = None
+        else:
+            col_names = [description[0] for description in c.description]
+            rtask = Task(**dict(zip(col_names, row)))
 
         action = None
         if ptask is None and rtask is None:
