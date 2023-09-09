@@ -77,7 +77,7 @@ class DBHandler(Logger):
 
     def connect(self):
         if self._db_type == "sqlite":
-            conn = sqlite3.connect(self._db[9:])
+            conn = sqlite3.connect(self._db_conn)
         else:
             raise RuntimeError(f"Unsupported db '{self._db}'.")
 

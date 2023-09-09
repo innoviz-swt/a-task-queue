@@ -35,7 +35,7 @@ def keyval_store_retry(retries=1000, polling_delta=0.1):
 
 
 class TaskQ(Logger):
-    def __init__(self, db="sqlite://ataskq.sqlite.db", run_task_raise_exception=False, task_pull_intervnal=0.2, monitor_pulse_interval = 60, monitor_timeout_internal = 60 * 5, logger: logging.Logger or None=None) -> None:
+    def __init__(self, db="sqlite://ataskq.db.sqlite3", run_task_raise_exception=False, task_pull_intervnal=0.2, monitor_pulse_interval = 60, monitor_timeout_internal = 60 * 5, logger: logging.Logger or None=None) -> None:
         """
         Args:
         task_pull_intervnal: pulling interval for task to complete in seconds.
