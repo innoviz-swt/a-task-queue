@@ -21,6 +21,8 @@ class Task:
             done_time = None,  
             pulse_time = None,  
             description = None,
+            meta = None,
+            jid = None,
         ) -> None:
 
         self.tid = tid
@@ -34,3 +36,5 @@ class Task:
         self.done_time = done_time
         self.pulse_time = pulse_time
         self.description = description
+        self.meta = meta
+        self.jid = jid

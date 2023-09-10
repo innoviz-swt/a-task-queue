@@ -10,6 +10,7 @@ from .task import Task, EStatus
 from .logger import Logger
 from . import __schema_version__
 
+
 class EQueryType(Enum):
     TASKS_STATUS = 1,
     TASKS = 2,
@@ -41,7 +42,7 @@ def transaction_decorator(func):
 class DBHandler(Logger):
     def __init__(self, db='sqlite://', logger=None) -> None:
         super().__init__(logger)
-        
+
         sep = '://'
         sep_index = db.find(sep)
         if sep_index == -1:
@@ -91,20 +92,31 @@ class DBHandler(Logger):
                   ")")
         c.execute(f"INSERT INTO schema_version (version) VALUES ({__schema_version__})")
 
+        # Create jobs table if not exists
+        c.execute("CREATE TABLE IF NOT EXISTS jobs ("
+                  "jid INTEGER PRIMARY KEY, "
+                  "name TEXT, "
+                  "description TEXT, "
+                  "meta_keys JSON"
+                  ")")
+
         # Create tasks table if not exists
         statuses = ", ".join([f'\"{a}\"' for a in EStatus])
         c.execute(f"CREATE TABLE IF NOT EXISTS tasks ("
                   "tid INTEGER PRIMARY KEY, "
-                  "level REAL, "
                   "name TEXT, "
+                  "level REAL, "
                   "entrypoint TEXT NOT NULL, "
                   "targs MEDIUMBLOB, "
-                  f"status TEXT CHECK(status in ({statuses})),"
-                  "take_time DATETIME,"
-                  "start_time DATETIME,"
-                  "done_time DATETIME,"
-                  "pulse_time DATETIME,"
-                  "description TEXT"
+                  f"status TEXT CHECK(status in ({statuses})), "
+                  "take_time DATETIME, "
+                  "start_time DATETIME, "
+                  "done_time DATETIME, "
+                  "pulse_time DATETIME, "
+                  "description TEXT, "
+                  "meta JSON, "
+                  "jid INTEGER, "
+                  "FOREIGN KEY (jid) REFERENCES jobs(jid)"
                   ")")
 
         return self
@@ -234,12 +246,13 @@ class DBHandler(Logger):
 
         row = c.fetchone()
         return row[0]
-    
+
     @transaction_decorator
     def _set_timeout_tasks(self, c, timeout_sec):
         # set timeout tasks
         last_valid_pulse = datetime.now() - timedelta(seconds=timeout_sec)
-        c.execute(f'UPDATE tasks SET status = "{EStatus.FAILURE}" WHERE pulse_time < "{last_valid_pulse}" AND status NOT IN ("{EStatus.SUCCESS}", "{EStatus.FAILURE}");')
+        c.execute(
+            f'UPDATE tasks SET status = "{EStatus.FAILURE}" WHERE pulse_time < "{last_valid_pulse}" AND status NOT IN ("{EStatus.SUCCESS}", "{EStatus.FAILURE}");')
 
     @transaction_decorator
     def _take_next_task(self, c, level) -> Tuple[EAction, Task]:
@@ -303,7 +316,7 @@ class DBHandler(Logger):
             task = None
         else:
             raise RuntimeError(f"Unsupported action '{EAction}'")
-    
+
         # self.log_tasks()
         return action, task
 

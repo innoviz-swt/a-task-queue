@@ -46,7 +46,6 @@ def _compare_task_taken(task1: Task, task2: Task):
 def test_take_next_task(tmp_path: Path):
     db_handler: DBHandler = DBHandler(db=f'sqlite://{tmp_path}/ataskq.db').create_job()
     in_task1 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="task1")
-    in_task2 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=2, name="task2")
 
     db_handler.add_tasks([
         in_task1,
