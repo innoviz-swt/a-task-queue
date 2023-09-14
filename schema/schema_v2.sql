@@ -1,10 +1,5 @@
 CREATE TABLE schema_version(version INTEGER PRIMARY KEY);
-CREATE TABLE jobs(
-  jid INTEGER PRIMARY KEY,
-  name TEXT,
-  description TEXT,
-  meta_keys JSON
-);
+CREATE TABLE jobs(jid INTEGER PRIMARY KEY, name TEXT, description TEXT);
 CREATE TABLE tasks(
   tid INTEGER PRIMARY KEY,
   name TEXT,
@@ -17,7 +12,6 @@ CREATE TABLE tasks(
   done_time DATETIME,
   pulse_time DATETIME,
   description TEXT,
-  meta JSON,
-  jid INTEGER,
+  jid INTEGER NOT NULL,
   FOREIGN KEY(jid) REFERENCES jobs(jid)
 );
