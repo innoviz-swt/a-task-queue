@@ -21,7 +21,7 @@ class Task:
             done_time = None,  
             pulse_time = None,  
             description = None,
-            meta = None,
+            # summary_cookie = None,
             jid = None,
         ) -> None:
 
@@ -36,5 +36,5 @@ class Task:
         self.done_time = done_time
         self.pulse_time = pulse_time
         self.description = description
-        self.meta = meta
+        # self.summary_cookie = summary_cookie
         self.jid = jid

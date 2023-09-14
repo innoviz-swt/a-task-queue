@@ -18,16 +18,15 @@ port = 8900
 tr = TaskQ(monitor_pulse_interval=1, logger=logger)
 # set monitor update interval to 1 second for example to show monitor pulse update
 tr.create_job(overwrite=True) 
-run_server(tr.db_handler, port=port, background=True)   
-webbrowser.open(f'http://localhost:{port}?auto_refresh=true')
+run_server(tr.db_handler, port=port, background=True, popup=True, print_logs=False)
 
 # add tasks
 tr.add_tasks([
-    Task(level=1, name='hello task', entrypoint='ataskq.tasks_utils.hello_world', num_units=1),
-    Task(level=1.1, name="sleep task", entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('1.1a', level=1.1, sleep=10), num_units=10),
-    Task(level=1.1, name="sleep task", entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('1.1b', level=1.1, sleep=5), num_units=5),
-    Task(level=1.1, name="failure task", entrypoint='ataskq.tasks_utils.exception_task', num_units=1),
-    Task(level=2, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('args for entrypoint_with_args'), num_units=2),
+    Task(level=1, name='hello task', entrypoint='ataskq.tasks_utils.hello_world'),
+    Task(level=1.1, name="sleep task", entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('1.1a', level=1.1, sleep=10)),
+    Task(level=1.1, name="sleep task", entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('1.1b', level=1.1, sleep=5)),
+    Task(level=1.1, name="failure task", entrypoint='ataskq.tasks_utils.exception_task'),
+    Task(level=2, entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('args for entrypoint_with_args')),
 ])
 
 logger.info('running tasks...')

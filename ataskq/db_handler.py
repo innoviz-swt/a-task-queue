@@ -40,7 +40,7 @@ def transaction_decorator(func):
 
 
 class DBHandler(Logger):
-    def __init__(self, db='sqlite://', logger=None) -> None:
+    def __init__(self, db='sqlite://', jid=None, logger=None) -> None:
         super().__init__(logger)
 
         sep = '://'
@@ -56,6 +56,7 @@ class DBHandler(Logger):
             raise RuntimeError(f'missing db connection string, db must be of format <type>://<connection string>')
 
         self._templates_dir = Path(__file__).parent / 'templates'
+        self._jid = jid
 
     @property
     def db(self):
@@ -85,7 +86,10 @@ class DBHandler(Logger):
         return conn
 
     @transaction_decorator
-    def create_job(self, c):
+    def create_job(self, c, name='', description=''):
+        if self._jid is not None:
+            raise RuntimeError(f"Job already assigned with jid '{self._jid}'.")
+        
         # Create schema version table if not exists
         c.execute("CREATE TABLE IF NOT EXISTS schema_version ("
                   "version INTEGER PRIMARY KEY"
@@ -96,8 +100,8 @@ class DBHandler(Logger):
         c.execute("CREATE TABLE IF NOT EXISTS jobs ("
                   "jid INTEGER PRIMARY KEY, "
                   "name TEXT, "
-                  "description TEXT, "
-                  "meta_keys JSON"
+                  "description TEXT"
+                #   "summary_cookie_keys JSON"
                   ")")
 
         # Create tasks table if not exists
@@ -114,10 +118,15 @@ class DBHandler(Logger):
                   "done_time DATETIME, "
                   "pulse_time DATETIME, "
                   "description TEXT, "
-                  "meta JSON, "
-                  "jid INTEGER, "
+                #   "summary_cookie JSON, "
+                  "jid INTEGER NOT NULL, "
                   "FOREIGN KEY (jid) REFERENCES jobs(jid)"
                   ")")
+        
+        # Create job and store jid
+        c.execute("INSERT INTO jobs (name, description) VALUES (?, ?)", (name, description))
+        c.execute("SELECT last_insert_rowid()")
+        self._jid = c.fetchone()[0]
 
         return self
 
@@ -129,7 +138,8 @@ class DBHandler(Logger):
         # Insert data into a table
         # todo use some sql batch operation
         for t in tasks:
-            # hanlde task
+            t.jid = self._jid
+
             if t.targs is not None:
                 assert len(t.targs) == 2
                 assert isinstance(t.targs[0], tuple)
@@ -148,13 +158,13 @@ class DBHandler(Logger):
             ",".join(
                 [f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status} " for status in EStatus]
             ) + \
-            "FROM tasks " \
+            f"FROM tasks WHERE jid = {self._jid} " \
             "GROUP BY level, name;"
 
         return query
 
     def task_query(self):
-        query = 'SELECT * FROM tasks'
+        query = f'SELECT * FROM tasks WHERE jid = {self._jid};'
         return query
 
     @transaction_decorator

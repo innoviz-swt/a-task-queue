@@ -1,4 +1,4 @@
-import time 
+import time
 
 
 def hello_world():

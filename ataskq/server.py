@@ -8,13 +8,19 @@ from http import HTTPStatus
 from .db_handler import EQueryType
 
 
-def run_server(db_hanlder, port=8000, popup=False, print_logs=True, background=False):
+def run_server(db_hanlder, port=8000, popup=False, print_logs=True, background=False, host='localhost', popup_ip_host=False):
     # run server in background process
     if background:
         import multiprocessing
         p = multiprocessing.Process(
             target=run_server, args=(db_hanlder,), kwargs=dict(port=port, print_logs=print_logs, popup=popup), daemon=True)
         p.start()
+        
+        if popup:
+            if popup_ip_host:
+                host = socket.gethostbyname(socket.gethostname())
+            webbrowser.open(f"http://{host}:{port}/?auto_refresh=true", 1)
+
 
         return p
 
@@ -60,15 +66,14 @@ def run_server(db_hanlder, port=8000, popup=False, print_logs=True, background=F
 
     for port in ports:
         try:
-            with socketserver.TCPServer(("", port), SimpleHTTPRequestHandler, bind_and_activate=False) as server:
+            with socketserver.TCPServer((host, port), SimpleHTTPRequestHandler, bind_and_activate=False) as server:
                 server.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 server.server_bind()
                 server.server_activate()
                 if print_logs:
                     print("Server listening on port", port)
-                if popup:
-                    webbrowser.open(f"http://{socket.gethostbyname(socket.gethostname())}:{port}/?auto_refresh=true")
                 server.serve_forever()
+
         except OSError as ex:
             if ex.args[0] == 98:
                 continue

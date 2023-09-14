@@ -7,6 +7,7 @@ from ataskq import TaskQ, Task, targs, EStatus
 def db_path(tmp_path):
     return f'sqlite://{tmp_path}/ataskq.db'
 
+
 def test_create_job(tmp_path: Path):
     taskq = TaskQ(db=db_path(tmp_path)).create_job(overwrite=True)
     assert isinstance(taskq, TaskQ)
@@ -111,11 +112,14 @@ def test_run_by_level(tmp_path: Path):
 def test_run_by_level_2_processes(tmp_path: Path):
     _test_run_by_level(tmp_path, num_processes=2)
 
+
 def test_monitor_pulse_failure(tmp_path):
     # set monitor pulse longer than timeout
-    taskq = TaskQ(db=db_path(tmp_path), monitor_pulse_interval=10, monitor_timeout_internal=1.5).create_job(overwrite=True)
+    taskq = TaskQ(db=db_path(tmp_path), monitor_pulse_interval=10,
+                  monitor_timeout_internal=1.5).create_job(overwrite=True)
     taskq.add_tasks([
-        Task(entrypoint='ataskq.skip_run_task', targs=targs('task will fail')), # reserved keyward for ignored task for testing
+        # reserved keyward for ignored task for testing
+        Task(entrypoint='ataskq.skip_run_task', targs=targs('task will fail')),
         Task(entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('task will success')),
     ])
     start = datetime.now()
@@ -123,7 +127,6 @@ def test_monitor_pulse_failure(tmp_path):
     stop = datetime.now()
 
     tasks = taskq.get_tasks()
-
 
     assert tasks[0].status == EStatus.FAILURE
     assert tasks[1].status == EStatus.SUCCESS
