@@ -15,24 +15,33 @@ def test_db_format():
 
 
 def test_db_invalid_format_no_sep():
-    # very general sanity test
     with pytest.raises(RuntimeError) as excinfo:
         DBHandler(db=f'sqlite').create_job()
     assert 'db must be of format <type>://<connection string>' == str(excinfo.value)
 
 
 def test_db_invalid_format_no_type():
-    # very general sanity test
     with pytest.raises(RuntimeError) as excinfo:
         DBHandler(db=f'://ataskq.db').create_job()
     assert 'missing db type, db must be of format <type>://<connection string>' == str(excinfo.value)
 
 
 def test_db_invalid_format_no_connectino():
-    # very general sanity test
     with pytest.raises(RuntimeError) as excinfo:
         DBHandler(db=f'sqlite://').create_job()
     assert 'missing db connection string, db must be of format <type>://<connection string>' == str(excinfo.value)
+
+
+def test_job_default_name(tmp_path):
+    db_handler: DBHandler = DBHandler(db=f'sqlite://{tmp_path}/ataskq.db').create_job()
+    job = db_handler.get_jobs()[0]
+    assert job.name == ''
+
+
+def test_job_custom_name(tmp_path):
+    db_handler: DBHandler = DBHandler(db=f'sqlite://{tmp_path}/ataskq.db').create_job(name='my_job')
+    job = db_handler.get_jobs()[0]
+    assert job.name == 'my_job'
 
 
 def _compare_task_taken(task1: Task, task2: Task):

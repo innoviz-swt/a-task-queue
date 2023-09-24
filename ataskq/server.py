@@ -5,10 +5,10 @@ import webbrowser
 from urllib.parse import urlparse
 from http import HTTPStatus
 
-from .db_handler import EQueryType
+from .db_handler import EQueryType, DBHandler
 
 
-def run_server(db_hanlder, port=8000, popup=False, print_logs=True, background=False, host='localhost', popup_ip_host=False):
+def run_server(db_hanlder: DBHandler, port=8000, popup=False, print_logs=True, background=False, host='localhost', popup_ip_host=False):
     # run server in background process
     if background:
         import multiprocessing
@@ -42,17 +42,28 @@ def run_server(db_hanlder, port=8000, popup=False, print_logs=True, background=F
         def do_GET(self):
             """Handle GET requests"""
             parsed_url = urlparse(self.path)
+
+            # handle favicon
             if self.path == '/favicon.ico':
                 self.send_response(200)
                 self.send_header('Content-type', 'image/x-icon')
                 self.end_headers()
                 return
-            elif parsed_url.path == '/' or parsed_url.path == '/tasks_status':
-                return self.html(EQueryType.TASKS_STATUS)
-            elif parsed_url.path == '/tasks':
-                return self.html(EQueryType.TASKS)
-            else:
+            
+            # rout to relevant query type
+            query_types = {
+                '/': EQueryType.JOBS_STATUS,
+                '/tasks': EQueryType.TASKS,
+                '/tasks_status': EQueryType.TASKS_STATUS,
+                '/jobs': EQueryType.JOBS,
+                '/jobs_status': EQueryType.JOBS_STATUS,
+            } 
+
+            query_type = query_types.get(parsed_url.path)
+            if query_type is None:
                 return self.do_404()
+
+            return self.html(query_type)
 
     if isinstance(port, int):
         ports = [port]

@@ -67,10 +67,10 @@ class TaskQ(Logger):
     def monitor_pulse_interval(self):
         return self._monitor_pulse_interval
 
-    def create_job(self, overwrite=False):
+    def create_job(self, name='', description='', overwrite=False):
         if overwrite and self._db_handler.db_path and os.path.exists(self._db_handler.db_path):
             os.remove(self._db_handler.db_path)
-        self._db_handler.create_job()
+        self._db_handler.create_job(name=name, description=description)
 
         return self
 
@@ -90,10 +90,10 @@ class TaskQ(Logger):
             self.info(row)
 
     def get_tasks(self):
-        rows, col_names = self._db_handler.query(query_type=EQueryType.TASKS)
-        tasks = [Task(**dict(zip(col_names, row))) for row in rows]
+        return self._db_handler.get_tasks()
 
-        return tasks
+    def get_jobs(self):
+        return self._db_handler.get_jobs()
 
     def update_task_start_time(self, task):
         self._db_handler.update_task_start_time(task)

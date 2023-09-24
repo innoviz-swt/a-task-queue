@@ -6,14 +6,16 @@ from typing import List, Tuple
 from pathlib import Path
 from io import TextIOWrapper
 
-from .task import Task, EStatus
+from .task import Job, Task, EStatus
 from .logger import Logger
 from . import __schema_version__
 
 
-class EQueryType(Enum):
-    TASKS_STATUS = 1,
-    TASKS = 2,
+class EQueryType(str, Enum):
+    TASKS = 'tasks',
+    TASKS_STATUS = 'tasks_status',
+    JOBS = 'jobs',
+    JOBS_STATUS = 'jobs_status',
 
 
 class EAction(str, Enum):
@@ -100,7 +102,8 @@ class DBHandler(Logger):
         c.execute("CREATE TABLE IF NOT EXISTS jobs ("
                   "jid INTEGER PRIMARY KEY, "
                   "name TEXT, "
-                  "description TEXT"
+                  "description TEXT, "
+                  "priority REAL DEFAULT 0"
                 #   "summary_cookie_keys JSON"
                   ")")
 
@@ -152,6 +155,10 @@ class DBHandler(Logger):
 
         return self
 
+    def task_query(self):
+        query = f'SELECT * FROM tasks WHERE jid = {self._jid};'
+        return query
+
     def tasks_status_query(self):
         query = "SELECT level, name," \
             "COUNT(*) as total, " + \
@@ -163,26 +170,56 @@ class DBHandler(Logger):
 
         return query
 
-    def task_query(self):
-        query = f'SELECT * FROM tasks WHERE jid = {self._jid};'
+    def jobs_query(self):
+        query = f'SELECT * FROM jobs;'
         return query
 
+    def jobs_status_query(self):
+        query = "SELECT jobs.jid, jobs.name, jobs.description, jobs.priority, " \
+            "COUNT(*) as tasks, " + \
+            ",".join(
+                [f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status} " for status in EStatus]
+            ) + \
+            f"FROM jobs " \
+            "LEFT JOIN tasks ON jobs.jid = tasks.jid;"
+
+        return query
+
+
+
     @transaction_decorator
-    def query(self, c, query_type=EQueryType.TASKS_STATUS):
-        if query_type == EQueryType.TASKS_STATUS:
-            query = self.tasks_status_query()
-        elif query_type == EQueryType.TASKS:
-            query = self.task_query()
-        else:
+    def query(self, c, query_type=EQueryType.JOBS_STATUS):
+        queries = {
+            EQueryType.TASKS: self.task_query,
+            EQueryType.TASKS_STATUS: self.tasks_status_query,
+            EQueryType.JOBS: self.jobs_query,
+            EQueryType.JOBS_STATUS: self.jobs_status_query,
+        }
+        query = queries.get(query_type)
+        
+        if query is None:
             # should never get here
             raise RuntimeError(f"Unknown status type: {query_type}")
 
-        c.execute(query)
+        query_str = query()
+        c.execute(query_str)
         rows = c.fetchall()
         col_names = [description[0] for description in c.description]
         # col_types = [description[1] for description in c.description]
 
         return rows, col_names
+
+    def get_tasks(self):
+        rows, col_names = self.query(query_type=EQueryType.TASKS)
+        tasks = [Task(**dict(zip(col_names, row))) for row in rows]
+
+        return tasks
+
+    def get_jobs(self):
+        rows, col_names = self.query(query_type=EQueryType.JOBS)
+        jobs = [Job(**dict(zip(col_names, row))) for row in rows]
+
+        return jobs
 
     @staticmethod
     def table(col_names, rows):

@@ -7,10 +7,22 @@ class EStatus(str, Enum):
     SUCCESS = 'success'
     FAILURE = 'failure'
 
+class Job:
+    def __init__(self,
+                 jid: int = None,
+                 name: str = '',
+                 priority: float = 0,
+                 description: str = '') -> None:
+        self.jid = jid
+        self.name = name
+        self.pid = priority
+        self.description = description
+        
+        
 
 class Task:
     def __init__(self, 
-            tid = None, 
+            tid: int = None, 
             name: str = '', 
             level: float = 0, 
             entrypoint: str = "", 

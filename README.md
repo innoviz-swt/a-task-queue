@@ -22,3 +22,15 @@ tr.run() # to run in parallel add num_processes=N
 ```
 
 more example can be found [here](./examples)
+
+## Contributer
+setup project git hooks
+```
+git config core.hooksPath .githooks
+```
+
+### vs code
+to get nominal vscode settings run
+```
+./contrib/.vscode/init.sh
+```
