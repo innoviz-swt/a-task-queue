@@ -123,12 +123,13 @@ class TaskQ(Logger):
             try:    
                 targs = pickle.loads(task.targs)
             except Exception as ex:
-                # failed to load targs, report task failure and return
-                self.info("Getting tasks args failed.", exc_info=True)
-                self.update_task_status(task, EStatus.FAILURE)
-
-                if  self._run_task_raise_exception: # for debug purposes only
+                if self._run_task_raise_exception: # for debug purposes only
+                    self.warning("Getting tasks args failed.")
+                    self.update_task_status(task, EStatus.FAILURE)
                     raise ex
+
+                self.warning("Getting tasks args failed.", exc_info=True)
+                self.update_task_status(task, EStatus.FAILURE)
 
                 return
         else:
@@ -146,11 +147,18 @@ class TaskQ(Logger):
         try:
             func(*targs[0], **targs[1])  
             status = EStatus.SUCCESS
-        except Exception as e:
-            self.info("Running task entry point failed with exception.", exc_info=True)
-            ex = e
+        except Exception as ex:
+            if  self._run_task_raise_exception: # for debug purposes only
+                self.warning("Running task entry point failed with exception.")
+                self.update_task_status(task, EStatus.FAILURE)
+                monitor.stop()
+                monitor.join()
+                raise ex
+            
+            self.warning("Running task entry point failed with exception.", exc_info=True)
             status = EStatus.FAILURE
-        
+
+
         monitor.stop()
         monitor.join()
         self.update_task_status(task, status)
