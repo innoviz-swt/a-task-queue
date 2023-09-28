@@ -9,11 +9,11 @@ class EStatus(str, Enum):
 
 class Job:
     def __init__(self,
-                 jid: int = None,
+                 id: int = None,
                  name: str = '',
                  priority: float = 0,
                  description: str = '') -> None:
-        self.jid = jid
+        self.id = id
         self.name = name
         self.pid = priority
         self.description = description
@@ -22,7 +22,7 @@ class Job:
 
 class Task:
     def __init__(self, 
-            tid: int = None, 
+            task_id: int = None, 
             name: str = '', 
             level: float = 0, 
             entrypoint: str = "", 
@@ -34,10 +34,10 @@ class Task:
             pulse_time = None,  
             description = None,
             # summary_cookie = None,
-            jid = None,
+            job_id = None,
         ) -> None:
 
-        self.tid = tid
+        self.task_id = task_id
         self.name = name
         self.level = level
         self.entrypoint = entrypoint
@@ -49,4 +49,4 @@ class Task:
         self.pulse_time = pulse_time
         self.description = description
         # self.summary_cookie = summary_cookie
-        self.jid = jid
+        self.job_id = job_id

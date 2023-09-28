@@ -42,7 +42,7 @@ def transaction_decorator(func):
 
 
 class DBHandler(Logger):
-    def __init__(self, db='sqlite://', jid=None, logger=None) -> None:
+    def __init__(self, db='sqlite://', job_id=None, logger=None) -> None:
         super().__init__(logger)
 
         sep = '://'
@@ -58,7 +58,7 @@ class DBHandler(Logger):
             raise RuntimeError(f'missing db connection string, db must be of format <type>://<connection string>')
 
         self._templates_dir = Path(__file__).parent / 'templates'
-        self._jid = jid
+        self._job_id = job_id
 
     @property
     def db(self):
@@ -89,8 +89,8 @@ class DBHandler(Logger):
 
     @transaction_decorator
     def create_job(self, c, name='', description=''):
-        if self._jid is not None:
-            raise RuntimeError(f"Job already assigned with jid '{self._jid}'.")
+        if self._job_id is not None:
+            raise RuntimeError(f"Job already assigned with job_id '{self._job_id}'.")
         
         # Create schema version table if not exists
         c.execute("CREATE TABLE IF NOT EXISTS schema_version ("
@@ -100,7 +100,7 @@ class DBHandler(Logger):
 
         # Create jobs table if not exists
         c.execute("CREATE TABLE IF NOT EXISTS jobs ("
-                  "jid INTEGER PRIMARY KEY, "
+                  "id INTEGER PRIMARY KEY AUTOINCREMENT, "
                   "name TEXT, "
                   "description TEXT, "
                   "priority REAL DEFAULT 0"
@@ -110,7 +110,7 @@ class DBHandler(Logger):
         # Create tasks table if not exists
         statuses = ", ".join([f'\"{a}\"' for a in EStatus])
         c.execute(f"CREATE TABLE IF NOT EXISTS tasks ("
-                  "tid INTEGER PRIMARY KEY, "
+                  "task_id INTEGER PRIMARY KEY AUTOINCREMENT, "
                   "name TEXT, "
                   "level REAL, "
                   "entrypoint TEXT NOT NULL, "
@@ -122,14 +122,14 @@ class DBHandler(Logger):
                   "pulse_time DATETIME, "
                   "description TEXT, "
                 #   "summary_cookie JSON, "
-                  "jid INTEGER NOT NULL, "
-                  "FOREIGN KEY (jid) REFERENCES jobs(jid)"
+                  "job_id INTEGER NOT NULL, "
+                  "FOREIGN KEY (job_id) REFERENCES jobs(jid)"
                   ")")
         
-        # Create job and store jid
+        # Create job and store job id
         c.execute("INSERT INTO jobs (name, description) VALUES (?, ?)", (name, description))
         c.execute("SELECT last_insert_rowid()")
-        self._jid = c.fetchone()[0]
+        self._job_id = c.fetchone()[0]
 
         return self
 
@@ -141,7 +141,7 @@ class DBHandler(Logger):
         # Insert data into a table
         # todo use some sql batch operation
         for t in tasks:
-            t.jid = self._jid
+            t.job_id = self._job_id
 
             if t.targs is not None:
                 assert len(t.targs) == 2
@@ -156,7 +156,7 @@ class DBHandler(Logger):
         return self
 
     def task_query(self):
-        query = f'SELECT * FROM tasks WHERE jid = {self._jid};'
+        query = f'SELECT * FROM tasks WHERE job_id = {self._job_id};'
         return query
 
     def tasks_status_query(self):
@@ -165,7 +165,7 @@ class DBHandler(Logger):
             ",".join(
                 [f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status} " for status in EStatus]
             ) + \
-            f"FROM tasks WHERE jid = {self._jid} " \
+            f"FROM tasks WHERE job_id = {self._job_id} " \
             "GROUP BY level, name;"
 
         return query
@@ -175,13 +175,13 @@ class DBHandler(Logger):
         return query
 
     def jobs_status_query(self):
-        query = "SELECT jobs.jid, jobs.name, jobs.description, jobs.priority, " \
+        query = "SELECT jobs.id, jobs.name, jobs.description, jobs.priority, " \
             "COUNT(*) as tasks, " + \
             ",".join(
                 [f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status} " for status in EStatus]
             ) + \
             f"FROM jobs " \
-            "LEFT JOIN tasks ON jobs.jid = tasks.jid;"
+            "LEFT JOIN tasks ON jobs.id = tasks.job_id;"
 
         return query
 
@@ -344,7 +344,7 @@ class DBHandler(Logger):
                 # should never happend
                 # running task with level higher than pending task (warn and take next task)
                 self.warning(
-                    f'Running task with level higher than pending detected, taking pending. running id: {rtask.tid}, pending id: {ptask.tid}.')
+                    f'Running task with level higher than pending detected, taking pending. running id: {rtask.task_id}, pending id: {ptask.task_id}.')
                 action = EAction.RUN_TASK
             else:
                 action = EAction.RUN_TASK
@@ -352,7 +352,7 @@ class DBHandler(Logger):
         if action == EAction.RUN_TASK:
             now = datetime.now()
             c.execute(
-                f'UPDATE tasks SET status = "{EStatus.RUNNING}", take_time = "{now}", pulse_time = "{now}" WHERE tid = {ptask.tid};')
+                f'UPDATE tasks SET status = "{EStatus.RUNNING}", take_time = "{now}", pulse_time = "{now}" WHERE task_id = {ptask.task_id};')
             ptask.status = EStatus.RUNNING
             ptask.take_time = now
             ptask.pulse_time = now
@@ -373,7 +373,7 @@ class DBHandler(Logger):
             time = datetime.now()
 
         c.execute(
-            f'UPDATE tasks SET start_time = "{time}" WHERE tid = {task.tid};')
+            f'UPDATE tasks SET start_time = "{time}" WHERE task_id = {task.task_id};')
         task.start_time = time
 
     @transaction_decorator
@@ -382,13 +382,13 @@ class DBHandler(Logger):
         if status == EStatus.RUNNING:
             # for running task update pulse_time
             c.execute(
-                f'UPDATE tasks SET status = "{status}", pulse_time = "{now}" WHERE tid = {task.tid}')
+                f'UPDATE tasks SET status = "{status}", pulse_time = "{now}" WHERE task_id = {task.task_id}')
             task.status = status
             task.pulse_time = now
         elif status == EStatus.SUCCESS or status == EStatus.FAILURE:
             # for done task update pulse_time and done_time time as well
             c.execute(
-                f'UPDATE tasks SET status = "{status}", pulse_time = "{now}", done_time = "{now}" WHERE tid = {task.tid}')
+                f'UPDATE tasks SET status = "{status}", pulse_time = "{now}", done_time = "{now}" WHERE task_id = {task.task_id}')
             task.status = status
             task.pulse_time = now
         else:

@@ -15,7 +15,7 @@ class MonitorThread(Thread):
         self._pulse_interval = pulse_interval
 
     def run(self) -> None:
-        self._task_runner.info(f"Running monitor thread for task id '{self._task.tid}'")
+        self._task_runner.info(f"Running monitor thread for task id '{self._task.task_id}'")
         while not self._stop_event.is_set():
             self._task_runner.update_task_status(self._task, EStatus.RUNNING)
             self._stop_event.wait(self._pulse_interval)

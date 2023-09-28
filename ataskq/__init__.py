@@ -4,7 +4,7 @@ except:
     __version__ = "0.0.0"
     __build__ = "dev"
 
-__schema_version__ = 3
+__schema_version__ = 4
 
 from .ataskq import TaskQ, targs
 from .task import Job, Task, EStatus

@@ -95,17 +95,17 @@ class TaskQ(Logger):
     def get_jobs(self):
         return self._db_handler.get_jobs()
 
-    def update_task_start_time(self, task):
+    def update_task_start_time(self, task: Task):
         self._db_handler.update_task_start_time(task)
 
-    def update_task_status(self, task, status):
+    def update_task_status(self, task: Task, status: EStatus):
         self._db_handler.update_task_status(task, status)
 
-    def _run_task(self, task):
+    def _run_task(self, task: Task):
         # get entry point func to execute
         ep = task.entrypoint
         if ep == 'ataskq.skip_run_task':
-            self.info(f"task '{task.tid}' is marked as 'skip_run_task', skipping run task.")
+            self.info(f"task '{task.task_id}' is marked as 'skip_run_task', skipping run task.")
             return
         
         assert '.' in ep, 'entry point must be inside a module.'

@@ -8,7 +8,7 @@ from http import HTTPStatus
 from .db_handler import EQueryType, DBHandler
 
 
-def run_server(db_hanlder: DBHandler, port=8000, popup=False, print_logs=True, background=False, host='localhost', popup_ip_host=False):
+def run_server(db_hanlder: DBHandler, port=8000, popup: None or bool or str=None, print_logs=True, background=False, host='localhost', popup_ip_host=False):
     # run server in background process
     if background:
         import multiprocessing
@@ -17,9 +17,10 @@ def run_server(db_hanlder: DBHandler, port=8000, popup=False, print_logs=True, b
         p.start()
         
         if popup:
+            url_path = '' if popup is True else f'/{popup}'
             if popup_ip_host:
                 host = socket.gethostbyname(socket.gethostname())
-            webbrowser.open(f"http://{host}:{port}/?auto_refresh=true", 1)
+            webbrowser.open(f"http://{host}:{port}{url_path}?auto_refresh=true", 1)
 
 
         return p
