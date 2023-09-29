@@ -29,6 +29,10 @@ def transaction_decorator(func):
         with self.connect() as conn:
             c = conn.cursor()
             try:
+                # enable foreign keys for each connection (sqlite default is off)
+                # https://www.sqlite.org/foreignkeys.html 
+                # Foreign key constraints are disabled by default (for backwards compatibility), so must be enabled separately for each database connection
+                c.execute('PRAGMA foreign_keys = ON')
                 ret = func(self, c, *args, **kwargs)
             except Exception as e:
                 conn.commit()
@@ -79,6 +83,11 @@ class DBHandler(Logger):
         else:
             return None
 
+    def reset(self, job_id=None):
+        self._job_id = job_id
+
+        return self
+
     def connect(self):
         if self._db_type == "sqlite":
             conn = sqlite3.connect(self._db_conn)
@@ -91,16 +100,22 @@ class DBHandler(Logger):
     def create_job(self, c, name='', description=''):
         if self._job_id is not None:
             raise RuntimeError(f"Job already assigned with job_id '{self._job_id}'.")
-        
+                          
         # Create schema version table if not exists
         c.execute("CREATE TABLE IF NOT EXISTS schema_version ("
                   "version INTEGER PRIMARY KEY"
                   ")")
-        c.execute(f"INSERT INTO schema_version (version) VALUES ({__schema_version__})")
+        c.execute("SELECT * FROM schema_version")
+        current_schema_version = c.fetchone()
+        if current_schema_version is None:
+            c.execute(f"INSERT INTO schema_version (version) VALUES ({__schema_version__})")
+        else:
+            current_schema_version = current_schema_version[0]
+            assert current_schema_version == __schema_version__, f"Schema version mismatch, current schema version is {current_schema_version} while code schema version is {__schema_version__}"
 
         # Create jobs table if not exists
         c.execute("CREATE TABLE IF NOT EXISTS jobs ("
-                  "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                  "job_id INTEGER PRIMARY KEY AUTOINCREMENT, "
                   "name TEXT, "
                   "description TEXT, "
                   "priority REAL DEFAULT 0"
@@ -123,18 +138,26 @@ class DBHandler(Logger):
                   "description TEXT, "
                 #   "summary_cookie JSON, "
                   "job_id INTEGER NOT NULL, "
-                  "FOREIGN KEY (job_id) REFERENCES jobs(jid)"
+                  "CONSTRAINT fk_job_id FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE CASCADE"
                   ")")
-        
+
         # Create job and store job id
         c.execute("INSERT INTO jobs (name, description) VALUES (?, ?)", (name, description))
         c.execute("SELECT last_insert_rowid()")
         self._job_id = c.fetchone()[0]
 
         return self
+    
+    @transaction_decorator
+    def delete_job(self, c, job_id=None):
+        job_id = self._job_id if job_id is None else job_id
+        c.execute(f"DELETE FROM jobs WHERE job_id = {job_id}")
 
     @transaction_decorator
     def add_tasks(self, c, tasks: List[Task] or Task):
+        if self._job_id is None:
+            raise RuntimeError(f"Job not assigned, use create_job() or reset(job_id=job_id) first.")
+        
         if isinstance(tasks, (Task)):
             tasks = [tasks]
 

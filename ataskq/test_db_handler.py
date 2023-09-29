@@ -104,3 +104,33 @@ def test_html_file_io_dump(tmp_path: Path):
 
     assert file.exists()
     assert html == file.read_text()
+
+def test_task_job_delete_cascade(tmp_path: Path):    
+    # test that deleting a job deletes all its tasks    
+    db = f'sqlite://{tmp_path}/ataskq.db'
+    db_handler1: DBHandler = DBHandler(db=db).create_job(name='job1')
+    db_handler1.add_tasks([
+        Task(),
+        Task(),
+        Task(),
+    ])
+    tasks = db_handler1.get_tasks()
+    assert len(tasks) == 3
+
+    db_handler2: DBHandler = DBHandler(db=db).create_job(name='job2')
+    db_handler2.add_tasks([
+        Task(),
+        Task(),
+    ])
+    tasks = db_handler2.get_tasks()
+    assert len(tasks) == 2
+
+    db_handler1.delete_job()
+
+    tasks = db_handler1.get_tasks()
+    assert len(tasks) == 0
+
+    tasks = db_handler2.get_tasks()
+    assert len(tasks) == 2
+
+

@@ -9,13 +9,13 @@ class EStatus(str, Enum):
 
 class Job:
     def __init__(self,
-                 id: int = None,
+                 job_id: int = None,
                  name: str = '',
                  priority: float = 0,
                  description: str = '') -> None:
-        self.id = id
+        self.job_id = job_id
         self.name = name
-        self.pid = priority
+        self.priority = priority
         self.description = description
         
         
