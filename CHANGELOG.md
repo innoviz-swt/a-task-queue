@@ -1,5 +1,8 @@
 # ChangeLog
 
+# 0.4.1
+- bugfix: exception during code execution causing crash (unassigne variable 'ex')
+
 # 0.4.0
 - log warning on run exception
 
