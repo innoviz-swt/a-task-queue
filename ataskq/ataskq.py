@@ -35,7 +35,7 @@ def keyval_store_retry(retries=1000, polling_delta=0.1):
 
 
 class TaskQ(Logger):
-    def __init__(self, db="sqlite://ataskq.sqlite.db", run_task_raise_exception=False, task_pull_intervnal=0.2, monitor_pulse_interval = 60, monitor_timeout_internal = 60 * 5, logger: logging.Logger or None=None) -> None:
+    def __init__(self, db="sqlite://ataskq.sqlite.db", run_task_raise_exception=False, task_pull_intervnal=0.2, monitor_pulse_interval=60, monitor_timeout_internal=60 * 5, logger: logging.Logger or None = None) -> None:
         """
         Args:
         task_pull_intervnal: pulling interval for task to complete in seconds.
@@ -47,14 +47,14 @@ class TaskQ(Logger):
 
         # init db handler
         self._db_handler = DBHandler(db=db)
-            
+
         self._run_task_raise_exception = run_task_raise_exception
         self._task_pull_interval = task_pull_intervnal
         self._monitor_pulse_interval = monitor_pulse_interval
         self._monitor_timeout_internal = monitor_timeout_internal
 
-        self._running = False        
-    
+        self._running = False
+
     @property
     def db_handler(self):
         return self._db_handler
@@ -78,7 +78,7 @@ class TaskQ(Logger):
         self._db_handler.add_tasks(tasks)
 
         return self
-    
+
     def count_pending_tasks_below_level(self, level):
         return self._db_handler.count_pending_tasks_below_level(level)
 
@@ -107,23 +107,24 @@ class TaskQ(Logger):
         if ep == 'ataskq.skip_run_task':
             self.info(f"task '{task.tid}' is marked as 'skip_run_task', skipping run task.")
             return
-        
+
         assert '.' in ep, 'entry point must be inside a module.'
         module_name, func_name = ep.rsplit('.', 1)
         try:
             m = import_module(module_name)
         except ImportError as ex:
             raise RuntimeError(f"Failed to load module '{module_name}'. Exception: '{ex}'")
-        assert hasattr(m, func_name), f"failed to load entry point, module '{module_name}' doen't have func named '{func_name}'."
+        assert hasattr(
+            m, func_name), f"failed to load entry point, module '{module_name}' doen't have func named '{func_name}'."
         func = getattr(m, func_name)
         assert callable(func), f"entry point is not callable, '{module_name},{func}'."
-        
+
         # get targs
         if task.targs is not None:
-            try:    
+            try:
                 targs = pickle.loads(task.targs)
             except Exception as ex:
-                if self._run_task_raise_exception: # for debug purposes only
+                if self._run_task_raise_exception:  # for debug purposes only
                     self.warning("Getting tasks args failed.")
                     self.update_task_status(task, EStatus.FAILURE)
                     raise ex
@@ -135,36 +136,30 @@ class TaskQ(Logger):
         else:
             targs = ((), {})
 
-
         # update task start time
         self.update_task_start_time(task)
 
         # run task
         monitor = MonitorThread(task, self, pulse_interval=self._monitor_pulse_interval)
         monitor.start()
-        
-        ex = None
+
         try:
-            func(*targs[0], **targs[1])  
+            func(*targs[0], **targs[1])
             status = EStatus.SUCCESS
-        except Exception as ex:
-            if  self._run_task_raise_exception: # for debug purposes only
+        except Exception as exc:
+            if self._run_task_raise_exception:  # for debug purposes only
                 self.warning("Running task entry point failed with exception.")
                 self.update_task_status(task, EStatus.FAILURE)
                 monitor.stop()
                 monitor.join()
-                raise ex
-            
+                raise exc
+
             self.warning("Running task entry point failed with exception.", exc_info=True)
             status = EStatus.FAILURE
-
 
         monitor.stop()
         monitor.join()
         self.update_task_status(task, status)
-
-        if ex is not None and self._run_task_raise_exception: # for debug purposes only
-            raise ex
 
     def _run(self, level):
         # check for error code
@@ -182,7 +177,7 @@ class TaskQ(Logger):
             elif action == EAction.WAIT:
                 self.debug(f"waiting for {self._task_pull_interval} sec before taking next task")
                 time.sleep(self._task_pull_interval)
-    
+
     def assert_level(self, level):
         if isinstance(level, int):
             level = range(level, level+1)
@@ -207,6 +202,7 @@ class TaskQ(Logger):
         # default to run in current process
         if num_processes is None:
             self._run(level)
+            self._running = False
             return
 
         assert isinstance(num_processes, (int, float))
@@ -215,7 +211,7 @@ class TaskQ(Logger):
             assert 0.0 <= num_processes <= 1.0
             nprocesses = int(multiprocessing.cpu_count() * num_processes)
         elif num_processes < 0:
-            nprocesses = multiprocessing.cpu_count() - num_processes 
+            nprocesses = multiprocessing.cpu_count() - num_processes
         else:
             nprocesses = num_processes
 
@@ -226,7 +222,7 @@ class TaskQ(Logger):
         # join all processes
         [p.join() for p in processes]
 
-        # log failed processes 
+        # log failed processes
         for p in processes:
             if p.exitcode != 0:
                 self.error(f"Process '{p.pid}' failed with exitcode '{p.exitcode}'")
