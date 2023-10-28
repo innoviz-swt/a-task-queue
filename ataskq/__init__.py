@@ -7,4 +7,4 @@ except:
 __schema_version__ = 4
 
 from .ataskq import TaskQ, targs
-from .task import Job, Task, EStatus
+from .models import Job, Task, EStatus

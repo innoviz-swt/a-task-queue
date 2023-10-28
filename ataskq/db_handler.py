@@ -6,7 +6,7 @@ from typing import List, Tuple
 from pathlib import Path
 from io import TextIOWrapper
 
-from .task import Job, Task, EStatus
+from .models import Job, StateKWArgs, Task, EStatus
 from .logger import Logger
 from . import __schema_version__
 
@@ -14,6 +14,7 @@ from . import __schema_version__
 class EQueryType(str, Enum):
     TASKS = 'tasks',
     TASKS_STATUS = 'tasks_status',
+    STATE_KWARGS = 'state_kwargs',
     JOBS = 'jobs',
     JOBS_STATUS = 'jobs_status',
 
@@ -122,6 +123,17 @@ class DBHandler(Logger):
                 #   "summary_cookie_keys JSON"
                   ")")
 
+        # Create state arguments table if not exists
+        c.execute("CREATE TABLE IF NOT EXISTS state_kwargs ("
+                  "state_kwargs_id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                  "name TEXT, "
+                  "entrypoint TEXT NOT NULL, "
+                  "targs MEDIUMBLOB, "
+                  "description TEXT, "
+                  "job_id INTEGER NOT NULL, "
+                  "CONSTRAINT fk_job_id FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE CASCADE"
+                  ")")
+
         # Create tasks table if not exists
         statuses = ", ".join([f'\"{a}\"' for a in EStatus])
         c.execute(f"CREATE TABLE IF NOT EXISTS tasks ("
@@ -164,6 +176,7 @@ class DBHandler(Logger):
         # Insert data into a table
         # todo use some sql batch operation
         for t in tasks:
+            assert t.job_id is None
             t.job_id = self._job_id
 
             if t.targs is not None:
@@ -180,6 +193,10 @@ class DBHandler(Logger):
 
     def task_query(self):
         query = f'SELECT * FROM tasks WHERE job_id = {self._job_id};'
+        return query
+
+    def state_kwargs_query(self):
+        query = f'SELECT * FROM state_kwargs WHERE job_id = {self._job_id};'
         return query
 
     def tasks_status_query(self):
@@ -215,6 +232,7 @@ class DBHandler(Logger):
         queries = {
             EQueryType.TASKS: self.task_query,
             EQueryType.TASKS_STATUS: self.tasks_status_query,
+            EQueryType.STATE_KWARGS: self.state_kwargs_query,
             EQueryType.JOBS: self.jobs_query,
             EQueryType.JOBS_STATUS: self.jobs_status_query,
         }
@@ -235,6 +253,12 @@ class DBHandler(Logger):
     def get_tasks(self):
         rows, col_names = self.query(query_type=EQueryType.TASKS)
         tasks = [Task(**dict(zip(col_names, row))) for row in rows]
+
+        return tasks
+
+    def get_state_kwargs(self):
+        rows, col_names = self.query(query_type=EQueryType.STATE_KWARGS)
+        tasks = [StateKWArgs(**dict(zip(col_names, row))) for row in rows]
 
         return tasks
 

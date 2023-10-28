@@ -2,7 +2,7 @@ import socket
 from threading import Thread, Event
 import time
 
-from .task import Task, EStatus
+from .models import Task, EStatus
 
 
 class MonitorThread(Thread):

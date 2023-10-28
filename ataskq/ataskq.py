@@ -7,7 +7,7 @@ from multiprocessing import Process
 import time
 
 from .logger import Logger
-from .task import EStatus, Task
+from .models import EStatus, Task
 from .monitor import MonitorThread
 from .db_handler import DBHandler, EQueryType, EAction
 
@@ -35,7 +35,7 @@ def keyval_store_retry(retries=1000, polling_delta=0.1):
 
 
 class TaskQ(Logger):
-    def __init__(self, db="sqlite://ataskq.db.sqlite3", run_task_raise_exception=False, task_pull_intervnal=0.2, monitor_pulse_interval = 60, monitor_timeout_internal = 60 * 5, logger: logging.Logger or None=None) -> None:
+    def __init__(self, job_id=None, db="sqlite://ataskq.db.sqlite3", run_task_raise_exception=False, task_pull_intervnal=0.2, monitor_pulse_interval = 60, monitor_timeout_internal = 60 * 5, logger: logging.Logger or None=None) -> None:
         """
         Args:
         task_pull_intervnal: pulling interval for task to complete in seconds.
@@ -46,7 +46,7 @@ class TaskQ(Logger):
         super().__init__(logger)
 
         # init db handler
-        self._db_handler = DBHandler(db=db)
+        self._db_handler = DBHandler(db=db, job_id=job_id, logger=self._logger)
             
         self._run_task_raise_exception = run_task_raise_exception
         self._task_pull_interval = task_pull_intervnal
