@@ -1,11 +1,9 @@
 from pathlib import Path
 from datetime import datetime, timedelta
 
-from ataskq import TaskQ, Task, targs, EStatus
+from ataskq import TaskQ, StateKWArg, Task, targs, EStatus
 
-
-def db_path(tmp_path):
-    return f'sqlite://{tmp_path}/ataskq.db'
+from .test_common import db_path
 
 
 def test_create_job(tmp_path: Path):
@@ -131,3 +129,18 @@ def test_monitor_pulse_failure(tmp_path):
     assert tasks[0].status == EStatus.FAILURE
     assert tasks[1].status == EStatus.SUCCESS
     assert stop - start > timedelta(seconds=1.5)
+
+
+def test_run_with_state_kwargs(tmp_path: Path):
+    from ataskq.tasks_utils.counter_task import counter_kwarg, counter_task
+    taskq = TaskQ(db=db_path(tmp_path), run_task_raise_exception=True).create_job(overwrite=True)
+
+    taskq.add_state_kwargs([
+        StateKWArg(entrypoint=counter_kwarg, name='counter'),
+    ])
+
+    taskq.add_tasks([
+        Task(entrypoint=counter_task,
+             targs=targs(print_counter=True)),])
+
+    taskq.run()

@@ -1,4 +1,23 @@
+from typing import Callable
 from enum import Enum
+import pickle
+from importlib import import_module
+
+
+class EntryPointRuntimeError(RuntimeError):
+    pass
+
+
+class TARGSLoadRuntimeError(EntryPointRuntimeError):
+    pass
+
+
+class EntrypointLoadRuntimeError(EntryPointRuntimeError):
+    pass
+
+
+class EntrypointCallRuntimeError(EntryPointRuntimeError):
+    pass
 
 
 class EStatus(str, Enum):
@@ -7,6 +26,56 @@ class EStatus(str, Enum):
     SUCCESS = 'success'
     FAILURE = 'failure'
 
+
+class EntryPoint:
+    def __init__(self, targs=None, entrypoint='') -> None:
+        self.targs = targs
+        self.entrypoint = entrypoint
+
+    def get_targs(self):
+        if self.targs is not None:
+            try:
+                targs = pickle.loads(self.targs)
+                assert len(targs) == 2, "targs must be tuple of 2 elements"
+                assert isinstance(targs[0], tuple), "targs[0] must be args tuple"
+                assert isinstance(targs[1], dict), "targs[0] must be kwargs dict"
+            except Exception as ex:
+                raise TARGSLoadRuntimeError() from ex
+
+        else:
+            targs = ((), {})
+
+        return targs[0], targs[1]
+
+    def get_entrypoint(self):
+        ep = self.entrypoint
+
+        try:
+            assert '.' in ep, 'entry point must be inside a module.'
+            module_name, func_name = ep.rsplit('.', 1)
+            m = import_module(module_name)
+            assert hasattr(
+                m, func_name), f"failed to load entry point, module '{module_name}' doen't have func named '{func_name}'."
+            func = getattr(m, func_name)
+            assert callable(func), f"entry point is not callable, '{module_name}.{func}'."
+        except ImportError as ex:
+            raise EntrypointLoadRuntimeError(f"Failed to load module '{module_name}'. Exception: '{ex}'")
+        except Exception as ex:
+            raise EntrypointLoadRuntimeError(f"Failed to load entry point '{ep}'. Exception: '{ex}'") from ex
+        
+        return func
+        
+    def call(self):
+        args, kwargs = self.get_targs()
+        entrypoint = self.get_entrypoint()
+
+        try:
+            ret = entrypoint(*args, **kwargs)
+        except Exception as ex:
+            raise EntrypointCallRuntimeError(
+                f"Failed while call entrypoint function '{self.entrypoint}'. Exception: '{ex}'") from ex
+
+        return ret
 
 class Task:
     def __init__(self,
@@ -40,18 +109,18 @@ class Task:
         self.job_id = job_id
 
 
-class StateKWArgs:
+class StateKWArg(EntryPoint):
     def __init__(self,
-                 state_kwargs_id: int,
-                 name: str,
-                 entrypoint: str,
-                 targs: tuple or bytes or None,
-                 description: str,
-                 job_id: int) -> None:
+                 state_kwargs_id: int = None,
+                 name: str = '',
+                 entrypoint: Callable or str = '',
+                 targs: tuple or bytes or None = None,
+                 description: str = '',
+                 job_id: int = None) -> None:
+        super().__init__(targs=targs, entrypoint=entrypoint)
+
         self.state_kwargs_id = state_kwargs_id
         self.name = name
-        self.entrypoint = entrypoint
-        self.targs = targs
         self.description = description
         self.job_id = job_id
 

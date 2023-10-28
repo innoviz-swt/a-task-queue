@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 
 from .db_handler import DBHandler, EQueryType, Task, EAction
+from .test_common import db_path
 
 
 def test_db_format():
@@ -33,13 +34,13 @@ def test_db_invalid_format_no_connectino():
 
 
 def test_job_default_name(tmp_path):
-    db_handler: DBHandler = DBHandler(db=f'sqlite://{tmp_path}/ataskq.db').create_job()
+    db_handler: DBHandler = DBHandler(db=db_path(tmp_path)).create_job()
     job = db_handler.get_jobs()[0]
     assert job.name == ''
 
 
 def test_job_custom_name(tmp_path):
-    db_handler: DBHandler = DBHandler(db=f'sqlite://{tmp_path}/ataskq.db').create_job(name='my_job')
+    db_handler: DBHandler = DBHandler(db=db_path(tmp_path)).create_job(name='my_job')
     job = db_handler.get_jobs()[0]
     assert job.name == 'my_job'
 
@@ -53,7 +54,7 @@ def _compare_task_taken(task1: Task, task2: Task):
 
 
 def test_take_next_task(tmp_path: Path):
-    db_handler: DBHandler = DBHandler(db=f'sqlite://{tmp_path}/ataskq.db').create_job()
+    db_handler: DBHandler = DBHandler(db=db_path(tmp_path)).create_job()
     in_task1 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="task1")
 
     db_handler.add_tasks([
@@ -67,7 +68,7 @@ def test_take_next_task(tmp_path: Path):
 
 def test_table(tmp_path):
     # very general sanity test
-    db_handler: DBHandler = DBHandler(db=f'sqlite://{tmp_path}/ataskq.db').create_job()
+    db_handler: DBHandler = DBHandler(db=db_path(tmp_path)).create_job()
     table = db_handler.html_table().split('\n')
     assert '<table>' in table[0]
     assert '</table>' in table[-1]
@@ -75,7 +76,7 @@ def test_table(tmp_path):
 
 def test_html(tmp_path: Path):
     # very general sanity test
-    db_handler: DBHandler = DBHandler(db=f'sqlite://{tmp_path}/ataskq.db').create_job()
+    db_handler: DBHandler = DBHandler(db=db_path(tmp_path)).create_job()
     html = db_handler.html(query_type=EQueryType.TASKS_STATUS)
     assert '<body>' in html
     assert '</body>' in html
@@ -87,7 +88,7 @@ def test_html(tmp_path: Path):
 
 def test_html_file_str_dump(tmp_path: Path):
     # very general sanity test
-    db_handler: DBHandler = DBHandler(db=f'sqlite://{tmp_path}/ataskq.db').create_job()
+    db_handler: DBHandler = DBHandler(db=db_path(tmp_path)).create_job()
     file = tmp_path / 'test.html'
     html = db_handler.html(query_type=EQueryType.TASKS_STATUS, file=file)
 
@@ -97,7 +98,7 @@ def test_html_file_str_dump(tmp_path: Path):
 
 def test_html_file_io_dump(tmp_path: Path):
     # very general sanity test
-    db_handler: DBHandler = DBHandler(db=f'sqlite://{tmp_path}/ataskq.db').create_job()
+    db_handler: DBHandler = DBHandler(db=db_path(tmp_path)).create_job()
     file = tmp_path / 'test.html'
     with open(file, 'w') as f:
         html = db_handler.html(query_type=EQueryType.TASKS_STATUS, file=f)
@@ -107,7 +108,7 @@ def test_html_file_io_dump(tmp_path: Path):
 
 def test_task_job_delete_cascade(tmp_path: Path):    
     # test that deleting a job deletes all its tasks    
-    db = f'sqlite://{tmp_path}/ataskq.db'
+    db = db_path(tmp_path)
     db_handler1: DBHandler = DBHandler(db=db).create_job(name='job1')
     db_handler1.add_tasks([
         Task(),

@@ -1,8 +1,3 @@
-PRAGMA foreign_keys = ON;
-DROP TABLE IF EXISTS schema_version;
-DROP TABLE IF EXISTS jobs;
-DROP TABLE IF EXISTS tasks;
-
 CREATE TABLE schema_version(version INTEGER PRIMARY KEY);
 CREATE TABLE jobs(
   job_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -10,6 +5,7 @@ CREATE TABLE jobs(
   description TEXT,
   priority REAL DEFAULT 0
 );
+CREATE TABLE sqlite_sequence(name,seq);
 CREATE TABLE tasks(
   task_id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT,

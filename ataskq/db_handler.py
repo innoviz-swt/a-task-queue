@@ -6,7 +6,7 @@ from typing import List, Tuple
 from pathlib import Path
 from io import TextIOWrapper
 
-from .models import Job, StateKWArgs, Task, EStatus
+from .models import Job, StateKWArg, Task, EStatus
 from .logger import Logger
 from . import __schema_version__
 
@@ -84,11 +84,6 @@ class DBHandler(Logger):
         else:
             return None
 
-    def reset(self, job_id=None):
-        self._job_id = job_id
-
-        return self
-
     def connect(self):
         if self._db_type == "sqlite":
             conn = sqlite3.connect(self._db_conn)
@@ -131,6 +126,7 @@ class DBHandler(Logger):
                   "targs MEDIUMBLOB, "
                   "description TEXT, "
                   "job_id INTEGER NOT NULL, "
+                  "CONSTRAINT uq_name_job_id UNIQUE(name, job_id), "
                   "CONSTRAINT fk_job_id FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE CASCADE"
                   ")")
 
@@ -166,9 +162,39 @@ class DBHandler(Logger):
         c.execute(f"DELETE FROM jobs WHERE job_id = {job_id}")
 
     @transaction_decorator
+    def add_state_kwargs(self, c, state_kwargs: List[StateKWArg] or StateKWArg):
+        if self._job_id is None:
+            raise RuntimeError(f"Job not assigned, pass job_id in __init__ or use create_job() first.")
+        
+        if isinstance(state_kwargs, StateKWArg):
+            state_kwargs = [state_kwargs]
+
+        # Insert data into a table
+        # todo use some sql batch operation
+        for skw in state_kwargs:
+            assert skw.job_id is None
+            skw.job_id = self._job_id
+
+            if callable(skw.entrypoint):
+                skw.entrypoint = f"{skw.entrypoint.__module__}.{skw.entrypoint.__name__}"
+
+            if skw.targs is not None:
+                assert len(skw.targs) == 2
+                assert isinstance(skw.targs[0], tuple)
+                assert isinstance(skw.targs[1], dict)
+                skw.targs = pickle.dumps(skw.targs)
+            keys = list(skw.__dict__.keys())
+            values = list(skw.__dict__.values())
+            c.execute(
+                f'INSERT INTO state_kwargs ({", ".join(keys)}) VALUES ({", ".join(["?"] * len(keys))})', values)
+
+        return self
+
+
+    @transaction_decorator
     def add_tasks(self, c, tasks: List[Task] or Task):
         if self._job_id is None:
-            raise RuntimeError(f"Job not assigned, use create_job() or reset(job_id=job_id) first.")
+            raise RuntimeError(f"Job not assigned, pass job_id in __init__ or use create_job() first.")
         
         if isinstance(tasks, (Task)):
             tasks = [tasks]
@@ -178,6 +204,9 @@ class DBHandler(Logger):
         for t in tasks:
             assert t.job_id is None
             t.job_id = self._job_id
+
+            if callable(t.entrypoint):
+                t.entrypoint = f"{t.entrypoint.__module__}.{t.entrypoint.__name__}"
 
             if t.targs is not None:
                 assert len(t.targs) == 2
@@ -258,7 +287,7 @@ class DBHandler(Logger):
 
     def get_state_kwargs(self):
         rows, col_names = self.query(query_type=EQueryType.STATE_KWARGS)
-        tasks = [StateKWArgs(**dict(zip(col_names, row))) for row in rows]
+        tasks = [StateKWArg(**dict(zip(col_names, row))) for row in rows]
 
         return tasks
 

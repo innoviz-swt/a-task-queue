@@ -4,10 +4,12 @@ import pickle
 import logging
 from importlib import import_module
 from multiprocessing import Process
+from inspect import signature
 import time
+from typing import Dict
 
 from .logger import Logger
-from .models import EStatus, Task
+from .models import EStatus, StateKWArg, Task, EntryPointRuntimeError
 from .monitor import MonitorThread
 from .db_handler import DBHandler, EQueryType, EAction
 
@@ -35,7 +37,15 @@ def keyval_store_retry(retries=1000, polling_delta=0.1):
 
 
 class TaskQ(Logger):
-    def __init__(self, job_id=None, db="sqlite://ataskq.db.sqlite3", run_task_raise_exception=False, task_pull_intervnal=0.2, monitor_pulse_interval = 60, monitor_timeout_internal = 60 * 5, logger: logging.Logger or None=None) -> None:
+    def __init__(
+            self,
+            job_id=None,
+            db="sqlite://ataskq.db.sqlite3",
+            run_task_raise_exception=False,
+            task_pull_intervnal=0.2,
+            monitor_pulse_interval=60,
+            monitor_timeout_internal=60 * 5,
+            logger: logging.Logger or None = None) -> None:
         """
         Args:
         task_pull_intervnal: pulling interval for task to complete in seconds.
@@ -47,14 +57,17 @@ class TaskQ(Logger):
 
         # init db handler
         self._db_handler = DBHandler(db=db, job_id=job_id, logger=self._logger)
-            
+
         self._run_task_raise_exception = run_task_raise_exception
         self._task_pull_interval = task_pull_intervnal
         self._monitor_pulse_interval = monitor_pulse_interval
         self._monitor_timeout_internal = monitor_timeout_internal
 
-        self._running = False        
-    
+        # state kwargs for jobs
+        self._state_kwargs: Dict[str: object] = dict()
+
+        self._running = False
+
     @property
     def db_handler(self):
         return self._db_handler
@@ -74,11 +87,16 @@ class TaskQ(Logger):
 
         return self
 
+    def add_state_kwargs(self, state_kwargs):
+        self._db_handler.add_state_kwargs(state_kwargs)
+
+        return self
+
     def add_tasks(self, tasks):
         self._db_handler.add_tasks(tasks)
 
         return self
-    
+
     def count_pending_tasks_below_level(self, level):
         return self._db_handler.count_pending_tasks_below_level(level)
 
@@ -107,33 +125,56 @@ class TaskQ(Logger):
         if ep == 'ataskq.skip_run_task':
             self.info(f"task '{task.task_id}' is marked as 'skip_run_task', skipping run task.")
             return
-        
+
         assert '.' in ep, 'entry point must be inside a module.'
         module_name, func_name = ep.rsplit('.', 1)
         try:
             m = import_module(module_name)
         except ImportError as ex:
             raise RuntimeError(f"Failed to load module '{module_name}'. Exception: '{ex}'")
-        assert hasattr(m, func_name), f"failed to load entry point, module '{module_name}' doen't have func named '{func_name}'."
+        assert hasattr(
+            m, func_name), f"failed to load entry point, module '{module_name}' doen't have func named '{func_name}'."
         func = getattr(m, func_name)
         assert callable(func), f"entry point is not callable, '{module_name},{func}'."
-        
+
         # get targs
         if task.targs is not None:
-            try:    
+            try:
                 targs = pickle.loads(task.targs)
             except Exception as ex:
                 # failed to load targs, report task failure and return
                 self.info("Getting tasks args failed.", exc_info=True)
                 self.update_task_status(task, EStatus.FAILURE)
 
-                if  self._run_task_raise_exception: # for debug purposes only
+                if self._run_task_raise_exception:  # for debug purposes only
                     raise ex
 
                 return
         else:
             targs = ((), {})
 
+        # get state kwargs for kwarg in function signature
+        ep_state_kwargs = {param.name: param.default for param in signature(
+            func).parameters.values() if param.default is not param.empty and param.name in self._state_kwargs}
+        
+        for name, default in ep_state_kwargs.items():
+            state_kwarg = self._state_kwargs.get(name)
+            if isinstance(state_kwarg, StateKWArg):
+                # state kwargs not initalized yet
+                assert default is None, f"state kwarg '{name}' default value must be None"
+                self._logger.info(f"Initializing state kwarg '{name}'")
+                try:
+                    self._state_kwargs[name] = state_kwarg.call()
+                except EntryPointRuntimeError as ex:
+                    self._logger.info(f"Failed to initialize state kwarg '{name}'")
+                    self.update_task_status(task, EStatus.FAILURE)
+
+                    if self._run_task_raise_exception:
+                        raise ex
+                    return                                
+            # state kwargs already inistliazed
+            self._logger.info(f"Update kwarg '{name}' with state kwargs")
+            targs[1][name] = self._state_kwargs[name]
 
         # update task start time
         self.update_task_start_time(task)
@@ -141,24 +182,34 @@ class TaskQ(Logger):
         # run task
         monitor = MonitorThread(task, self, pulse_interval=self._monitor_pulse_interval)
         monitor.start()
-        
+
         ex = None
         try:
-            func(*targs[0], **targs[1])  
+            func(*targs[0], **targs[1])
             status = EStatus.SUCCESS
         except Exception as e:
             self.info("Running task entry point failed with exception.", exc_info=True)
             ex = e
             status = EStatus.FAILURE
-        
+
         monitor.stop()
         monitor.join()
         self.update_task_status(task, status)
 
-        if ex is not None and self._run_task_raise_exception: # for debug purposes only
+        if ex is not None and self._run_task_raise_exception:  # for debug purposes only
             raise ex
 
+    @staticmethod
+    def init_state_kwarg(self, state_kwarg: StateKWArg):
+        return
+
     def _run(self, level):
+        # make sure all state kwargs for job have key in self._state_kwargs, later to be used in _run_task
+        state_kwargs_db = self._db_handler.get_state_kwargs()
+        for skw in state_kwargs_db:
+            if skw.name not in self._state_kwargs:
+                self._state_kwargs[skw.name] = skw
+
         # check for error code
         while True:
             # update tasks timeout
@@ -174,10 +225,10 @@ class TaskQ(Logger):
             elif action == EAction.WAIT:
                 self.debug(f"waiting for {self._task_pull_interval} sec before taking next task")
                 time.sleep(self._task_pull_interval)
-    
+
     def assert_level(self, level):
         if isinstance(level, int):
-            level = range(level, level+1)
+            level = range(level, level + 1)
         elif isinstance(level, (list, tuple)):
             assert len(level) == 2, 'level of type list or tuple must have length of 2'
             level = range(level[0], level[1])
@@ -199,6 +250,7 @@ class TaskQ(Logger):
         # default to run in current process
         if num_processes is None:
             self._run(level)
+            self._running = False
             return
 
         assert isinstance(num_processes, (int, float))
@@ -207,7 +259,7 @@ class TaskQ(Logger):
             assert 0.0 <= num_processes <= 1.0
             nprocesses = int(multiprocessing.cpu_count() * num_processes)
         elif num_processes < 0:
-            nprocesses = multiprocessing.cpu_count() - num_processes 
+            nprocesses = multiprocessing.cpu_count() - num_processes
         else:
             nprocesses = num_processes
 
@@ -218,7 +270,7 @@ class TaskQ(Logger):
         # join all processes
         [p.join() for p in processes]
 
-        # log failed processes 
+        # log failed processes
         for p in processes:
             if p.exitcode != 0:
                 self.error(f"Process '{p.pid}' failed with exitcode '{p.exitcode}'")
