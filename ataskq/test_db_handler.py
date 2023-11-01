@@ -134,3 +134,15 @@ def test_task_job_delete_cascade(tmp_path: Path):
 
     tasks = db_handler2.get_tasks()
     assert len(tasks) == 2
+
+def test_max_jobs(tmp_path):
+    db = db_path(tmp_path)
+    max_jobs = 10
+    jobs_id = []
+    for i in range(max_jobs * 2):
+        jobs_id.append(DBHandler(db=db, max_jobs=max_jobs).create_job(name=f'job{i}').job_id) 
+    jobs = DBHandler(db=db).get_jobs()   
+    assert len(jobs) == 10
+    
+    remaining_jobs = [j.job_id for j in jobs]
+    assert remaining_jobs == jobs_id[-max_jobs:]

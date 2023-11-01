@@ -49,7 +49,7 @@ def transaction_decorator(func):
 
 
 class DBHandler(Logger):
-    def __init__(self, db='sqlite://', job_id=None, logger=None) -> None:
+    def __init__(self, db='sqlite://', job_id=None, max_jobs=None, logger=None) -> None:
         super().__init__(logger)
 
         sep = '://'
@@ -64,9 +64,14 @@ class DBHandler(Logger):
         if not self._db_conn:
             raise RuntimeError(f'missing db connection string, db must be of format <type>://<connection string>')
 
+        self._max_jobs = max_jobs
         self._templates_dir = Path(__file__).parent / 'templates'
         self._job_id = job_id
 
+    @property
+    def job_id(self):
+        return self._job_id
+    
     @property
     def db(self):
         return self._db
@@ -98,7 +103,7 @@ class DBHandler(Logger):
     def create_job(self, c, name='', description=''):
         if self._job_id is not None:
             raise RuntimeError(f"Job already assigned with job_id '{self._job_id}'.")
-
+        
         # Create schema version table if not exists
         c.execute("CREATE TABLE IF NOT EXISTS schema_version ("
                   "version INTEGER PRIMARY KEY"
@@ -155,6 +160,9 @@ class DBHandler(Logger):
         c.execute("INSERT INTO jobs (name, description) VALUES (?, ?)", (name, description))
         c.execute("SELECT last_insert_rowid()")
         self._job_id = c.fetchone()[0]
+
+        if self._max_jobs is not None:
+            c.execute(f"DELETE FROM jobs WHERE job_id NOT IN (SELECT job_id FROM jobs ORDER BY job_id DESC limit {self._max_jobs})")
 
         return self
 

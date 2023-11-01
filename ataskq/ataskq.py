@@ -45,6 +45,7 @@ class TaskQ(Logger):
             task_pull_intervnal=0.2,
             monitor_pulse_interval=60,
             monitor_timeout_internal=60 * 5,
+            max_jobs=None,
             logger: logging.Logger or None = None) -> None:
         """
         Args:
@@ -56,7 +57,7 @@ class TaskQ(Logger):
         super().__init__(logger)
 
         # init db handler
-        self._db_handler = DBHandler(db=db, job_id=job_id, logger=self._logger)
+        self._db_handler = DBHandler(db=db, job_id=job_id, max_jobs=max_jobs, logger=self._logger)
 
         self._run_task_raise_exception = run_task_raise_exception
         self._task_pull_interval = task_pull_intervnal
