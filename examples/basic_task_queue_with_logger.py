@@ -1,9 +1,8 @@
+import context
+from ataskq import TaskQ, Task, targs
 import sys
 import os
-import logging 
-sys.path.append(os.path.dirname(__file__) + '/..')
-
-from ataskq import TaskQ, Task, targs
+import logging
 
 
 # init logger

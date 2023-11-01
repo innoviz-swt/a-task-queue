@@ -1,12 +1,7 @@
-import sys
-import os
 import time
-import webbrowser
-from pathlib import Path
 
-sys.path.append(os.path.dirname(__file__) + '/..')
+import context
 from ataskq import TaskQ, Task, targs
-from ataskq.db_handler import EQueryType
 from ataskq.server import run_server
 
 from common import init_logger
@@ -17,7 +12,7 @@ port = 8900
 
 tr = TaskQ(monitor_pulse_interval=1, logger=logger)
 # set monitor update interval to 1 second for example to show monitor pulse update
-tr.create_job(overwrite=True) 
+tr.create_job(overwrite=True)
 run_server(tr.db_handler, port=port, background=True, popup='tasks_status', print_logs=False)
 
 # add tasks

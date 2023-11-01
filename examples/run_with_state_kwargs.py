@@ -1,9 +1,5 @@
 
-import sys
-import os
-
-
-sys.path.append(os.path.dirname(__file__) + '/..')
+import context
 from ataskq.tasks_utils.counter_task import counter_kwarg, counter_task
 from ataskq import TaskQ, Task, targs, StateKWArg
 

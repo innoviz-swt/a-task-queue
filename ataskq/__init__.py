@@ -1,6 +1,6 @@
 try:
     from .version import __version__, __build__
-except:
+except Exception:
     __version__ = "0.0.0"
     __build__ = "dev"
 

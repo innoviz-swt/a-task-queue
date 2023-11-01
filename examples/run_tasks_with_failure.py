@@ -1,8 +1,6 @@
-import sys
-import os
-import logging 
-sys.path.append(os.path.dirname(__file__) + '/..')
+import logging
 
+import context
 from ataskq import TaskQ, Task, targs
 
 # init logger
@@ -14,7 +12,7 @@ logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
 # create  job
-tr = TaskQ(logger=logger).create_job()    
+tr = TaskQ(logger=logger).create_job()
 
 # add tasks
 tr.add_tasks([

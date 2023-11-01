@@ -1,8 +1,6 @@
-import sys
-import os
-import logging 
-sys.path.append(os.path.dirname(__file__) + '/..')
+import logging
 
+import context
 from ataskq import TaskQ, Task, targs
 
 

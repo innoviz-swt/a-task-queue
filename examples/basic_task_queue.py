@@ -1,6 +1,4 @@
-import sys
-import os
-sys.path.append(os.path.dirname(__file__) + '/..')
+import context
 from ataskq import TaskQ, Task, targs
 
 # create  job
@@ -16,4 +14,4 @@ tr.add_tasks([
 ])
 
 # run the tasks
-tr.run() # to run in parallel add num_processes=N
+tr.run()  # to run in parallel add num_processes=N
