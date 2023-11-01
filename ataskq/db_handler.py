@@ -253,13 +253,13 @@ class DBHandler(Logger):
         return query
 
     def jobs_status_query(self):
-        query = "SELECT jobs.id, jobs.name, jobs.description, jobs.priority, " \
+        query = "SELECT jobs.job_id, jobs.name, jobs.description, jobs.priority, " \
             "COUNT(*) as tasks, " + \
             ",".join(
                 [f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status} " for status in EStatus]
             ) + \
             f"FROM jobs " \
-            "LEFT JOIN tasks ON jobs.id = tasks.job_id;"
+            "LEFT JOIN tasks ON jobs.job_id = tasks.job_id;"
 
         return query
 

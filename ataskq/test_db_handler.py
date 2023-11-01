@@ -66,25 +66,41 @@ def test_take_next_task(tmp_path: Path):
     _compare_task_taken(in_task1, task)
 
 
+def test_query(tmp_path):
+    db_handler: DBHandler = DBHandler(db=db_path(tmp_path)).create_job()
+    for q in EQueryType.__members__.values():
+        try:
+            db_handler.query(q)
+        except Exception as ex:
+            pytest.fail(f"query '{q}' failed, exception: {ex}")
+
 def test_table(tmp_path):
     # very general sanity test
     db_handler: DBHandler = DBHandler(db=db_path(tmp_path)).create_job()
-    table = db_handler.html_table().split('\n')
-    assert '<table>' in table[0]
-    assert '</table>' in table[-1]
+    try:
+        for q in EQueryType.__members__.values():
+            table = db_handler.html_table(q).split('\n')
+            assert '<table>' in table[0]
+            assert '</table>' in table[-1]
+    except Exception as ex:
+        pytest.fail(f"table query '{q}' failed, exception: {ex}")
 
 
 def test_html(tmp_path: Path):
     # very general sanity test
     db_handler: DBHandler = DBHandler(db=db_path(tmp_path)).create_job()
-    html = db_handler.html(query_type=EQueryType.TASKS_STATUS)
-    assert '<body>' in html
-    assert '</body>' in html
+    try:
+        for q in EQueryType.__members__.values():
+            html = db_handler.html(query_type=EQueryType.TASKS_STATUS)
+            assert '<body>' in html
+            assert '</body>' in html
 
-    html = html.split('\n')
-    assert '<html>' in html[0]
-    assert '</html>' in html[-1]
-
+            html = html.split('\n')
+            assert '<html>' in html[0]
+            assert '</html>' in html[-2]
+            assert '' == html[-1]
+    except Exception as ex:
+        pytest.fail(f"html query '{q}' failed, exception: {ex}")
 
 def test_html_file_str_dump(tmp_path: Path):
     # very general sanity test
