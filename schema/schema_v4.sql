@@ -6,6 +6,16 @@ CREATE TABLE jobs(
   priority REAL DEFAULT 0
 );
 CREATE TABLE sqlite_sequence(name,seq);
+CREATE TABLE state_kwargs(
+  state_kwargs_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT,
+  entrypoint TEXT NOT NULL,
+  targs MEDIUMBLOB,
+  description TEXT,
+  job_id INTEGER NOT NULL,
+  CONSTRAINT uq_name_job_id UNIQUE(name, job_id),
+  CONSTRAINT fk_job_id FOREIGN KEY(job_id) REFERENCES jobs(job_id) ON DELETE CASCADE
+);
 CREATE TABLE tasks(
   task_id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT,
