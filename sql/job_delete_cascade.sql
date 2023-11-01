@@ -15,12 +15,12 @@ INSERT INTO `tasks` (`job_id`, `name`, `entrypoint`) VALUES
 
 -- Select * FROM tasks;
 
-Select * FROM jobs 
+Select * FROM jobs
     JOIN tasks ON tasks.job_id = jobs.job_id;
 
 DELETE FROM jobs WHERE jobs.job_id = 1;
 
-Select * FROM jobs 
+Select * FROM jobs
     JOIN tasks ON tasks.job_id = jobs.job_id;
 
 Select * FROM tasks;

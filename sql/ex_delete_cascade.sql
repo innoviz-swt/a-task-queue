@@ -25,8 +25,8 @@ CREATE TABLE IF NOT EXISTS `wheels` (
     name TEXT,
     car_id INTEGER,
     CONSTRAINT fk_car_id
-        FOREIGN KEY (car_id) 
-        REFERENCES cars(car_id) 
+        FOREIGN KEY (car_id)
+        REFERENCES cars(car_id)
         ON DELETE CASCADE
 );
 
@@ -44,8 +44,8 @@ CREATE TABLE IF NOT EXISTS `doors` (
     name TEXT,
     car_id INTEGER,
     CONSTRAINT fk_car_id
-        FOREIGN KEY (car_id) 
-        REFERENCES cars(car_id) 
+        FOREIGN KEY (car_id)
+        REFERENCES cars(car_id)
         ON DELETE CASCADE
 );
 
@@ -57,14 +57,14 @@ INSERT INTO `doors` (`car_id`, `name`) VALUES
 
 -- Select * FROM doors;
 
-Select * FROM cars 
-    JOIN wheels ON cars.car_id = wheels.car_id 
+Select * FROM cars
+    JOIN wheels ON cars.car_id = wheels.car_id
     JOIN doors ON cars.car_id = doors.car_id;
 
 DELETE FROM cars WHERE cars.car_id = 1;
 
-Select * FROM cars 
-    JOIN wheels ON cars.car_id = wheels.car_id 
+Select * FROM cars
+    JOIN wheels ON cars.car_id = wheels.car_id
     JOIN doors ON cars.car_id = doors.car_id;
 
 Select * FROM doors;

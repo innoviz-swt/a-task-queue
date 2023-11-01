@@ -106,8 +106,9 @@ def test_html_file_io_dump(tmp_path: Path):
     assert file.exists()
     assert html == file.read_text()
 
-def test_task_job_delete_cascade(tmp_path: Path):    
-    # test that deleting a job deletes all its tasks    
+
+def test_task_job_delete_cascade(tmp_path: Path):
+    # test that deleting a job deletes all its tasks
     db = db_path(tmp_path)
     db_handler1: DBHandler = DBHandler(db=db).create_job(name='job1')
     db_handler1.add_tasks([
@@ -133,5 +134,3 @@ def test_task_job_delete_cascade(tmp_path: Path):
 
     tasks = db_handler2.get_tasks()
     assert len(tasks) == 2
-
-

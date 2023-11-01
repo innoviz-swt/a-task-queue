@@ -4,5 +4,5 @@ SELECT level, name,
     SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END) AS running,
     SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) AS success,
     SUM(CASE WHEN status = 'failure' THEN 1 ELSE 0 END) AS failure
-FROM tasks 
+FROM tasks
 GROUP BY level, name;

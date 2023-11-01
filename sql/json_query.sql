@@ -18,9 +18,9 @@ Select * FROM test;
 
 -- Select json_extract(data, '$.a') FROM test;
 
-SELECT id, 
-    SUM(json_extract(data, '$.a')) as a, 
+SELECT id,
+    SUM(json_extract(data, '$.a')) as a,
     SUM(json_extract(data, '$.b')) as b,
     SUM(json_extract(data, '$.c')) as c
-FROM test 
+FROM test
 GROUP BY category;

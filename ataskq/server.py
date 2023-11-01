@@ -8,20 +8,28 @@ from http import HTTPStatus
 from .db_handler import EQueryType, DBHandler
 
 
-def run_server(db_hanlder: DBHandler, port=8000, popup: None or bool or str=None, print_logs=True, background=False, host='localhost', popup_ip_host=False):
+def run_server(
+        db_hanlder: DBHandler,
+        port=8000,
+        popup: None or bool or str = None,
+        print_logs=True,
+        background=False,
+        host='localhost',
+        popup_ip_host=False):
     # run server in background process
     if background:
         import multiprocessing
         p = multiprocessing.Process(
-            target=run_server, args=(db_hanlder,), kwargs=dict(port=port, print_logs=print_logs, popup=popup), daemon=True)
+            target=run_server, args=(
+                db_hanlder,), kwargs=dict(
+                port=port, print_logs=print_logs, popup=popup), daemon=True)
         p.start()
-        
+
         if popup:
             url_path = '' if popup is True else f'/{popup}'
             if popup_ip_host:
                 host = socket.gethostbyname(socket.gethostname())
             webbrowser.open(f"http://{host}:{port}{url_path}?auto_refresh=true", 1)
-
 
         return p
 
@@ -50,7 +58,7 @@ def run_server(db_hanlder: DBHandler, port=8000, popup: None or bool or str=None
                 self.send_header('Content-type', 'image/x-icon')
                 self.end_headers()
                 return
-            
+
             # rout to relevant query type
             query_types = {
                 '/': EQueryType.JOBS_STATUS,
@@ -58,7 +66,7 @@ def run_server(db_hanlder: DBHandler, port=8000, popup: None or bool or str=None
                 '/tasks_status': EQueryType.TASKS_STATUS,
                 '/jobs': EQueryType.JOBS,
                 '/jobs_status': EQueryType.JOBS_STATUS,
-            } 
+            }
 
             query_type = query_types.get(parsed_url.path)
             if query_type is None:

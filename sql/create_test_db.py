@@ -18,5 +18,5 @@ def create_connection(db_file):
 
 if __name__ == '__main__':
     if Path("./sql/test.db.sqlite3").exists():
-        Path("./sql/test.db.sqlite3").unlink()        
+        Path("./sql/test.db.sqlite3").unlink()
     create_connection(r"./sql/test.db.sqlite3")

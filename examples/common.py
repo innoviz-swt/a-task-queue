@@ -12,4 +12,3 @@ def init_logger(level=logging.INFO):
     logger.setLevel(level)
 
     return logger
- 

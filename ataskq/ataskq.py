@@ -156,7 +156,7 @@ class TaskQ(Logger):
         # get state kwargs for kwarg in function signature
         ep_state_kwargs = {param.name: param.default for param in signature(
             func).parameters.values() if param.default is not param.empty and param.name in self._state_kwargs}
-        
+
         for name, default in ep_state_kwargs.items():
             state_kwarg = self._state_kwargs.get(name)
             if isinstance(state_kwarg, StateKWArg):
@@ -171,7 +171,7 @@ class TaskQ(Logger):
 
                     if self._run_task_raise_exception:
                         raise ex
-                    return                                
+                    return
             # state kwargs already inistliazed
             self._logger.info(f"Update kwarg '{name}' with state kwargs")
             targs[1][name] = self._state_kwargs[name]

@@ -31,8 +31,10 @@ def transaction_decorator(func):
             c = conn.cursor()
             try:
                 # enable foreign keys for each connection (sqlite default is off)
-                # https://www.sqlite.org/foreignkeys.html 
-                # Foreign key constraints are disabled by default (for backwards compatibility), so must be enabled separately for each database connection
+                # https://www.sqlite.org/foreignkeys.html
+                # Foreign key constraints are disabled by default (for backwards
+                # compatibility), so must be enabled separately for each database
+                # connection
                 c.execute('PRAGMA foreign_keys = ON')
                 ret = func(self, c, *args, **kwargs)
             except Exception as e:
@@ -58,7 +60,7 @@ class DBHandler(Logger):
         self._db_type = db[:sep_index]
         if not self._db_type:
             raise RuntimeError(f'missing db type, db must be of format <type>://<connection string>')
-        self._db_conn = db[sep_index+len(sep):]
+        self._db_conn = db[sep_index + len(sep):]
         if not self._db_conn:
             raise RuntimeError(f'missing db connection string, db must be of format <type>://<connection string>')
 
@@ -96,7 +98,7 @@ class DBHandler(Logger):
     def create_job(self, c, name='', description=''):
         if self._job_id is not None:
             raise RuntimeError(f"Job already assigned with job_id '{self._job_id}'.")
-                          
+
         # Create schema version table if not exists
         c.execute("CREATE TABLE IF NOT EXISTS schema_version ("
                   "version INTEGER PRIMARY KEY"
@@ -115,7 +117,7 @@ class DBHandler(Logger):
                   "name TEXT, "
                   "description TEXT, "
                   "priority REAL DEFAULT 0"
-                #   "summary_cookie_keys JSON"
+                  #   "summary_cookie_keys JSON"
                   ")")
 
         # Create state arguments table if not exists
@@ -144,7 +146,7 @@ class DBHandler(Logger):
                   "done_time DATETIME, "
                   "pulse_time DATETIME, "
                   "description TEXT, "
-                #   "summary_cookie JSON, "
+                  #   "summary_cookie JSON, "
                   "job_id INTEGER NOT NULL, "
                   "CONSTRAINT fk_job_id FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE CASCADE"
                   ")")
@@ -155,7 +157,7 @@ class DBHandler(Logger):
         self._job_id = c.fetchone()[0]
 
         return self
-    
+
     @transaction_decorator
     def delete_job(self, c, job_id=None):
         job_id = self._job_id if job_id is None else job_id
@@ -165,7 +167,7 @@ class DBHandler(Logger):
     def add_state_kwargs(self, c, state_kwargs: List[StateKWArg] or StateKWArg):
         if self._job_id is None:
             raise RuntimeError(f"Job not assigned, pass job_id in __init__ or use create_job() first.")
-        
+
         if isinstance(state_kwargs, StateKWArg):
             state_kwargs = [state_kwargs]
 
@@ -190,12 +192,11 @@ class DBHandler(Logger):
 
         return self
 
-
     @transaction_decorator
     def add_tasks(self, c, tasks: List[Task] or Task):
         if self._job_id is None:
             raise RuntimeError(f"Job not assigned, pass job_id in __init__ or use create_job() first.")
-        
+
         if isinstance(tasks, (Task)):
             tasks = [tasks]
 
@@ -254,8 +255,6 @@ class DBHandler(Logger):
 
         return query
 
-
-
     @transaction_decorator
     def query(self, c, query_type=EQueryType.JOBS_STATUS):
         queries = {
@@ -266,7 +265,7 @@ class DBHandler(Logger):
             EQueryType.JOBS_STATUS: self.jobs_status_query,
         }
         query = queries.get(query_type)
-        
+
         if query is None:
             # should never get here
             raise RuntimeError(f"Unknown status type: {query_type}")

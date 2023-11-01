@@ -62,9 +62,9 @@ class EntryPoint:
             raise EntrypointLoadRuntimeError(f"Failed to load module '{module_name}'. Exception: '{ex}'")
         except Exception as ex:
             raise EntrypointLoadRuntimeError(f"Failed to load entry point '{ep}'. Exception: '{ex}'") from ex
-        
+
         return func
-        
+
     def call(self):
         args, kwargs = self.get_targs()
         entrypoint = self.get_entrypoint()
@@ -76,6 +76,7 @@ class EntryPoint:
                 f"Failed while call entrypoint function '{self.entrypoint}'. Exception: '{ex}'") from ex
 
         return ret
+
 
 class Task:
     def __init__(self,

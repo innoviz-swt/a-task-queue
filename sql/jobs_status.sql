@@ -1,4 +1,4 @@
-SELECT jobs.jid, jobs.name, jobs.priority, jobs.description, 
+SELECT jobs.jid, jobs.name, jobs.priority, jobs.description,
 COUNT(*) as tasks,
 SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
 SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END) AS running,

@@ -93,7 +93,7 @@
             const href = link.getAttribute('href');
             link.setAttribute('href', href + '?' + url.searchParams.toString());
         }
-        
+
         window.addEventListener('load', () => {
             const url = new URL(window.location);
             if (url.searchParams.get('auto_refresh')) {

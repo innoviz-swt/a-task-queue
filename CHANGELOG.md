@@ -1,7 +1,7 @@
 # ChangeLog
 
 # 0.3.0
-- schema v4: update schema with jobs. tasks.tid renamed to task_id 
+- schema v4: update schema with jobs. tasks.tid renamed to task_id
 
 
 # 0.3.0

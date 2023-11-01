@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# pre requisites: 
+# pre requisites:
 # ```
 # sudo apt-get install -y libgflags-dev libsnappy-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev librocksdb-dev
 # ````
