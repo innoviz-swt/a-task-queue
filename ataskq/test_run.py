@@ -1,8 +1,9 @@
 from pathlib import Path
 from datetime import datetime, timedelta
 
-from ataskq import TaskQ, StateKWArg, Task, targs, EStatus
+import pytest
 
+from ataskq import TaskQ, StateKWArg, Task, targs, EStatus
 from .test_common import db_path
 
 
@@ -35,6 +36,29 @@ def test_run_default(tmp_path: Path):
         "task 0\n" \
         "task 1\n" \
         "task 2\n"
+
+
+def test_run_task_raise_exception(tmp_path: Path):
+    # no exception raised
+    try:
+        taskq: TaskQ = TaskQ(db=db_path(tmp_path), run_task_raise_exception=False).create_job(overwrite=True)
+        taskq.add_tasks([
+            Task(entrypoint="ataskq.tasks_utils.exception_task",
+                 targs=targs(message="task failed")),
+        ])
+        taskq.run()
+    except Exception:
+        assert False, f"exception_task raises exception with run_task_raise_exception=False"
+
+    # exception raised
+    taskq: TaskQ = TaskQ(db=db_path(tmp_path), run_task_raise_exception=True).create_job(overwrite=True)
+    taskq.add_tasks([
+        Task(entrypoint="ataskq.tasks_utils.exception_task",
+             targs=targs(message="task failed")),
+    ])
+    with pytest.raises(Exception) as excinfo:
+        taskq.run()
+    assert excinfo.value.args[0] == "task failed"
 
 
 def test_run_2_processes(tmp_path: Path):
