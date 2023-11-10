@@ -2,7 +2,8 @@ import context
 from ataskq import TaskQ, Task, targs
 
 # create  job
-tr = TaskQ().create_job(overwrite=True)
+# postgres://{user}:{password}@{hostname}:{port}/{database-name}
+tr = TaskQ(db='postgresql://postgres:cvalgo.devops@localhost:5432/ataskq').create_job(overwrite=True)
 
 # add tasks
 # entrypoint stands for the relevant function import statement

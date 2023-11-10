@@ -5,6 +5,9 @@ import sqlite3
 from typing import List, Tuple
 from pathlib import Path
 from io import TextIOWrapper
+import re
+from typing import NamedTuple
+import time
 
 from .models import Job, StateKWArg, Task, EStatus
 from .logger import Logger
@@ -25,6 +28,67 @@ class EAction(str, Enum):
     STOP = 'stop'
 
 
+class SqliteConnection(NamedTuple):
+    path: str
+
+    def __str__(self):
+        return f"sqlite://{self.path}"
+
+class PostgresConnection(NamedTuple):
+    user: None or str 
+    password: None or str
+    host: str
+    port: int
+    database: str
+
+    def __str__(self):
+        if self.user:
+            userspec = f"{self.user}" + (self.password and f':{self.password}') + '@'
+
+        return f"postgresql://{userspec}{self.host}:{self.port}/{self.database}"
+
+
+def from_sqlite_connection_str(db):
+    format = 'sqlite://path'
+    pattern = r'sqlite://(?P<path>.+)$'
+    match = re.match(pattern, db)
+
+    if not match:
+        raise Exception(f"db must be in '{format}', ex: 'sqlite://ataskq.db.sqlite3'")
+
+    path = match.group('path')
+    ret = SqliteConnection(path=path)
+
+    return ret
+
+
+
+def from_postgres_connection_str(db):
+    # https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING-URIS
+    # todo: add params spec support
+    format = 'postgresql://[user[:password]@][host][:port][/database]'
+    pattern = r'postgresql://(?P<user>[^:@]+)(:(?P<password>[^@]+))?@?(?P<host>[^:/]+)(:(?P<port>\d+))?/(?P<database>.+)$'
+
+    match = re.match(pattern, db)
+
+    if not match:
+        raise Exception(f"db must be in '{format}', ex: 'postgresql://user:password@localhost:5432/mydb'")
+
+    user = match.group('user')
+    password = match.group('password')
+    host = match.group('host')
+    port = match.group('port')
+    database = match.group('database')
+    ret = PostgresConnection(user=user, password=password, host=host, port=port, database=database)
+
+    return ret
+
+
+class SqliteConnection(NamedTuple):
+    type: str
+    path: str
+
+
 def transaction_decorator(func):
     def wrapper(self, *args, **kwargs):
         with self.connect() as conn:
@@ -35,7 +99,7 @@ def transaction_decorator(func):
                 # Foreign key constraints are disabled by default (for backwards
                 # compatibility), so must be enabled separately for each database
                 # connection
-                c.execute('PRAGMA foreign_keys = ON')
+                # c.execute('PRAGMA foreign_keys = ON')
                 ret = func(self, c, *args, **kwargs)
             except Exception as e:
                 conn.commit()
@@ -58,11 +122,12 @@ class DBHandler(Logger):
             raise RuntimeError(f'db must be of format <type>://<connection string>')
         self._db = db
         self._db_type = db[:sep_index]
-        if not self._db_type:
-            raise RuntimeError(f'missing db type, db must be of format <type>://<connection string>')
-        self._db_conn = db[sep_index + len(sep):]
-        if not self._db_conn:
-            raise RuntimeError(f'missing db connection string, db must be of format <type>://<connection string>')
+        if self._db_type == 'sqlite':
+            self._db_conn = from_sqlite_connection_str(db)
+        elif self._db_type == 'postgresql':
+            self._db_conn = from_postgres_connection_str(db)
+        elif not self._db_type:
+            raise Exception(f'missing db type, db must be of format <type>://<connection string>')
 
         self._max_jobs = max_jobs
         self._templates_dir = Path(__file__).parent / 'templates'
@@ -94,6 +159,14 @@ class DBHandler(Logger):
     def connect(self):
         if self._db_type == "sqlite":
             conn = sqlite3.connect(self._db_conn)
+        elif self._db_type == "postgresql":
+            import psycopg2
+            conn =  psycopg2.connect(
+            host=self.db_conn.host,
+            database=self.db_conn.database,
+            user=self.db_conn.user,
+            password=self.db_conn.password) 
+
         else:
             raise RuntimeError(f"Unsupported db '{self._db}'.")
 
@@ -103,7 +176,10 @@ class DBHandler(Logger):
     def create_job(self, c, name='', description=''):
         if self._job_id is not None:
             raise RuntimeError(f"Job already assigned with job_id '{self._job_id}'.")
-        
+
+        bytes_types = 'BYTEA' if self._db_type == 'postgresql' else 'MEDIUMBLOB'
+        primary_key = 'SERIAL PRIMARY KEY' if self._db_type == 'postgresql' else 'INTEGER PRIMARY KEY AUTOINCREMENT'
+
         # Create schema version table if not exists
         c.execute("CREATE TABLE IF NOT EXISTS schema_version ("
                   "version INTEGER PRIMARY KEY"
@@ -115,10 +191,10 @@ class DBHandler(Logger):
         else:
             current_schema_version = current_schema_version[0]
             assert current_schema_version == __schema_version__, f"Schema version mismatch, current schema version is {current_schema_version} while code schema version is {__schema_version__}"
-
+    
         # Create jobs table if not exists
         c.execute("CREATE TABLE IF NOT EXISTS jobs ("
-                  "job_id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                  f"job_id {primary_key}, "
                   "name TEXT, "
                   "description TEXT, "
                   "priority REAL DEFAULT 0"
@@ -127,10 +203,10 @@ class DBHandler(Logger):
 
         # Create state arguments table if not exists
         c.execute("CREATE TABLE IF NOT EXISTS state_kwargs ("
-                  "state_kwargs_id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                  f"state_kwargs_id {primary_key}, "
                   "name TEXT, "
                   "entrypoint TEXT NOT NULL, "
-                  "targs MEDIUMBLOB, "
+                  f"targs {bytes_types}, "
                   "description TEXT, "
                   "job_id INTEGER NOT NULL, "
                   "CONSTRAINT uq_name_job_id UNIQUE(name, job_id), "
@@ -140,16 +216,16 @@ class DBHandler(Logger):
         # Create tasks table if not exists
         statuses = ", ".join([f'\"{a}\"' for a in EStatus])
         c.execute(f"CREATE TABLE IF NOT EXISTS tasks ("
-                  "task_id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                  f"task_id {primary_key}, "
                   "name TEXT, "
                   "level REAL, "
                   "entrypoint TEXT NOT NULL, "
-                  "targs MEDIUMBLOB, "
-                  f"status TEXT CHECK(status in ({statuses})), "
-                  "take_time DATETIME, "
-                  "start_time DATETIME, "
-                  "done_time DATETIME, "
-                  "pulse_time DATETIME, "
+                  f"targs {bytes_types}, "
+                  f"status TEXT ," # CHECK(status in ({statuses})), 
+                  "take_time TIMESTAMP, "
+                  "start_time TIMESTAMP, "
+                  "done_time TIMESTAMP, "
+                  "pulse_time TIMESTAMP, "
                   "description TEXT, "
                   #   "summary_cookie JSON, "
                   "job_id INTEGER NOT NULL, "
@@ -157,8 +233,8 @@ class DBHandler(Logger):
                   ")")
 
         # Create job and store job id
-        c.execute("INSERT INTO jobs (name, description) VALUES (?, ?)", (name, description))
-        c.execute("SELECT last_insert_rowid()")
+        c.execute(f"INSERT INTO jobs(name, description) VALUES ({name or 'NULL'}, {description or 'NULL'}) RETURNING job_id")
+        # c.execute("SELECT last_insert_rowid()")
         self._job_id = c.fetchone()[0]
 
         if self._max_jobs is not None:
@@ -193,10 +269,11 @@ class DBHandler(Logger):
                 assert isinstance(skw.targs[0], tuple)
                 assert isinstance(skw.targs[1], dict)
                 skw.targs = pickle.dumps(skw.targs)
-            keys = list(skw.__dict__.keys())
-            values = list(skw.__dict__.values())
+            d = {k: v for k, v in skw.__dict__.items() if 'state_kwargs_id' not in k}
+            keys = list(d.keys())
+            values = list(d.values())
             c.execute(
-                f'INSERT INTO state_kwargs ({", ".join(keys)}) VALUES ({", ".join(["?"] * len(keys))})', values)
+                f"INSERT INTO state_kwargs ({', '.join(keys)}) VALUES ({', '.join(['%s'] * len(keys))})", values)
 
         return self
 
@@ -222,10 +299,11 @@ class DBHandler(Logger):
                 assert isinstance(t.targs[0], tuple)
                 assert isinstance(t.targs[1], dict)
                 t.targs = pickle.dumps(t.targs)
-            keys = list(t.__dict__.keys())
-            values = list(t.__dict__.values())
+            d = {k: v for k, v in t.__dict__.items() if 'task_id' not in k}
+            keys = list(d.keys())
+            values = list(d.values())
             c.execute(
-                f'INSERT INTO tasks ({", ".join(keys)}) VALUES ({", ".join(["?"] * len(keys))})', values)
+                f'INSERT INTO tasks ({", ".join(keys)}) VALUES ({", ".join(["%s"] * len(keys))})', values)
 
         return self
 
@@ -372,7 +450,7 @@ class DBHandler(Logger):
     @transaction_decorator
     def count_pending_tasks_below_level(self, c, level) -> int:
         c.execute(
-            f'SELECT COUNT(*) FROM tasks WHERE level < {level} AND status in ("{EStatus.PENDING}")')
+            f"SELECT COUNT(*) FROM tasks WHERE level < {level} AND status in ('{EStatus.PENDING}')")
 
         row = c.fetchone()
         return row[0]
@@ -382,16 +460,20 @@ class DBHandler(Logger):
         # set timeout tasks
         last_valid_pulse = datetime.now() - timedelta(seconds=timeout_sec)
         c.execute(
-            f'UPDATE tasks SET status = "{EStatus.FAILURE}" WHERE pulse_time < "{last_valid_pulse}" AND status NOT IN ("{EStatus.SUCCESS}", "{EStatus.FAILURE}");')
+            f"UPDATE tasks SET status = '{EStatus.FAILURE}' WHERE pulse_time < '{last_valid_pulse}'::timestamp AND status NOT IN ('{EStatus.SUCCESS}', '{EStatus.FAILURE}');")
 
     @transaction_decorator
     def _take_next_task(self, c, level) -> Tuple[EAction, Task]:
-        c.execute('BEGIN EXCLUSIVE;')
+        if self._db_type == 'sqlite':
+            c.execute('BEGIN EXCLUSIVE;')
+        else:
+            # todo: add FOR UPDATE in the queries
+            c.execute('BEGIN;')
 
         level_query = f' AND level >= {level.start} AND level < {level.stop}' if level is not None else ''
         # get pending task with minimum level
-        c.execute(f'SELECT * FROM tasks WHERE status IN ("{EStatus.PENDING}"){level_query} AND level = '
-                  f'(SELECT MIN(level) FROM tasks WHERE status IN ("{EStatus.PENDING}"){level_query});')
+        c.execute(f"SELECT * FROM tasks WHERE status IN ('{EStatus.PENDING}'){level_query} AND level = "
+                  f"(SELECT MIN(level) FROM tasks WHERE status IN ('{EStatus.PENDING}'){level_query});")
         row = c.fetchone()
         if row is None:
             ptask = None
@@ -400,8 +482,8 @@ class DBHandler(Logger):
             ptask = Task(**dict(zip(col_names, row)))
 
         # get running task with minimum level
-        c.execute(f'SELECT * FROM tasks WHERE status IN ("{EStatus.RUNNING}"){level_query} AND level = '
-                  f'(SELECT MIN(level) FROM tasks WHERE status IN ("{EStatus.RUNNING}"){level_query});')
+        c.execute(f"SELECT * FROM tasks WHERE status IN ('{EStatus.RUNNING}'){level_query} AND level = "
+                  f"(SELECT MIN(level) FROM tasks WHERE status IN ('{EStatus.RUNNING}'){level_query});")
         row = c.fetchone()
         if row is None:
             rtask = None
@@ -435,7 +517,7 @@ class DBHandler(Logger):
         if action == EAction.RUN_TASK:
             now = datetime.now()
             c.execute(
-                f'UPDATE tasks SET status = "{EStatus.RUNNING}", take_time = "{now}", pulse_time = "{now}" WHERE task_id = {ptask.task_id};')
+                f"UPDATE tasks SET status = '{EStatus.RUNNING}', take_time = '{now}'::timestamp, pulse_time = '{now}'::timestamp WHERE task_id = {ptask.task_id};")
             ptask.status = EStatus.RUNNING
             ptask.take_time = now
             ptask.pulse_time = now
@@ -456,7 +538,7 @@ class DBHandler(Logger):
             time = datetime.now()
 
         c.execute(
-            f'UPDATE tasks SET start_time = "{time}" WHERE task_id = {task.task_id};')
+            f"UPDATE tasks SET start_time = '{time}'::timestamp WHERE task_id = {task.task_id};")
         task.start_time = time
 
     @transaction_decorator
@@ -465,13 +547,13 @@ class DBHandler(Logger):
         if status == EStatus.RUNNING:
             # for running task update pulse_time
             c.execute(
-                f'UPDATE tasks SET status = "{status}", pulse_time = "{now}" WHERE task_id = {task.task_id}')
+                f"UPDATE tasks SET status = '{status}', pulse_time = '{now}'::timestamp WHERE task_id = {task.task_id}")
             task.status = status
             task.pulse_time = now
         elif status == EStatus.SUCCESS or status == EStatus.FAILURE:
             # for done task update pulse_time and done_time time as well
             c.execute(
-                f'UPDATE tasks SET status = "{status}", pulse_time = "{now}", done_time = "{now}" WHERE task_id = {task.task_id}')
+                f"UPDATE tasks SET status = '{status}', pulse_time = '{now}'::timestamp, done_time = '{now}'::timestamp WHERE task_id = {task.task_id}")
             task.status = status
             task.pulse_time = now
         else:

@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS schema_version;
+DROP TABLE IF EXISTS tasks;
+DROP TABLE IF EXISTS state_kwargs;
+DROP TABLE IF EXISTS jobs;
