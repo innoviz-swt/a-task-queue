@@ -11,7 +11,7 @@ from typing import Dict
 from .logger import Logger
 from .models import EStatus, StateKWArg, Task, EntryPointRuntimeError
 from .monitor import MonitorThread
-from .db_handler import DBHandler, EQueryType, EAction
+from .db_handler import DBHandler, EQueryType, EAction, from_connection_str
 
 
 def targs(*args, **kwargs):
@@ -57,7 +57,7 @@ class TaskQ(Logger):
         super().__init__(logger)
 
         # init db handler
-        self._db_handler = DBHandler(db=db, job_id=job_id, max_jobs=max_jobs, logger=self._logger)
+        self._db_handler: DBHandler = from_connection_str(db=db, job_id=job_id, max_jobs=max_jobs, logger=self._logger)
 
         self._run_task_raise_exception = run_task_raise_exception
         self._task_pull_interval = task_pull_intervnal
