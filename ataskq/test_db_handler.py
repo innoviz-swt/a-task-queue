@@ -1,4 +1,6 @@
 from pathlib import Path
+from copy import copy
+from .tasks_utils import dummy_args_task
 
 import pytest
 
@@ -54,7 +56,10 @@ def test_job_custom_name(conn):
     assert job.name == 'my_job'
 
 
-def _compare_task_taken(task1: Task, task2: Task):
+def _compare_task_taken(task1: Task, task2: Task, job_id=None):
+    if job_id:
+        assert task1.job_id == job_id
+    assert task1.job_id == task2.job_id
     assert task1.name == task2.name
     assert task1.description == task2.description
     assert task1.level == task2.level
@@ -62,7 +67,7 @@ def _compare_task_taken(task1: Task, task2: Task):
     assert task1.targs == task2.targs
 
 
-def test_take_next_task(conn: Path):
+def test_take_next_task_sanity(conn):
     db_handler: DBHandler = from_connection_str(conn=conn).create_job()
     in_task1 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="task1")
 
@@ -74,6 +79,123 @@ def test_take_next_task(conn: Path):
     assert action == EAction.RUN_TASK
     _compare_task_taken(in_task1, task)
 
+
+def test_take_next(conn):
+    db_handler: DBHandler = from_connection_str(conn=conn).create_job()
+    in_task1 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="task1")
+    in_task2 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=2, name="task2")
+    in_task3 = copy(in_task1)
+
+    db_handler.add_tasks([
+        in_task2,
+        in_task1,
+        in_task3,
+    ])
+
+    tids = []
+
+    action, task = db_handler._take_next_task(level=None)
+    assert action == EAction.RUN_TASK
+    assert task.task_id not in tids
+    tids.append(task.task_id)
+    _compare_task_taken(in_task1, task)
+
+    action, task = db_handler._take_next_task(level=None)
+    assert action == EAction.RUN_TASK
+    assert task.task_id not in tids
+    tids.append(task.task_id)
+    _compare_task_taken(in_task3, task) # note in_task3 is copy of in_task1
+
+    action, task = db_handler._take_next_task(level=None)
+    assert action == EAction.WAIT
+    assert task is None
+
+def test_take_next_task_2_jobs(conn):
+    db_handler1: DBHandler = from_connection_str(conn=conn).create_job(name='job1')
+    db_handler2: DBHandler = from_connection_str(conn=conn).create_job(name='job2')
+
+    in_task1 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=2, name="taska")
+    in_task2 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="taskb")
+    in_task3 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="taskb")
+    in_task4 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="taskd")
+    in_task5 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=2, name="taske")
+
+
+    db_handler1.add_tasks([
+        in_task2,
+        in_task1,
+        in_task3,
+    ])
+
+    db_handler2.add_tasks([
+        in_task5,
+        in_task4,
+    ])
+
+    jid1 = db_handler1.job_id
+    jid2 = db_handler2.job_id
+    tids = []
+
+    # sanity check
+    assert len(db_handler1.get_jobs()) == 2
+    assert len(db_handler1.get_tasks()) == 3
+    assert len(db_handler2.get_jobs()) == 2
+    assert len(db_handler2.get_tasks()) == 2
+
+    # db handler 1
+    action, task = db_handler1._take_next_task(level=None)
+    assert action == EAction.RUN_TASK
+    assert task.task_id not in tids
+    tids.append(task.task_id)    
+    _compare_task_taken(in_task2, task, job_id=jid1)
+    tids.append(task.task_id)
+
+    action, task = db_handler1._take_next_task(level=None)
+    assert action == EAction.RUN_TASK
+    assert task.task_id not in tids
+    tids.append(task.task_id)
+    _compare_task_taken(in_task3, task, job_id=jid1) # note in_task3 is copy of in_task1
+
+    action, task = db_handler1._take_next_task(level=None)
+    assert action == EAction.WAIT
+    assert task is None
+
+    # db handler 2
+    action, task = db_handler2._take_next_task(level=None)
+    assert action == EAction.RUN_TASK
+    assert task.task_id not in tids
+    tids.append(task.task_id)    
+    _compare_task_taken(in_task4, task, job_id=jid2)
+    tids.append(task.task_id)
+
+    action, task = db_handler2._take_next_task(level=None)
+    assert action == EAction.WAIT
+    assert task is None
+
+
+def test_get_tasks(conn):
+    db_handler: DBHandler = from_connection_str(conn=conn).create_job()
+    in_task1 = Task(entrypoint=dummy_args_task, level=1, name="task1")
+    in_task2 = Task(entrypoint=dummy_args_task, level=2, name="task2")
+    in_task3 = Task(entrypoint=dummy_args_task, level=3, name="task3")
+
+    db_handler.add_tasks([
+        in_task3,
+        in_task2,
+        in_task1,                
+    ])
+
+    tasks = db_handler.get_tasks()
+    assert len(tasks) == 3
+    for t in tasks:
+        if t.level == 1:
+            _compare_task_taken(in_task1, t)
+        elif t.level == 2:
+            _compare_task_taken(in_task2, t)
+        elif t.level == 3:
+            _compare_task_taken(in_task3, t)
+
+    
 
 def test_query(conn):
     db_handler: DBHandler = from_connection_str(conn=conn).create_job()
@@ -95,7 +217,7 @@ def test_table(conn):
         pytest.fail(f"table query '{q}' failed, exception: {ex}")
 
 
-def test_html(conn: Path):
+def test_html(conn):
     # very general sanity test
     db_handler: DBHandler = from_connection_str(conn=conn).create_job()
     try:
@@ -122,7 +244,7 @@ def test_html_file_str_dump(conn, tmp_path: Path):
     assert html == file.read_text()
 
 
-def test_html_file_io_dump(conn: Path, tmp_path: Path):
+def test_html_file_io_dump(conn, tmp_path: Path):
     # very general sanity test
     db_handler: DBHandler = from_connection_str(conn=conn).create_job()
     file = tmp_path / 'test.html'

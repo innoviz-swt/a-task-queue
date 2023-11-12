@@ -1,6 +1,7 @@
 # ChangeLog
 
 # x.x.x
+- TASKQ __init__ db renamed to conn
 - add postgresql support
 
 # 0.5.0
