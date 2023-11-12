@@ -45,8 +45,8 @@ def from_connection_str(db):
 
 
 class PostgresqlDBHandler(DBHandler):
-    def __init__(self, db=None, **kwargs) -> None:
-        self._connection = from_connection_str(db)
+    def __init__(self, conn=None, **kwargs) -> None:
+        self._connection = from_connection_str(conn)
         super().__init__(**kwargs)
 
     @property

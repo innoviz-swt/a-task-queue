@@ -129,9 +129,9 @@ class StateKWArg(EntryPoint):
 class Job:
     def __init__(self,
                  job_id: int = None,
-                 name: str = '',
+                 name: None or str = None,
                  priority: float = 0,
-                 description: str = '') -> None:
+                 description: None or str = None) -> None:
         self.job_id = job_id
         self.name = name
         self.priority = priority

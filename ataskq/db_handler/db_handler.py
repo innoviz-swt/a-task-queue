@@ -26,6 +26,12 @@ class EAction(str, Enum):
     STOP = 'stop'
 
 
+def fields_values(**kwargs):
+    fields = ", ".join(kwargs.keys())
+    values = ", ".join([(v and f"'{v}'") or 'NULL' for v in kwargs.values()])
+    return f'({fields}) VALUES ({values})'
+
+
 def transaction_decorator(func):
     def wrapper(self, *args, **kwargs):
         with self.connect() as conn:
@@ -36,7 +42,8 @@ def transaction_decorator(func):
                 # Foreign key constraints are disabled by default (for backwards
                 # compatibility), so must be enabled separately for each database
                 # connection
-                # c.execute('PRAGMA foreign_keys = ON')
+                if self.pragma_foreign_keys_on:
+                    c.execute(self.pragma_foreign_keys_on)
                 ret = func(self, c, *args, **kwargs)
             except Exception as e:
                 conn.commit()
@@ -60,6 +67,10 @@ class DBHandler(Logger):
     @property
     def db_path(self):
         raise Exception(f"'{self.__class__.__name__}' db doesn't support db path property'")
+
+    @property
+    def pragma_foreign_keys_on(self):
+        return None
 
     @property
     @abstractmethod
@@ -102,10 +113,6 @@ class DBHandler(Logger):
     @property
     def job_id(self):
         return self._job_id
-
-    def connect(self):
-        conn = self._adapter.connect()
-        return conn
 
     @transaction_decorator
     def create_job(self, c, name='', description=''):
@@ -166,7 +173,7 @@ class DBHandler(Logger):
 
         # Create job and store job id
         c.execute(
-            f"INSERT INTO jobs(name, description) VALUES ({name or 'NULL'}, {description or 'NULL'}) RETURNING job_id")
+            f"INSERT INTO jobs{fields_values(name=name, description=description)} RETURNING job_id")
         # c.execute("SELECT last_insert_rowid()")
         self._job_id = c.fetchone()[0]
 
@@ -385,7 +392,7 @@ class DBHandler(Logger):
     @transaction_decorator
     def count_pending_tasks_below_level(self, c, level) -> int:
         c.execute(
-            f"SELECT COUNT(*) FROM tasks WHERE level < {level} AND status in ('{EStatus.PENDING}')")
+            f"SELECT COUNT(*) FROM tasks WHERE job_id = {self.job_id} AND level < {level} AND status in ('{EStatus.PENDING}')")
 
         row = c.fetchone()
         return row[0]
@@ -404,8 +411,8 @@ class DBHandler(Logger):
 
         level_query = f' AND level >= {level.start} AND level < {level.stop}' if level is not None else ''
         # get pending task with minimum level
-        c.execute(f"SELECT * FROM tasks WHERE status IN ('{EStatus.PENDING}'){level_query} AND level = "
-                  f"(SELECT MIN(level) FROM tasks WHERE status IN ('{EStatus.PENDING}'){level_query});")
+        c.execute(f"SELECT * FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.PENDING}'){level_query} AND level = "
+                  f"(SELECT MIN(level) FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.PENDING}'){level_query});")
         row = c.fetchone()
         if row is None:
             ptask = None
@@ -414,8 +421,8 @@ class DBHandler(Logger):
             ptask = Task(**dict(zip(col_names, row)))
 
         # get running task with minimum level
-        c.execute(f"SELECT * FROM tasks WHERE status IN ('{EStatus.RUNNING}'){level_query} AND level = "
-                  f"(SELECT MIN(level) FROM tasks WHERE status IN ('{EStatus.RUNNING}'){level_query});")
+        c.execute(f"SELECT * FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.RUNNING}'){level_query} AND level = "
+                  f"(SELECT MIN(level) FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.RUNNING}'){level_query});")
         row = c.fetchone()
         if row is None:
             rtask = None
@@ -493,19 +500,31 @@ class DBHandler(Logger):
                 f"Unsupported status '{status}' for status update")
 
 
-def from_connection_str(db, **kwargs) -> DBHandler:
-    sep = '://'
-    sep_index = db.find(sep)
-    if sep_index == -1:
-        raise RuntimeError(f'db must be of format <type>://<connection string>')
-    db_type = db[:sep_index]
+def from_connection_str(conn=None, **kwargs) -> DBHandler:
+    if conn is None:
+        conn = ''
 
+    sep = '://'
+    sep_index = conn.find(sep)
+    if sep_index == -1:
+        raise RuntimeError(f'connection must be of format <db type>://<connection string>')
+    db_type = conn[:sep_index]
+    
+    # validate connectino
+    if not db_type:
+        raise RuntimeError(f'missing db type, connection must be of format <db type>://<connection string>')
+    
+    connection_str = conn[sep_index + len(sep):]    
+    if not connection_str:
+        raise RuntimeError(f'missing connection string, connection must be of format <db type>://<connection string>')
+
+    # get db type handler
     if db_type == 'sqlite':
         from .sqlite3 import SQLite3DBHandler
-        db_handler = SQLite3DBHandler(db, **kwargs)
+        db_handler = SQLite3DBHandler(conn, **kwargs)
     elif db_type == 'postgresql':
         from .postgresql import PostgresqlDBHandler
-        db_handler = PostgresqlDBHandler(db, **kwargs)
+        db_handler = PostgresqlDBHandler(conn, **kwargs)
     else:
         raise Exception(f"unsupported db type '{db_type}', db type must be one of ['sqlite', 'postgresql']")
 

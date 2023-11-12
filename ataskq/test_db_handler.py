@@ -2,45 +2,54 @@ from pathlib import Path
 
 import pytest
 
-from .db_handler import DBHandler, EQueryType, Task, EAction
-from .test_common import db_path
+from .db_handler import from_connection_str, DBHandler, EQueryType, EAction
+from .models import Task
 
 
-def test_db_format():
+def test_db_format(conn):
     # very general sanity test
-    db_handler = DBHandler(db=f'sqlite://ataskq.db')
+    db_handler = from_connection_str(conn)
 
-    assert db_handler.db_type == 'sqlite'
-    assert db_handler.db_conn == 'ataskq.db'
-    assert db_handler.db_path == 'ataskq.db'
+    assert isinstance(db_handler, DBHandler)
+    if 'sqlite' in conn:
+        from .db_handler.sqlite3 import SQLite3DBHandler
+        assert isinstance(db_handler, SQLite3DBHandler)
+        assert 'ataskq.db' in db_handler.db_path
+    elif 'postgresql' in conn:
+        from .db_handler.sqlite3 import SQLite3DBHandler
+        assert isinstance(db_handler, SQLite3DBHandler)
+    else:
+        raise Exception(f"unknown db type in connection string '{conn}'")
+
+    
 
 
 def test_db_invalid_format_no_sep():
     with pytest.raises(RuntimeError) as excinfo:
-        DBHandler(db=f'sqlite').create_job()
-    assert 'db must be of format <type>://<connection string>' == str(excinfo.value)
+        from_connection_str(conn=f'sqlite')
+    assert 'connection must be of format <db type>://<connection string>' == str(excinfo.value)
 
 
 def test_db_invalid_format_no_type():
     with pytest.raises(RuntimeError) as excinfo:
-        DBHandler(db=f'://ataskq.db').create_job()
-    assert 'missing db type, db must be of format <type>://<connection string>' == str(excinfo.value)
+        from_connection_str(conn=f'://ataskq.db')
+    assert 'missing db type, connection must be of format <db type>://<connection string>' == str(excinfo.value)
 
 
 def test_db_invalid_format_no_connectino():
     with pytest.raises(RuntimeError) as excinfo:
-        DBHandler(db=f'sqlite://').create_job()
-    assert 'missing db connection string, db must be of format <type>://<connection string>' == str(excinfo.value)
+        from_connection_str(conn=f'sqlite://')
+    assert 'missing connection string, connection must be of format <db type>://<connection string>' == str(excinfo.value)
 
 
-def test_job_default_name(tmp_path):
-    db_handler: DBHandler = DBHandler(db=db_path(tmp_path)).create_job()
+def test_job_default_name(conn):
+    db_handler: DBHandler = from_connection_str(conn=conn).create_job()
     job = db_handler.get_jobs()[0]
-    assert job.name == ''
+    assert job.name == None
 
 
-def test_job_custom_name(tmp_path):
-    db_handler: DBHandler = DBHandler(db=db_path(tmp_path)).create_job(name='my_job')
+def test_job_custom_name(conn):
+    db_handler: DBHandler = from_connection_str(conn=conn).create_job(name='my_job')
     job = db_handler.get_jobs()[0]
     assert job.name == 'my_job'
 
@@ -53,8 +62,8 @@ def _compare_task_taken(task1: Task, task2: Task):
     assert task1.targs == task2.targs
 
 
-def test_take_next_task(tmp_path: Path):
-    db_handler: DBHandler = DBHandler(db=db_path(tmp_path)).create_job()
+def test_take_next_task(conn: Path):
+    db_handler: DBHandler = from_connection_str(conn=conn).create_job()
     in_task1 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="task1")
 
     db_handler.add_tasks([
@@ -66,17 +75,17 @@ def test_take_next_task(tmp_path: Path):
     _compare_task_taken(in_task1, task)
 
 
-def test_query(tmp_path):
-    db_handler: DBHandler = DBHandler(db=db_path(tmp_path)).create_job()
+def test_query(conn):
+    db_handler: DBHandler = from_connection_str(conn=conn).create_job()
     for q in EQueryType.__members__.values():
         try:
             db_handler.query(q)
         except Exception as ex:
             pytest.fail(f"query '{q}' failed, exception: {ex}")
 
-def test_table(tmp_path):
+def test_table(conn):
     # very general sanity test
-    db_handler: DBHandler = DBHandler(db=db_path(tmp_path)).create_job()
+    db_handler: DBHandler = from_connection_str(conn=conn).create_job()
     try:
         for q in EQueryType.__members__.values():
             table = db_handler.html_table(q).split('\n')
@@ -86,9 +95,9 @@ def test_table(tmp_path):
         pytest.fail(f"table query '{q}' failed, exception: {ex}")
 
 
-def test_html(tmp_path: Path):
+def test_html(conn: Path):
     # very general sanity test
-    db_handler: DBHandler = DBHandler(db=db_path(tmp_path)).create_job()
+    db_handler: DBHandler = from_connection_str(conn=conn).create_job()
     try:
         for q in EQueryType.__members__.values():
             html = db_handler.html(query_type=EQueryType.TASKS_STATUS)
@@ -102,9 +111,10 @@ def test_html(tmp_path: Path):
     except Exception as ex:
         pytest.fail(f"html query '{q}' failed, exception: {ex}")
 
-def test_html_file_str_dump(tmp_path: Path):
+
+def test_html_file_str_dump(conn, tmp_path: Path):
     # very general sanity test
-    db_handler: DBHandler = DBHandler(db=db_path(tmp_path)).create_job()
+    db_handler: DBHandler = from_connection_str(conn=conn).create_job()
     file = tmp_path / 'test.html'
     html = db_handler.html(query_type=EQueryType.TASKS_STATUS, file=file)
 
@@ -112,9 +122,9 @@ def test_html_file_str_dump(tmp_path: Path):
     assert html == file.read_text()
 
 
-def test_html_file_io_dump(tmp_path: Path):
+def test_html_file_io_dump(conn: Path, tmp_path: Path):
     # very general sanity test
-    db_handler: DBHandler = DBHandler(db=db_path(tmp_path)).create_job()
+    db_handler: DBHandler = from_connection_str(conn=conn).create_job()
     file = tmp_path / 'test.html'
     with open(file, 'w') as f:
         html = db_handler.html(query_type=EQueryType.TASKS_STATUS, file=f)
@@ -123,10 +133,9 @@ def test_html_file_io_dump(tmp_path: Path):
     assert html == file.read_text()
 
 
-def test_task_job_delete_cascade(tmp_path: Path):
+def test_task_job_delete_cascade(conn):
     # test that deleting a job deletes all its tasks
-    db = db_path(tmp_path)
-    db_handler1: DBHandler = DBHandler(db=db).create_job(name='job1')
+    db_handler1: DBHandler = from_connection_str(conn=conn).create_job(name='job1')
     db_handler1.add_tasks([
         Task(),
         Task(),
@@ -135,7 +144,7 @@ def test_task_job_delete_cascade(tmp_path: Path):
     tasks = db_handler1.get_tasks()
     assert len(tasks) == 3
 
-    db_handler2: DBHandler = DBHandler(db=db).create_job(name='job2')
+    db_handler2: DBHandler = from_connection_str(conn=conn).create_job(name='job2')
     db_handler2.add_tasks([
         Task(),
         Task(),
@@ -151,13 +160,13 @@ def test_task_job_delete_cascade(tmp_path: Path):
     tasks = db_handler2.get_tasks()
     assert len(tasks) == 2
 
-def test_max_jobs(tmp_path):
-    db = db_path(tmp_path)
+def test_max_jobs(conn):
     max_jobs = 10
     jobs_id = []
     for i in range(max_jobs * 2):
-        jobs_id.append(DBHandler(db=db, max_jobs=max_jobs).create_job(name=f'job{i}').job_id) 
-    jobs = DBHandler(db=db).get_jobs()   
+        db_handler = from_connection_str(conn=conn, max_jobs=max_jobs)
+        jobs_id.append(db_handler.create_job(name=f'job{i}').job_id) 
+    jobs = from_connection_str(conn=conn).get_jobs()   
     assert len(jobs) == 10
     
     remaining_jobs = [j.job_id for j in jobs]

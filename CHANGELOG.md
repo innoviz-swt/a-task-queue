@@ -1,5 +1,8 @@
 # ChangeLog
 
+# x.x.x
+- add postgresql support
+
 # 0.5.0
 - schema v4: update schema with jobs. tasks.tid renamed to task_id
 

@@ -4,21 +4,25 @@ from datetime import datetime, timedelta
 import pytest
 
 from ataskq import TaskQ, StateKWArg, Task, targs, EStatus
-from .test_common import db_path
 
 
-def test_create_job(tmp_path: Path):
-    taskq = TaskQ(db=db_path(tmp_path)).create_job(overwrite=True)
+def test_create_job(conn):
+    taskq = TaskQ(conn=conn).create_job(overwrite=True)
     assert isinstance(taskq, TaskQ)
 
-    assert (tmp_path / 'ataskq.db').exists()
-    assert (tmp_path / 'ataskq.db').is_file()
+    if 'sqlite' in conn:
+        assert Path(taskq.db_handler.db_path).exists()
+        assert Path(taskq.db_handler.db_path).is_file()
+    elif 'postgresql' in conn:
+        pass
+    else:
+        raise Exception(f"unknown db type in connection string '{conn}'")
 
 
-def test_run_default(tmp_path: Path):
+def test_run_default(conn, tmp_path: Path):
     filepath = tmp_path / 'file.txt'
 
-    taskq = TaskQ(db=db_path(tmp_path)).create_job(overwrite=True)
+    taskq = TaskQ(conn=conn).create_job(overwrite=True)
 
     taskq.add_tasks([
         Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file",
@@ -38,10 +42,10 @@ def test_run_default(tmp_path: Path):
         "task 2\n"
 
 
-def test_run_task_raise_exception(tmp_path: Path):
+def test_run_task_raise_exception(conn):
     # no exception raised
     try:
-        taskq: TaskQ = TaskQ(db=db_path(tmp_path), run_task_raise_exception=False).create_job(overwrite=True)
+        taskq: TaskQ = TaskQ(conn=conn, run_task_raise_exception=False).create_job(overwrite=True)
         taskq.add_tasks([
             Task(entrypoint="ataskq.tasks_utils.exception_task",
                  targs=targs(message="task failed")),
@@ -51,7 +55,7 @@ def test_run_task_raise_exception(tmp_path: Path):
         assert False, f"exception_task raises exception with run_task_raise_exception=False"
 
     # exception raised
-    taskq: TaskQ = TaskQ(db=db_path(tmp_path), run_task_raise_exception=True).create_job(overwrite=True)
+    taskq: TaskQ = TaskQ(conn=conn, run_task_raise_exception=True).create_job(overwrite=True)
     taskq.add_tasks([
         Task(entrypoint="ataskq.tasks_utils.exception_task",
              targs=targs(message="task failed")),
@@ -61,10 +65,10 @@ def test_run_task_raise_exception(tmp_path: Path):
     assert excinfo.value.args[0] == "task failed"
 
 
-def test_run_2_processes(tmp_path: Path):
+def test_run_2_processes(conn, tmp_path: Path):
     filepath = tmp_path / 'file.txt'
 
-    taskq = TaskQ(db=db_path(tmp_path)).create_job(overwrite=True)
+    taskq = TaskQ(conn=conn).create_job(overwrite=True)
 
     taskq.add_tasks([
         Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
@@ -84,10 +88,10 @@ def test_run_2_processes(tmp_path: Path):
     assert "task 1\n" in text
 
 
-def _test_run_by_level(tmp_path: Path, num_processes: int):
+def _test_run_by_level(conn, tmp_path: Path, num_processes: int):
     filepath = tmp_path / 'file.txt'
 
-    taskq = TaskQ(db=db_path(tmp_path)).create_job(overwrite=True)
+    taskq = TaskQ(conn=conn).create_job(overwrite=True)
 
     taskq.add_tasks([
         Task(level=0, entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
@@ -127,17 +131,17 @@ def _test_run_by_level(tmp_path: Path, num_processes: int):
     assert "task 3\n" in text
 
 
-def test_run_by_level(tmp_path: Path):
-    _test_run_by_level(tmp_path, num_processes=None)
+def test_run_by_level(conn, tmp_path: Path):
+    _test_run_by_level(conn, tmp_path, num_processes=None)
 
 
-def test_run_by_level_2_processes(tmp_path: Path):
-    _test_run_by_level(tmp_path, num_processes=2)
+def test_run_by_level_2_processes(conn, tmp_path: Path):
+    _test_run_by_level(conn, tmp_path, num_processes=2)
 
 
-def test_monitor_pulse_failure(tmp_path):
+def test_monitor_pulse_failure(conn):
     # set monitor pulse longer than timeout
-    taskq = TaskQ(db=db_path(tmp_path), monitor_pulse_interval=10,
+    taskq = TaskQ(conn=conn, monitor_pulse_interval=10,
                   monitor_timeout_internal=1.5).create_job(overwrite=True)
     taskq.add_tasks([
         # reserved keyward for ignored task for testing
@@ -155,9 +159,9 @@ def test_monitor_pulse_failure(tmp_path):
     assert stop - start > timedelta(seconds=1.5)
 
 
-def test_run_with_state_kwargs(tmp_path: Path):
+def test_run_with_state_kwargs(conn):
     from ataskq.tasks_utils.counter_task import counter_kwarg, counter_task
-    taskq = TaskQ(db=db_path(tmp_path), run_task_raise_exception=True).create_job(overwrite=True)
+    taskq = TaskQ(conn=conn, run_task_raise_exception=True).create_job(overwrite=True)
 
     taskq.add_state_kwargs([
         StateKWArg(entrypoint=counter_kwarg, name='counter'),

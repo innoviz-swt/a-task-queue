@@ -40,7 +40,7 @@ class TaskQ(Logger):
     def __init__(
             self,
             job_id=None,
-            db="sqlite://ataskq.db.sqlite3",
+            conn="sqlite://ataskq.db.sqlite3",
             run_task_raise_exception=False,
             task_pull_intervnal=0.2,
             monitor_pulse_interval=60,
@@ -57,7 +57,7 @@ class TaskQ(Logger):
         super().__init__(logger)
 
         # init db handler
-        self._db_handler: DBHandler = from_connection_str(db=db, job_id=job_id, max_jobs=max_jobs, logger=self._logger)
+        self._db_handler: DBHandler = from_connection_str(conn=conn, job_id=job_id, max_jobs=max_jobs, logger=self._logger)
 
         self._run_task_raise_exception = run_task_raise_exception
         self._task_pull_interval = task_pull_intervnal
