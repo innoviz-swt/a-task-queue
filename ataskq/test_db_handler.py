@@ -1,3 +1,5 @@
+# todo: add queries order_by tests
+
 from pathlib import Path
 from copy import copy
 from .tasks_utils import dummy_args_task
@@ -23,8 +25,6 @@ def test_db_format(conn):
     else:
         raise Exception(f"unknown db type in connection string '{conn}'")
 
-    
-
 
 def test_db_invalid_format_no_sep():
     with pytest.raises(RuntimeError) as excinfo:
@@ -41,13 +41,14 @@ def test_db_invalid_format_no_type():
 def test_db_invalid_format_no_connectino():
     with pytest.raises(RuntimeError) as excinfo:
         from_connection_str(conn=f'sqlite://')
-    assert 'missing connection string, connection must be of format <db type>://<connection string>' == str(excinfo.value)
+    assert 'missing connection string, connection must be of format <db type>://<connection string>' == str(
+        excinfo.value)
 
 
 def test_job_default_name(conn):
     db_handler: DBHandler = from_connection_str(conn=conn).create_job()
     job = db_handler.get_jobs()[0]
-    assert job.name == None
+    assert job.name is None
 
 
 def test_job_custom_name(conn):
@@ -104,11 +105,12 @@ def test_take_next(conn):
     assert action == EAction.RUN_TASK
     assert task.task_id not in tids
     tids.append(task.task_id)
-    _compare_task_taken(in_task3, task) # note in_task3 is copy of in_task1
+    _compare_task_taken(in_task3, task)  # note in_task3 is copy of in_task1
 
     action, task = db_handler._take_next_task(level=None)
     assert action == EAction.WAIT
     assert task is None
+
 
 def test_take_next_task_2_jobs(conn):
     db_handler1: DBHandler = from_connection_str(conn=conn).create_job(name='job1')
@@ -119,7 +121,6 @@ def test_take_next_task_2_jobs(conn):
     in_task3 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="taskb")
     in_task4 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="taskd")
     in_task5 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=2, name="taske")
-
 
     db_handler1.add_tasks([
         in_task2,
@@ -146,7 +147,7 @@ def test_take_next_task_2_jobs(conn):
     action, task = db_handler1._take_next_task(level=None)
     assert action == EAction.RUN_TASK
     assert task.task_id not in tids
-    tids.append(task.task_id)    
+    tids.append(task.task_id)
     _compare_task_taken(in_task2, task, job_id=jid1)
     tids.append(task.task_id)
 
@@ -154,7 +155,7 @@ def test_take_next_task_2_jobs(conn):
     assert action == EAction.RUN_TASK
     assert task.task_id not in tids
     tids.append(task.task_id)
-    _compare_task_taken(in_task3, task, job_id=jid1) # note in_task3 is copy of in_task1
+    _compare_task_taken(in_task3, task, job_id=jid1)  # note in_task3 is copy of in_task1
 
     action, task = db_handler1._take_next_task(level=None)
     assert action == EAction.WAIT
@@ -164,7 +165,7 @@ def test_take_next_task_2_jobs(conn):
     action, task = db_handler2._take_next_task(level=None)
     assert action == EAction.RUN_TASK
     assert task.task_id not in tids
-    tids.append(task.task_id)    
+    tids.append(task.task_id)
     _compare_task_taken(in_task4, task, job_id=jid2)
     tids.append(task.task_id)
 
@@ -182,7 +183,7 @@ def test_get_tasks(conn):
     db_handler.add_tasks([
         in_task3,
         in_task2,
-        in_task1,                
+        in_task1,
     ])
 
     tasks = db_handler.get_tasks()
@@ -195,7 +196,6 @@ def test_get_tasks(conn):
         elif t.level == 3:
             _compare_task_taken(in_task3, t)
 
-    
 
 def test_query(conn):
     db_handler: DBHandler = from_connection_str(conn=conn).create_job()
@@ -204,6 +204,7 @@ def test_query(conn):
             db_handler.query(q)
         except Exception as ex:
             pytest.fail(f"query '{q}' failed, exception: {ex}")
+
 
 def test_table(conn):
     # very general sanity test
@@ -282,14 +283,15 @@ def test_task_job_delete_cascade(conn):
     tasks = db_handler2.get_tasks()
     assert len(tasks) == 2
 
+
 def test_max_jobs(conn):
     max_jobs = 10
     jobs_id = []
     for i in range(max_jobs * 2):
         db_handler = from_connection_str(conn=conn, max_jobs=max_jobs)
-        jobs_id.append(db_handler.create_job(name=f'job{i}').job_id) 
-    jobs = from_connection_str(conn=conn).get_jobs()   
+        jobs_id.append(db_handler.create_job(name=f'job{i}').job_id)
+    jobs = from_connection_str(conn=conn).get_jobs()
     assert len(jobs) == 10
-    
+
     remaining_jobs = [j.job_id for j in jobs]
     assert remaining_jobs == jobs_id[-max_jobs:]

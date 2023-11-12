@@ -7,7 +7,7 @@ from ataskq import TaskQ, StateKWArg, Task, targs, EStatus
 
 
 def test_create_job(conn):
-    taskq = TaskQ(conn=conn).create_job(overwrite=True)
+    taskq = TaskQ(conn=conn).create_job()
     assert isinstance(taskq, TaskQ)
 
     if 'sqlite' in conn:
@@ -22,7 +22,7 @@ def test_create_job(conn):
 def test_run_default(conn, tmp_path: Path):
     filepath = tmp_path / 'file.txt'
 
-    taskq = TaskQ(conn=conn).create_job(overwrite=True)
+    taskq = TaskQ(conn=conn).create_job()
 
     taskq.add_tasks([
         Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file",
@@ -45,7 +45,7 @@ def test_run_default(conn, tmp_path: Path):
 def test_run_task_raise_exception(conn):
     # no exception raised
     try:
-        taskq: TaskQ = TaskQ(conn=conn, run_task_raise_exception=False).create_job(overwrite=True)
+        taskq: TaskQ = TaskQ(conn=conn, run_task_raise_exception=False).create_job()
         taskq.add_tasks([
             Task(entrypoint="ataskq.tasks_utils.exception_task",
                  targs=targs(message="task failed")),
@@ -55,7 +55,7 @@ def test_run_task_raise_exception(conn):
         assert False, f"exception_task raises exception with run_task_raise_exception=False"
 
     # exception raised
-    taskq: TaskQ = TaskQ(conn=conn, run_task_raise_exception=True).create_job(overwrite=True)
+    taskq: TaskQ = TaskQ(conn=conn, run_task_raise_exception=True).create_job()
     taskq.add_tasks([
         Task(entrypoint="ataskq.tasks_utils.exception_task",
              targs=targs(message="task failed")),
@@ -68,7 +68,7 @@ def test_run_task_raise_exception(conn):
 def test_run_2_processes(conn, tmp_path: Path):
     filepath = tmp_path / 'file.txt'
 
-    taskq = TaskQ(conn=conn).create_job(overwrite=True)
+    taskq = TaskQ(conn=conn).create_job()
 
     taskq.add_tasks([
         Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
@@ -91,7 +91,7 @@ def test_run_2_processes(conn, tmp_path: Path):
 def _test_run_by_level(conn, tmp_path: Path, num_processes: int):
     filepath = tmp_path / 'file.txt'
 
-    taskq = TaskQ(conn=conn).create_job(overwrite=True)
+    taskq = TaskQ(conn=conn).create_job()
 
     taskq.add_tasks([
         Task(level=0, entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
@@ -142,7 +142,7 @@ def test_run_by_level_2_processes(conn, tmp_path: Path):
 def test_monitor_pulse_failure(conn):
     # set monitor pulse longer than timeout
     taskq = TaskQ(conn=conn, monitor_pulse_interval=10,
-                  monitor_timeout_internal=1.5).create_job(overwrite=True)
+                  monitor_timeout_internal=1.5).create_job()
     taskq.add_tasks([
         # reserved keyward for ignored task for testing
         Task(entrypoint='ataskq.skip_run_task', targs=targs('task will fail')),
@@ -161,7 +161,7 @@ def test_monitor_pulse_failure(conn):
 
 def test_run_with_state_kwargs(conn):
     from ataskq.tasks_utils.counter_task import counter_kwarg, counter_task
-    taskq = TaskQ(conn=conn, run_task_raise_exception=True).create_job(overwrite=True)
+    taskq = TaskQ(conn=conn, run_task_raise_exception=True).create_job()
 
     taskq.add_state_kwargs([
         StateKWArg(entrypoint=counter_kwarg, name='counter'),

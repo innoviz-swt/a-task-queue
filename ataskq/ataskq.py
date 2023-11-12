@@ -57,7 +57,8 @@ class TaskQ(Logger):
         super().__init__(logger)
 
         # init db handler
-        self._db_handler: DBHandler = from_connection_str(conn=conn, job_id=job_id, max_jobs=max_jobs, logger=self._logger)
+        self._db_handler: DBHandler = from_connection_str(
+            conn=conn, job_id=job_id, max_jobs=max_jobs, logger=self._logger)
 
         self._run_task_raise_exception = run_task_raise_exception
         self._task_pull_interval = task_pull_intervnal
@@ -108,8 +109,8 @@ class TaskQ(Logger):
         for row in rows:
             self.info(row)
 
-    def get_tasks(self):
-        return self._db_handler.get_tasks()
+    def get_tasks(self, order_by=None):
+        return self._db_handler.get_tasks(order_by=order_by)
 
     def get_jobs(self):
         return self._db_handler.get_jobs()

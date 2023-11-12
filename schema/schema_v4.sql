@@ -22,7 +22,7 @@ CREATE TABLE tasks(
   level REAL,
   entrypoint TEXT NOT NULL,
   targs MEDIUMBLOB,
-  status TEXT CHECK(status in("pending", "running", "success", "failure")),
+  status TEXT ,
   take_time DATETIME,
   start_time DATETIME,
   done_time DATETIME,

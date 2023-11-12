@@ -56,6 +56,29 @@ def transaction_decorator(func):
     return wrapper
 
 
+def _field_with_order(f):
+    if isinstance(f, (tuple, list)):
+        if len(f) == 1:
+            return f"{f[0]} ASC"
+        assert len(f) == 2, "order_by tuple must be of format (field, order) where order default is ASC"
+
+    else:
+        return f"{f} ASC"
+    return f"{f[0]} {f[1]}"
+
+
+def order_query(order_by):
+    if isinstance(order_by, str):
+        return order_by
+
+    assert isinstance(order_by, (tuple, list)), "order_by must be of type str, tuple or list"
+
+    order_by = [_field_with_order(f) for f in order_by]
+    order_by = ", ".join(order_by)
+
+    return order_by
+
+
 class DBHandler(Logger):
     def __init__(self, job_id=None, max_jobs=None, logger=None) -> None:
         super().__init__(logger)
@@ -250,11 +273,7 @@ class DBHandler(Logger):
         return self
 
     def task_query(self):
-        query = f'SELECT * FROM tasks WHERE job_id = {self._job_id};'
-        return query
-
-    def state_kwargs_query(self):
-        query = f'SELECT * FROM state_kwargs WHERE job_id = {self._job_id};'
+        query = f'SELECT * FROM tasks WHERE job_id = {self._job_id}'
         return query
 
     def tasks_status_query(self):
@@ -264,41 +283,52 @@ class DBHandler(Logger):
                 [f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status} " for status in EStatus]
             ) + \
             f"FROM tasks WHERE job_id = {self._job_id} " \
-            "GROUP BY level, name;"
+            "GROUP BY level, name"
 
         return query
 
+    def state_kwargs_query(self):
+        query = f'SELECT * FROM state_kwargs WHERE job_id = {self._job_id}'
+        return query
+
     def jobs_query(self):
-        query = f'SELECT * FROM jobs;'
+        query = f'SELECT * FROM jobs'
         return query
 
     def jobs_status_query(self):
         query = "SELECT jobs.job_id, jobs.name, jobs.description, jobs.priority, " \
             "COUNT(*) as tasks, " + \
-            ",".join(
-                [f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status} " for status in EStatus]
+            ", ".join(
+                [f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status}" for status in EStatus]
             ) + \
-            f"FROM jobs " \
-            "LEFT JOIN tasks ON jobs.job_id = tasks.job_id;"
+            f" FROM jobs " \
+            "LEFT JOIN tasks ON jobs.job_id = tasks.job_id GROUP BY jobs.job_id"
 
         return query
 
     @transaction_decorator
-    def query(self, c, query_type=EQueryType.JOBS_STATUS):
+    def query(self, c, query_type=EQueryType.JOBS_STATUS, order_by=None):
         queries = {
-            EQueryType.TASKS: self.task_query,
-            EQueryType.TASKS_STATUS: self.tasks_status_query,
-            EQueryType.STATE_KWARGS: self.state_kwargs_query,
-            EQueryType.JOBS: self.jobs_query,
-            EQueryType.JOBS_STATUS: self.jobs_status_query,
+            # query func, default sort by ASC
+            EQueryType.TASKS: (self.task_query, 'task_id ASC'),
+            EQueryType.TASKS_STATUS: (self.tasks_status_query, 'name ASC'),
+            EQueryType.STATE_KWARGS: (self.state_kwargs_query, 'state_kwargs_id ASC'),
+            EQueryType.JOBS: (self.jobs_query, 'job_id ASC'),
+            EQueryType.JOBS_STATUS: (self.jobs_status_query, 'jobs.job_id ASC'),
         }
-        query = queries.get(query_type)
+        query, default_order_by = queries.get(query_type)
 
         if query is None:
             # should never get here
             raise RuntimeError(f"Unknown status type: {query_type}")
 
         query_str = query()
+        if order_by:
+            order_str = order_query(order_by)
+            query_str += f" ORDER BY {order_str}"
+        else:
+            order_str = order_query(default_order_by)
+            query_str += f" ORDER BY {order_str}"
         c.execute(query_str)
         rows = c.fetchall()
         col_names = [description[0] for description in c.description]
@@ -306,8 +336,8 @@ class DBHandler(Logger):
 
         return rows, col_names
 
-    def get_tasks(self):
-        rows, col_names = self.query(query_type=EQueryType.TASKS)
+    def get_tasks(self, order_by=None):
+        rows, col_names = self.query(query_type=EQueryType.TASKS, order_by=order_by)
         tasks = [Task(**dict(zip(col_names, row))) for row in rows]
 
         return tasks
@@ -411,8 +441,9 @@ class DBHandler(Logger):
 
         level_query = f' AND level >= {level.start} AND level < {level.stop}' if level is not None else ''
         # get pending task with minimum level
-        c.execute(f"SELECT * FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.PENDING}'){level_query} AND level = "
-                  f"(SELECT MIN(level) FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.PENDING}'){level_query});")
+        c.execute(
+            f"SELECT * FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.PENDING}'){level_query} AND level = "
+            f"(SELECT MIN(level) FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.PENDING}'){level_query});")
         row = c.fetchone()
         if row is None:
             ptask = None
@@ -421,8 +452,9 @@ class DBHandler(Logger):
             ptask = Task(**dict(zip(col_names, row)))
 
         # get running task with minimum level
-        c.execute(f"SELECT * FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.RUNNING}'){level_query} AND level = "
-                  f"(SELECT MIN(level) FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.RUNNING}'){level_query});")
+        c.execute(
+            f"SELECT * FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.RUNNING}'){level_query} AND level = "
+            f"(SELECT MIN(level) FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.RUNNING}'){level_query});")
         row = c.fetchone()
         if row is None:
             rtask = None
@@ -509,12 +541,12 @@ def from_connection_str(conn=None, **kwargs) -> DBHandler:
     if sep_index == -1:
         raise RuntimeError(f'connection must be of format <db type>://<connection string>')
     db_type = conn[:sep_index]
-    
+
     # validate connectino
     if not db_type:
         raise RuntimeError(f'missing db type, connection must be of format <db type>://<connection string>')
-    
-    connection_str = conn[sep_index + len(sep):]    
+
+    connection_str = conn[sep_index + len(sep):]
     if not connection_str:
         raise RuntimeError(f'missing connection string, connection must be of format <db type>://<connection string>')
 

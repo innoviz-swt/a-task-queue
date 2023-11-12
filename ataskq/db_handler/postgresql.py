@@ -23,13 +23,13 @@ class PostgresConnection(NamedTuple):
         return f"postgresql://{userspec}{self.host}:{self.port}/{self.database}"
 
 
-def from_connection_str(db):
+def from_connection_str(conn):
     # https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING-URIS
     # todo: add params spec support
     format = 'postgresql://[user[:password]@][host][:port][/database]'
     pattern = r'postgresql://(?P<user>[^:@]+)(:(?P<password>[^@]+))?@?(?P<host>[^:/]+)(:(?P<port>\d+))?/(?P<database>.+)$'
 
-    match = re.match(pattern, db)
+    match = re.match(pattern, conn)
 
     if not match:
         raise Exception(f"db must be in '{format}', ex: 'postgresql://user:password@localhost:5432/mydb'")
@@ -59,7 +59,7 @@ class PostgresqlDBHandler(DBHandler):
 
     @property
     def bytes_type(self):
-        return 'MEDIUMBLOB'
+        return 'BYTEA'
 
     @property
     def primary_key(self):
@@ -67,7 +67,7 @@ class PostgresqlDBHandler(DBHandler):
 
     @property
     def timestamp_type(self):
-        return 'DATETIME'
+        return 'TIMESTAMP'
 
     def timestamp(self, ts):
         return f"'{ts}'::timestamp"
