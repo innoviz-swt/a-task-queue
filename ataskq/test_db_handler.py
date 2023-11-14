@@ -7,7 +7,7 @@ from .tasks_utils import dummy_args_task
 import pytest
 
 from .db_handler import from_connection_str, DBHandler, EQueryType, EAction
-from .models import Task
+from .models import Task, StateKWArg
 
 
 def test_db_format(conn):
@@ -282,6 +282,34 @@ def test_task_job_delete_cascade(conn):
 
     tasks = db_handler2.get_tasks()
     assert len(tasks) == 2
+
+
+def test_state_kwargs_job_delete_cascade(conn):
+    # test that deleting a job deletes all its tasks
+    db_handler1: DBHandler = from_connection_str(conn=conn).create_job(name='job1')
+    db_handler1.add_state_kwargs([
+        StateKWArg(entrypoint=''),
+        StateKWArg(entrypoint=''),
+        StateKWArg(entrypoint=''),
+    ])
+    state_kwargs = db_handler1.get_state_kwargs()
+    assert len(state_kwargs) == 3
+
+    db_handler2: DBHandler = from_connection_str(conn=conn).create_job(name='job2')
+    db_handler2.add_state_kwargs([
+        StateKWArg(entrypoint=''),
+        StateKWArg(entrypoint=''),
+    ])
+    state_kwargs = db_handler2.get_state_kwargs()
+    assert len(state_kwargs) == 2
+
+    db_handler1.delete_job()
+
+    state_kwargs = db_handler1.get_state_kwargs()
+    assert len(state_kwargs) == 0
+
+    state_kwargs = db_handler2.get_state_kwargs()
+    assert len(state_kwargs) == 2
 
 
 def test_max_jobs(conn):

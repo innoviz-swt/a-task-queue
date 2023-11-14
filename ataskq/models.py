@@ -113,10 +113,10 @@ class Task:
 class StateKWArg(EntryPoint):
     def __init__(self,
                  state_kwargs_id: int = None,
-                 name: str = '',
-                 entrypoint: Callable or str = '',
+                 name: str = None,
+                 entrypoint: Callable or str = None,
                  targs: tuple or bytes or None = None,
-                 description: str = '',
+                 description: str = None,
                  job_id: int = None) -> None:
         super().__init__(targs=targs, entrypoint=entrypoint)
 
