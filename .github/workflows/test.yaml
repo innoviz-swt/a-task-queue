@@ -4,7 +4,7 @@ on:
   push:
 
 jobs:
-  sqlite_test:
+  sqlite-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,6 +16,26 @@ jobs:
          python --version
          python -m pip install -r requirements.txt
          python -m pytest . -v --junitxml=tmp/report.xml
+      - name: Publish Test Report
+        uses: mikepenz/action-junit-report@v4
+        if: success() || failure() # always run even if the previous step fails
+        with:
+          report_paths: tmp/report.xml
+
+  postgresql-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+      - uses: ikalnytskyi/action-setup-postgres@v4
+      - name:  Build and run tests
+        run: |
+         python --version
+         python -m pip install -r requirements.txt
+         echo $CONNECTION_STR
+         ATASKQ_TEST_CONNECTION=$CONNECTION_STR python -m pytest . -v --junitxml=tmp/report.xml
+        env:
+          CONNECTION_STR: ${{ steps.postgres.outputs.connection-uri }}
       - name: Publish Test Report
         uses: mikepenz/action-junit-report@v4
         if: success() || failure() # always run even if the previous step fails
