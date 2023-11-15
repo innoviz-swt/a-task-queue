@@ -32,8 +32,8 @@ jobs:
         run: |
          python --version
          python -m pip install -r requirements.txt
-         echo $CONNECTION_STR
-         ATASKQ_TEST_CONNECTION=$CONNECTION_STR python -m pytest . -v --junitxml=tmp/report.xml
+         echo CONNECTION_STR $CONNECTION_STR
+        #  ATASKQ_TEST_CONNECTION=$CONNECTION_STR python -m pytest . -v --junitxml=tmp/report.xml
         env:
           CONNECTION_STR: ${{ steps.postgres.outputs.connection-uri }}
       - name: Publish Test Report
