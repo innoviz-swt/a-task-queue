@@ -10,7 +10,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.8.0'
+          python-version: '3.8'
       - name: Build and run tests
         run: |
          python --version
@@ -21,6 +21,7 @@ jobs:
         if: success() || failure() # always run even if the previous step fails
         with:
           report_paths: tmp/report.xml
+          check_name: sqlite3 report
 
   postgresql-test:
     runs-on: ubuntu-latest
@@ -44,3 +45,4 @@ jobs:
         if: success() || failure() # always run even if the previous step fails
         with:
           report_paths: tmp/report.xml
+          check_name: postgres report
