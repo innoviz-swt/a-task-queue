@@ -26,7 +26,7 @@ more example can be found [here](./examples)
 ## Contributer
 setup project git hooks
 ```
-git config core.hooksPath .githooks
+contrib/setup.sh
 ```
 
 ### vs code
