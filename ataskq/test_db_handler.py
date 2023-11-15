@@ -20,8 +20,8 @@ def test_db_format(conn):
         assert isinstance(db_handler, SQLite3DBHandler)
         assert 'ataskq.db' in db_handler.db_path
     elif 'postgresql' in conn:
-        from .db_handler.sqlite3 import SQLite3DBHandler
-        assert isinstance(db_handler, SQLite3DBHandler)
+        from .db_handler.postgresql import PostgresqlDBHandler
+        assert isinstance(db_handler, PostgresqlDBHandler)
     else:
         raise Exception(f"unknown db type in connection string '{conn}'")
 
