@@ -28,6 +28,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
       - uses: ikalnytskyi/action-setup-postgres@v4
+        id: postgres
       - name:  Build and run tests
         run: |
          python --version
