@@ -10,20 +10,47 @@ from .db_handler import from_connection_str, DBHandler, EQueryType, EAction
 from .models import Task, StateKWArg
 
 
+@pytest.fixture()
+def handler(request, conn) -> DBHandler:
+    handler = from_connection_str(conn)
+    handler.connect()
+    handler.create_job()
+
+    def disconnect():
+        handler.close()
+
+    request.addfinalizer(disconnect)
+
+    return handler
+
+
+@pytest.fixture()
+def clean_handler(request, conn) -> DBHandler:
+    handler = from_connection_str(conn)
+    handler.connect()
+
+    def disconnect():
+        handler.close()
+
+    request.addfinalizer(disconnect)
+
+    return handler
+
+
 def test_db_format(conn):
     # very general sanity test
-    db_handler = from_connection_str(conn)
+    handler = from_connection_str(conn)
 
-    assert isinstance(db_handler, DBHandler)
+    assert isinstance(handler, DBHandler)
     if 'sqlite' in conn:
         from .db_handler.sqlite3 import SQLite3DBHandler
-        assert isinstance(db_handler, SQLite3DBHandler)
-        assert 'ataskq.db' in db_handler.db_path
+        assert isinstance(handler, SQLite3DBHandler)
+        assert 'ataskq.db' in handler.db_path
     elif 'postgresql' in conn:
         from .db_handler.postgresql import PostgresqlDBHandler
-        assert isinstance(db_handler, PostgresqlDBHandler)
+        assert isinstance(handler, PostgresqlDBHandler)
     else:
-        raise Exception(f"unknown db type in connection string '{conn}'")
+        raise Exception(f"unknown db type in connection string '{handler}'")
 
 
 def test_db_invalid_format_no_sep():
@@ -45,15 +72,15 @@ def test_db_invalid_format_no_connectino():
         excinfo.value)
 
 
-def test_job_default_name(conn):
-    db_handler: DBHandler = from_connection_str(conn=conn).create_job()
-    job = db_handler.get_jobs()[0]
+def test_job_default_name(handler):
+    job = handler.get_jobs()[0]
     assert job.name is None
 
 
-def test_job_custom_name(conn):
-    db_handler: DBHandler = from_connection_str(conn=conn).create_job(name='my_job')
-    job = db_handler.get_jobs()[0]
+def test_job_custom_name(clean_handler: DBHandler):
+    handler = clean_handler
+    handler.create_job(name='my_job')
+    job = handler.get_jobs()[0]
     assert job.name == 'my_job'
 
 
@@ -68,26 +95,24 @@ def _compare_task_taken(task1: Task, task2: Task, job_id=None):
     assert task1.targs == task2.targs
 
 
-def test_take_next_task_sanity(conn):
-    db_handler: DBHandler = from_connection_str(conn=conn).create_job()
+def test_take_next_task_sanity(handler):
     in_task1 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="task1")
 
-    db_handler.add_tasks([
+    handler.add_tasks([
         in_task1,
     ])
 
-    action, task = db_handler._take_next_task(level=None)
+    action, task = handler._take_next_task(level=None)
     assert action == EAction.RUN_TASK
     _compare_task_taken(in_task1, task)
 
 
-def test_take_next(conn):
-    db_handler: DBHandler = from_connection_str(conn=conn).create_job()
+def test_take_next(handler: DBHandler):
     in_task1 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="task1")
     in_task2 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=2, name="task2")
     in_task3 = copy(in_task1)
 
-    db_handler.add_tasks([
+    handler.add_tasks([
         in_task2,
         in_task1,
         in_task3,
@@ -95,26 +120,26 @@ def test_take_next(conn):
 
     tids = []
 
-    action, task = db_handler._take_next_task(level=None)
+    action, task = handler._take_next_task(level=None)
     assert action == EAction.RUN_TASK
     assert task.task_id not in tids
     tids.append(task.task_id)
     _compare_task_taken(in_task1, task)
 
-    action, task = db_handler._take_next_task(level=None)
+    action, task = handler._take_next_task(level=None)
     assert action == EAction.RUN_TASK
     assert task.task_id not in tids
     tids.append(task.task_id)
     _compare_task_taken(in_task3, task)  # note in_task3 is copy of in_task1
 
-    action, task = db_handler._take_next_task(level=None)
+    action, task = handler._take_next_task(level=None)
     assert action == EAction.WAIT
     assert task is None
 
 
 def test_take_next_task_2_jobs(conn):
-    db_handler1: DBHandler = from_connection_str(conn=conn).create_job(name='job1')
-    db_handler2: DBHandler = from_connection_str(conn=conn).create_job(name='job2')
+    db_handler1: DBHandler = from_connection_str(conn=conn).connect().create_job(name='job1')
+    db_handler2: DBHandler = from_connection_str(conn=conn).connect().create_job(name='job2')
 
     in_task1 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=2, name="taska")
     in_task2 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="taskb")
@@ -173,20 +198,22 @@ def test_take_next_task_2_jobs(conn):
     assert action == EAction.WAIT
     assert task is None
 
+    db_handler1.close()
+    db_handler2.close()
 
-def test_get_tasks(conn):
-    db_handler: DBHandler = from_connection_str(conn=conn).create_job()
+
+def test_get_tasks(handler: DBHandler):
     in_task1 = Task(entrypoint=dummy_args_task, level=1, name="task1")
     in_task2 = Task(entrypoint=dummy_args_task, level=2, name="task2")
     in_task3 = Task(entrypoint=dummy_args_task, level=3, name="task3")
 
-    db_handler.add_tasks([
+    handler.add_tasks([
         in_task3,
         in_task2,
         in_task1,
     ])
 
-    tasks = db_handler.get_tasks()
+    tasks = handler.get_tasks()
     assert len(tasks) == 3
     for t in tasks:
         if t.level == 1:
@@ -197,33 +224,29 @@ def test_get_tasks(conn):
             _compare_task_taken(in_task3, t)
 
 
-def test_query(conn):
-    db_handler: DBHandler = from_connection_str(conn=conn).create_job()
+def test_query(handler: DBHandler):
     for q in EQueryType.__members__.values():
         try:
-            db_handler.query(q)
+            handler.query(q)
         except Exception as ex:
             pytest.fail(f"query '{q}' failed, exception: {ex}")
 
 
-def test_table(conn):
+def test_table(handler: DBHandler):
     # very general sanity test
-    db_handler: DBHandler = from_connection_str(conn=conn).create_job()
     try:
         for q in EQueryType.__members__.values():
-            table = db_handler.html_table(q).split('\n')
+            table = handler.html_table(q).split('\n')
             assert '<table>' in table[0]
             assert '</table>' in table[-1]
     except Exception as ex:
         pytest.fail(f"table query '{q}' failed, exception: {ex}")
 
 
-def test_html(conn):
-    # very general sanity test
-    db_handler: DBHandler = from_connection_str(conn=conn).create_job()
+def test_html(handler: DBHandler):
     try:
         for q in EQueryType.__members__.values():
-            html = db_handler.html(query_type=EQueryType.TASKS_STATUS)
+            html = handler.html(query_type=EQueryType.TASKS_STATUS)
             assert '<body>' in html
             assert '</body>' in html
 
@@ -235,22 +258,20 @@ def test_html(conn):
         pytest.fail(f"html query '{q}' failed, exception: {ex}")
 
 
-def test_html_file_str_dump(conn, tmp_path: Path):
+def test_html_file_str_dump(handler: DBHandler, tmp_path: Path):
     # very general sanity test
-    db_handler: DBHandler = from_connection_str(conn=conn).create_job()
     file = tmp_path / 'test.html'
-    html = db_handler.html(query_type=EQueryType.TASKS_STATUS, file=file)
+    html = handler.html(query_type=EQueryType.TASKS_STATUS, file=file)
 
     assert file.exists()
     assert html == file.read_text()
 
 
-def test_html_file_io_dump(conn, tmp_path: Path):
+def test_html_file_io_dump(handler: DBHandler, tmp_path: Path):
     # very general sanity test
-    db_handler: DBHandler = from_connection_str(conn=conn).create_job()
     file = tmp_path / 'test.html'
     with open(file, 'w') as f:
-        html = db_handler.html(query_type=EQueryType.TASKS_STATUS, file=f)
+        html = handler.html(query_type=EQueryType.TASKS_STATUS, file=f)
 
     assert file.exists()
     assert html == file.read_text()
@@ -258,7 +279,7 @@ def test_html_file_io_dump(conn, tmp_path: Path):
 
 def test_task_job_delete_cascade(conn):
     # test that deleting a job deletes all its tasks
-    db_handler1: DBHandler = from_connection_str(conn=conn).create_job(name='job1')
+    db_handler1: DBHandler = from_connection_str(conn=conn).connect().create_job(name='job1')
     db_handler1.add_tasks([
         Task(),
         Task(),
@@ -267,7 +288,7 @@ def test_task_job_delete_cascade(conn):
     tasks = db_handler1.get_tasks()
     assert len(tasks) == 3
 
-    db_handler2: DBHandler = from_connection_str(conn=conn).create_job(name='job2')
+    db_handler2: DBHandler = from_connection_str(conn=conn).connect().create_job(name='job2')
     db_handler2.add_tasks([
         Task(),
         Task(),
@@ -283,10 +304,13 @@ def test_task_job_delete_cascade(conn):
     tasks = db_handler2.get_tasks()
     assert len(tasks) == 2
 
+    db_handler1.close()
+    db_handler2.close()
+
 
 def test_state_kwargs_job_delete_cascade(conn):
     # test that deleting a job deletes all its tasks
-    db_handler1: DBHandler = from_connection_str(conn=conn).create_job(name='job1')
+    db_handler1: DBHandler = from_connection_str(conn=conn).connect().create_job(name='job1')
     db_handler1.add_state_kwargs([
         StateKWArg(entrypoint=''),
         StateKWArg(entrypoint=''),
@@ -295,7 +319,7 @@ def test_state_kwargs_job_delete_cascade(conn):
     state_kwargs = db_handler1.get_state_kwargs()
     assert len(state_kwargs) == 3
 
-    db_handler2: DBHandler = from_connection_str(conn=conn).create_job(name='job2')
+    db_handler2: DBHandler = from_connection_str(conn=conn).connect().create_job(name='job2')
     db_handler2.add_state_kwargs([
         StateKWArg(entrypoint=''),
         StateKWArg(entrypoint=''),
@@ -311,14 +335,17 @@ def test_state_kwargs_job_delete_cascade(conn):
     state_kwargs = db_handler2.get_state_kwargs()
     assert len(state_kwargs) == 2
 
+    db_handler1.close()
+    db_handler2.close()
+
 
 def test_max_jobs(conn):
     max_jobs = 10
     jobs_id = []
     for i in range(max_jobs * 2):
-        db_handler = from_connection_str(conn=conn, max_jobs=max_jobs)
-        jobs_id.append(db_handler.create_job(name=f'job{i}').job_id)
-    jobs = from_connection_str(conn=conn).get_jobs()
+        handler = from_connection_str(conn=conn, max_jobs=max_jobs).connect()
+        jobs_id.append(handler.create_job(name=f'job{i}').job_id)
+    jobs = from_connection_str(conn=conn).connect().get_jobs()
     assert len(jobs) == 10
 
     remaining_jobs = [j.job_id for j in jobs]

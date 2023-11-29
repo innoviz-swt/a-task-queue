@@ -36,16 +36,25 @@ def keyval_store_retry(retries=1000, polling_delta=0.1):
     return decorator
 
 
+def with_handler(func):
+    def wrapper(self, *args, **kwargs):
+        with from_connection_str(conn=self._conn, job_id=self._job_id, max_jobs=self._max_jobs, logger=self._logger) as handler:
+            ret = func(self, handler, *args, **kwargs)
+        return ret
+
+    return wrapper
+
+
 class TaskQ(Logger):
     def __init__(
             self,
             job_id=None,
             conn="sqlite://ataskq.db.sqlite3",
+            max_jobs=None,
             run_task_raise_exception=False,
             task_pull_intervnal=0.2,
             monitor_pulse_interval=60,
             monitor_timeout_internal=60 * 5,
-            max_jobs=None,
             logger: logging.Logger or None = None) -> None:
         """
         Args:
@@ -56,10 +65,9 @@ class TaskQ(Logger):
         """
         super().__init__(logger)
 
-        # init db handler
-        self._db_handler: DBHandler = from_connection_str(
-            conn=conn, job_id=job_id, max_jobs=max_jobs, logger=self._logger)
-
+        self._job_id = job_id
+        self._conn = conn
+        self._max_jobs = max_jobs
         self._run_task_raise_exception = run_task_raise_exception
         self._task_pull_interval = task_pull_intervnal
         self._monitor_pulse_interval = monitor_pulse_interval
@@ -71,10 +79,6 @@ class TaskQ(Logger):
         self._running = False
 
     @property
-    def db_handler(self):
-        return self._db_handler
-
-    @property
     def task_wait_interval(self):
         return self._task_pull_interval
 
@@ -82,44 +86,56 @@ class TaskQ(Logger):
     def monitor_pulse_interval(self):
         return self._monitor_pulse_interval
 
-    def create_job(self, name='', description='', overwrite=False):
-        if overwrite and self._db_handler.db_path and os.path.exists(self._db_handler.db_path):
-            os.remove(self._db_handler.db_path)
-        self._db_handler.create_job(name=name, description=description)
+    @with_handler
+    def create_job(self, handler: DBHandler, name='', description=''):
+        handler.create_job(name=name, description=description)
+        self._job_id = handler._job_id
 
         return self
 
-    def add_state_kwargs(self, state_kwargs):
-        self._db_handler.add_state_kwargs(state_kwargs)
+    @with_handler
+    def add_state_kwargs(self, handler: DBHandler, state_kwargs):
+        handler.add_state_kwargs(state_kwargs)
 
         return self
 
-    def add_tasks(self, tasks):
-        self._db_handler.add_tasks(tasks)
+    @with_handler
+    def add_tasks(self, handler: DBHandler, tasks):
+        handler.add_tasks(tasks)
 
         return self
 
-    def count_pending_tasks_below_level(self, level):
-        return self._db_handler.count_pending_tasks_below_level(level)
+    @with_handler
+    def count_pending_tasks_below_level(self, handler: DBHandler, level):
+        return handler.count_pending_tasks_below_level(level)
 
-    def log_tasks(self):
-        rows, _ = self._db_handler.query(query_type=EQueryType.TASKS)
+    @with_handler
+    def log_tasks(self, handler: DBHandler):
+        rows, _ = handler.query(query_type=EQueryType.TASKS)
 
         self.info("# tasks:")
         for row in rows:
             self.info(row)
 
-    def get_tasks(self, order_by=None):
-        return self._db_handler.get_tasks(order_by=order_by)
+    @with_handler
+    def get_state_kwargs(self, handler: DBHandler):
+        return handler.get_state_kwargs()
 
-    def get_jobs(self):
-        return self._db_handler.get_jobs()
+    @with_handler
+    def get_tasks(self, handler: DBHandler, order_by=None):
+        return handler.get_tasks(order_by=order_by)
 
-    def update_task_start_time(self, task: Task):
-        self._db_handler.update_task_start_time(task)
+    @with_handler
+    def get_jobs(self, handler: DBHandler):
+        return handler.get_jobs()
 
-    def update_task_status(self, task: Task, status: EStatus):
-        self._db_handler.update_task_status(task, status)
+    @with_handler
+    def update_task_start_time(self, handler: DBHandler, task: Task):
+        handler.update_task_start_time(task)
+
+    @with_handler
+    def update_task_status(self, handler: DBHandler, task: Task, status: EStatus):
+        handler.update_task_status(task, status)
 
     def _run_task(self, task: Task):
         # get entry point func to execute
@@ -208,19 +224,26 @@ class TaskQ(Logger):
     def init_state_kwarg(self, state_kwarg: StateKWArg):
         return
 
+    @with_handler
+    def _take_next_task(self, handler: DBHandler, level):
+        # update tasks timeout
+        handler._set_timeout_tasks(self._monitor_timeout_internal)
+
+        # grab tasks and set them in Q
+        action, task = handler._take_next_task(level)
+
+        return action, task
+
     def _run(self, level):
         # make sure all state kwargs for job have key in self._state_kwargs, later to be used in _run_task
-        state_kwargs_db = self._db_handler.get_state_kwargs()
+        state_kwargs_db = self.get_state_kwargs()
         for skw in state_kwargs_db:
             if skw.name not in self._state_kwargs:
                 self._state_kwargs[skw.name] = skw
 
         # check for error code
         while True:
-            # update tasks timeout
-            self._db_handler._set_timeout_tasks(self._monitor_timeout_internal)
-            # grab tasks and set them in Q
-            action, task = self._db_handler._take_next_task(level)
+            action, task = self._take_next_task(level)
 
             # handle no task available
             if action == EAction.STOP:

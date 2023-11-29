@@ -77,9 +77,12 @@ class PostgresqlDBHandler(DBHandler):
         return 'BEGIN'
 
     def connect(self):
+        connection = self.connection
         conn = psycopg2.connect(
-            host=self.connection.host,
-            database=self.connection.database,
-            user=self.connection.user,
-            password=self.connection.password)
-        return conn
+            host=connection.host,
+            database=connection.database,
+            user=connection.user,
+            password=connection.password)
+        self._session_connection = conn
+
+        return self

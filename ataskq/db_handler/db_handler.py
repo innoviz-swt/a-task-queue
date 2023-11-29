@@ -2,9 +2,10 @@ from enum import Enum
 from datetime import datetime, timedelta
 import pickle
 from typing import List, Tuple
+
 from pathlib import Path
 from io import TextIOWrapper
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 
 from ..models import Job, StateKWArg, Task, EStatus
@@ -34,23 +35,22 @@ def fields_values(**kwargs):
 
 def transaction_decorator(func):
     def wrapper(self, *args, **kwargs):
-        with self.connect() as conn:
-            c = conn.cursor()
-            try:
-                # enable foreign keys for each connection (sqlite default is off)
-                # https://www.sqlite.org/foreignkeys.html
-                # Foreign key constraints are disabled by default (for backwards
-                # compatibility), so must be enabled separately for each database
-                # connection
-                if self.pragma_foreign_keys_on:
-                    c.execute(self.pragma_foreign_keys_on)
-                ret = func(self, c, *args, **kwargs)
-            except Exception as e:
-                conn.commit()
-                self.error(f"Failed to execute transaction: {e}")
-                raise e
+        c = self._session_connection.cursor()
+        try:
+            # enable foreign keys for each connection (sqlite default is off)
+            # https://www.sqlite.org/foreignkeys.html
+            # Foreign key constraints are disabled by default (for backwards
+            # compatibility), so must be enabled separately for each database
+            # connection
+            if self.pragma_foreign_keys_on:
+                c.execute(self.pragma_foreign_keys_on)
+            ret = func(self, c, *args, **kwargs)
+        except Exception as e:
+            self._session_connection.commit()
+            self.error(f"Failed to execute transaction: {e}")
+            raise e
 
-        conn.commit()
+        self._session_connection.commit()
         return ret
 
     return wrapper
@@ -86,6 +86,8 @@ class DBHandler(Logger):
         self._max_jobs = max_jobs
         self._templates_dir = Path(__file__).parent.parent / 'templates'
         self._job_id = job_id
+        self._session_connection = None
+        self._cursor = None  # session connection cursor
 
     @property
     def db_path(self):
@@ -127,10 +129,6 @@ class DBHandler(Logger):
     @property
     @abstractmethod
     def begin_exclusive(self):
-        pass
-
-    @abstractmethod
-    def connect(self):
         pass
 
     @property
@@ -530,6 +528,20 @@ class DBHandler(Logger):
         else:
             raise RuntimeError(
                 f"Unsupported status '{status}' for status update")
+
+    def close(self):
+        self._session_connection.close()
+
+    @abstractmethod
+    def connect(self):
+        return self
+
+    def __enter__(self):
+        self.connect()
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._session_connection.close()
 
 
 def from_connection_str(conn=None, **kwargs) -> DBHandler:

@@ -1,6 +1,6 @@
 import re
-from typing import NamedTuple
 import sqlite3
+from typing import NamedTuple
 
 from .db_handler import DBHandler
 
@@ -34,7 +34,7 @@ class SQLite3DBHandler(DBHandler):
     @property
     def pragma_foreign_keys_on(self):
         return 'PRAGMA foreign_keys = ON'
-        
+
     @property
     def format_symbol(self):
         return '?'
@@ -72,4 +72,6 @@ class SQLite3DBHandler(DBHandler):
 
     def connect(self):
         conn = sqlite3.connect(self.db_path)
-        return conn
+        self._session_connection = conn
+
+        return self

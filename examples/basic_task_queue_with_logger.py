@@ -14,7 +14,7 @@ logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
 # create  job
-tr = TaskQ(logger=logger).create_job(overwrite=True)
+tr = TaskQ(logger=logger).create_job()
 
 # add tasks
 tr.add_tasks([

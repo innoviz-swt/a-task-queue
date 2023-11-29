@@ -1,4 +1,5 @@
 import logging
+import os
 
 import context
 from ataskq import TaskQ, Task, targs
@@ -7,7 +8,7 @@ from ataskq import TaskQ, Task, targs
 logger = logging.getLogger('ataskq')
 handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter(logging.BASIC_FORMAT))
-handler.setLevel(os.environ.get("LOGLEVEL", "INFO"))
+handler.setLevel(os.getenv("LOGLEVEL", "INFO"))
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 

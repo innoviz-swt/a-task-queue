@@ -6,23 +6,26 @@ import pytest
 from ataskq import TaskQ, StateKWArg, Task, targs, EStatus
 
 
-def test_create_job(conn):
-    taskq = TaskQ(conn=conn).create_job()
+def test_create_job(handler):
+    taskq = TaskQ(conn=handler).create_job()
     assert isinstance(taskq, TaskQ)
 
-    if 'sqlite' in conn:
-        assert Path(taskq.db_handler.db_path).exists()
-        assert Path(taskq.db_handler.db_path).is_file()
-    elif 'postgresql' in conn:
-        pass
+    if 'sqlite' in handler:
+        from .db_handler.sqlite3 import from_connection_str
+        c = from_connection_str(handler)
+        assert Path(c.path).exists()
+        assert Path(c.path).is_file()
+        assert taskq._job_id is not None
+    elif 'postgresql' in handler:
+        assert taskq._job_id is not None
     else:
-        raise Exception(f"unknown db type in connection string '{conn}'")
+        raise Exception(f"unknown db type in connection string '{handler}'")
 
 
-def test_run_default(conn, tmp_path: Path):
+def test_run_default(handler, tmp_path: Path):
     filepath = tmp_path / 'file.txt'
 
-    taskq = TaskQ(conn=conn).create_job()
+    taskq = TaskQ(conn=handler).create_job()
 
     taskq.add_tasks([
         Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file",
@@ -42,10 +45,10 @@ def test_run_default(conn, tmp_path: Path):
         "task 2\n"
 
 
-def test_run_task_raise_exception(conn):
+def test_run_task_raise_exception(handler):
     # no exception raised
     try:
-        taskq: TaskQ = TaskQ(conn=conn, run_task_raise_exception=False).create_job()
+        taskq: TaskQ = TaskQ(conn=handler, run_task_raise_exception=False).create_job()
         taskq.add_tasks([
             Task(entrypoint="ataskq.tasks_utils.exception_task",
                  targs=targs(message="task failed")),
@@ -55,7 +58,7 @@ def test_run_task_raise_exception(conn):
         assert False, f"exception_task raises exception with run_task_raise_exception=False"
 
     # exception raised
-    taskq: TaskQ = TaskQ(conn=conn, run_task_raise_exception=True).create_job()
+    taskq: TaskQ = TaskQ(conn=handler, run_task_raise_exception=True).create_job()
     taskq.add_tasks([
         Task(entrypoint="ataskq.tasks_utils.exception_task",
              targs=targs(message="task failed")),
@@ -65,10 +68,10 @@ def test_run_task_raise_exception(conn):
     assert excinfo.value.args[0] == "task failed"
 
 
-def test_run_2_processes(conn, tmp_path: Path):
+def test_run_2_processes(handler, tmp_path: Path):
     filepath = tmp_path / 'file.txt'
 
-    taskq = TaskQ(conn=conn).create_job()
+    taskq = TaskQ(conn=handler).create_job()
 
     taskq.add_tasks([
         Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
@@ -131,17 +134,17 @@ def _test_run_by_level(conn, tmp_path: Path, num_processes: int):
     assert "task 3\n" in text
 
 
-def test_run_by_level(conn, tmp_path: Path):
-    _test_run_by_level(conn, tmp_path, num_processes=None)
+def test_run_by_level(handler, tmp_path: Path):
+    _test_run_by_level(handler, tmp_path, num_processes=None)
 
 
-def test_run_by_level_2_processes(conn, tmp_path: Path):
-    _test_run_by_level(conn, tmp_path, num_processes=2)
+def test_run_by_level_2_processes(handler, tmp_path: Path):
+    _test_run_by_level(handler, tmp_path, num_processes=2)
 
 
-def test_monitor_pulse_failure(conn):
+def test_monitor_pulse_failure(handler):
     # set monitor pulse longer than timeout
-    taskq = TaskQ(conn=conn, monitor_pulse_interval=10,
+    taskq = TaskQ(conn=handler, monitor_pulse_interval=10,
                   monitor_timeout_internal=1.5).create_job()
     taskq.add_tasks([
         # reserved keyward for ignored task for testing
@@ -159,9 +162,9 @@ def test_monitor_pulse_failure(conn):
     assert stop - start > timedelta(seconds=1.5)
 
 
-def test_run_with_state_kwargs(conn):
+def test_run_with_state_kwargs(handler):
     from ataskq.tasks_utils.counter_task import counter_kwarg, counter_task
-    taskq = TaskQ(conn=conn, run_task_raise_exception=True).create_job()
+    taskq = TaskQ(conn=handler, run_task_raise_exception=True).create_job()
 
     taskq.add_state_kwargs([
         StateKWArg(entrypoint=counter_kwarg, name='counter'),
