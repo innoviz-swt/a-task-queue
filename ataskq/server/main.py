@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTex
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from ataskq.db_handler import from_connection_str
+from ataskq.handler import from_connection_str
 
 app = FastAPI()
 logger = logging.getLogger("uvicorn")

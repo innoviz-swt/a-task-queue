@@ -12,13 +12,13 @@ class SqliteConnection(NamedTuple):
         return f"sqlite://{self.path}"
 
 
-def from_connection_str(db):
+def from_connection_str(conn):
     format = 'sqlite://path'
     pattern = r'sqlite://(?P<path>.+)$'
-    match = re.match(pattern, db)
+    match = re.match(pattern, conn)
 
     if not match:
-        raise Exception(f"db must be in '{format}', ex: 'sqlite://ataskq.db.sqlite3'")
+        raise Exception(f"conn must be in '{format}', ex: 'sqlite://ataskq.db.sqlite3'")
 
     path = match.group('path')
     ret = SqliteConnection(path=path)
@@ -34,7 +34,7 @@ class SQLite3DBHandler(DBHandler):
     @property
     def pragma_foreign_keys_on(self):
         return 'PRAGMA foreign_keys = ON'
-        
+
     @property
     def format_symbol(self):
         return '?'

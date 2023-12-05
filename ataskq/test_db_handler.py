@@ -6,7 +6,8 @@ from .tasks_utils import dummy_args_task
 
 import pytest
 
-from .db_handler import from_connection_str, DBHandler, EQueryType, EAction
+from .handler import from_connection_str
+from .db_handler import DBHandler, EQueryType, EAction
 from .models import Task, StateKWArg
 
 

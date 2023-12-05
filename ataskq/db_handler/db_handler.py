@@ -4,11 +4,10 @@ import pickle
 from typing import List, Tuple
 from pathlib import Path
 from io import TextIOWrapper
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 
 from ..models import Job, StateKWArg, Task, EStatus
-from ..logger import Logger
 from ..handler import Handler
 from .. import __schema_version__
 
@@ -526,34 +525,3 @@ class DBHandler(Handler):
         else:
             raise RuntimeError(
                 f"Unsupported status '{status}' for status update")
-
-
-def from_connection_str(conn=None, **kwargs) -> DBHandler:
-    if conn is None:
-        conn = ''
-
-    sep = '://'
-    sep_index = conn.find(sep)
-    if sep_index == -1:
-        raise RuntimeError(f'connection must be of format <db type>://<connection string>')
-    db_type = conn[:sep_index]
-
-    # validate connectino
-    if not db_type:
-        raise RuntimeError(f'missing db type, connection must be of format <db type>://<connection string>')
-
-    connection_str = conn[sep_index + len(sep):]
-    if not connection_str:
-        raise RuntimeError(f'missing connection string, connection must be of format <db type>://<connection string>')
-
-    # get db type handler
-    if db_type == 'sqlite':
-        from .sqlite3 import SQLite3DBHandler
-        db_handler = SQLite3DBHandler(conn, **kwargs)
-    elif db_type == 'postgresql':
-        from .postgresql import PostgresqlDBHandler
-        db_handler = PostgresqlDBHandler(conn, **kwargs)
-    else:
-        raise Exception(f"unsupported db type '{db_type}', db type must be one of ['sqlite', 'postgresql']")
-
-    return db_handler

@@ -4,7 +4,7 @@ from typing import NamedTuple
 try:
     import psycopg2
 except ModuleNotFoundError:
-    raise Exception("psycopg2 is reuiqred for using atasgq postgresql adapter.")
+    raise Exception("'psycopg2' is reuiqred for using atasgq postgresql adapter.")
 
 from .db_handler import DBHandler
 
