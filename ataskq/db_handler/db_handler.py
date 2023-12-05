@@ -9,6 +9,7 @@ from abc import ABC, abstractmethod
 
 from ..models import Job, StateKWArg, Task, EStatus
 from ..logger import Logger
+from ..handler import Handler
 from .. import __schema_version__
 
 
@@ -79,13 +80,12 @@ def order_query(order_by):
     return order_by
 
 
-class DBHandler(Logger):
+class DBHandler(Handler):
     def __init__(self, job_id=None, max_jobs=None, logger=None) -> None:
-        super().__init__(logger)
+        super().__init__(job_id, logger)
 
         self._max_jobs = max_jobs
         self._templates_dir = Path(__file__).parent.parent / 'templates'
-        self._job_id = job_id
 
     @property
     def db_path(self):
@@ -133,12 +133,8 @@ class DBHandler(Logger):
     def connect(self):
         pass
 
-    @property
-    def job_id(self):
-        return self._job_id
-
     @transaction_decorator
-    def create_job(self, c, name='', description=''):
+    def create_job(self, c=None, name='', description='') -> Handler:
         if self._job_id is not None:
             raise RuntimeError(f"Job already assigned with job_id '{self._job_id}'.")
 

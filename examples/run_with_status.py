@@ -2,7 +2,7 @@ import time
 
 import context
 from ataskq import TaskQ, Task, targs
-from ataskq.server import run_server
+from ataskq.simple_server import run_server
 
 from common import init_logger
 

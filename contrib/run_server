@@ -1,0 +1,5 @@
+#/bin/bash
+set -e
+cd $(dirname $0)/..
+
+python -m uvicorn ataskq.server.main:app --reload --port 5210 # --host $HOSTNAME
