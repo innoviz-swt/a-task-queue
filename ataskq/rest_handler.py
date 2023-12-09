@@ -1,10 +1,6 @@
+from typing import List, NamedTuple
+from io import BytesIO
 from enum import Enum
-from datetime import datetime, timedelta
-import pickle
-from typing import List, Tuple, NamedTuple
-from pathlib import Path
-from io import TextIOWrapper
-import re
 
 try:
     import requests
@@ -62,3 +58,20 @@ class RESTHandler(Handler):
         self._job_id = res['job_id']
 
         return self
+
+    def _add_tasks(self, tasks: List[Task]):
+        files = []
+        data = []
+        for i, t in enumerate(tasks):
+            for k, v in t.__dict__.items():
+                if k == Task.id_key():
+                    continue
+                if isinstance(v, bytes):
+                    files.append((f'{i}.{k}', BytesIO(v)))
+                elif isinstance(v, Enum):
+                    data.append((f'{i}.{k}', f'{v}'))
+                else:
+                    data.append((f'{i}.{k}', v))
+
+        self.post('tasks', files=files, data=data)
+        exit(0)

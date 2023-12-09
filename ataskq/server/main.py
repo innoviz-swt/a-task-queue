@@ -2,8 +2,7 @@ import os
 import logging
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, status, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, PlainTextResponse
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -37,6 +36,10 @@ async def root():
 
 # create or update
 
+########
+# JOBS #
+########
+
 
 @app.post("/api/jobs")
 async def create_job():
@@ -49,3 +52,36 @@ async def create_job():
 @app.get("/api/jobs/{job_id}")
 async def get_job(job_id: int):
     return {"job_id": job_id}
+
+
+#########
+# Tasks #
+#########
+@app.post("/api/tasks")
+async def get_job(request: Request):
+    data = await request.form()
+    res = []
+    for k, v in data.items():
+        from starlette.datastructures import UploadFile
+        import pickle
+        if isinstance(v, UploadFile):
+            v = await v.read()
+            v = pickle.loads(v)
+        logger.info(f'{k}: {v}')
+        # expect format of index.key
+        assert '.' in k
+        i, *k = k.split('.')
+        i = int(i)
+        k = '.'.join(k)
+        # expect monotonic rising items
+        if i == len(res):
+            res += [dict()]
+        elif i == len(res) - 1:
+            pass
+        else:
+            # should never get here
+            raise RuntimeError(f"unexpected item index '{i}'. len res: {len(res)}")
+        res[i][k] = v
+
+    logger.info(res)
+    return {}

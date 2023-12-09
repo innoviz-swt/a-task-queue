@@ -238,27 +238,8 @@ class DBHandler(Handler):
         return self
 
     @transaction_decorator
-    def add_tasks(self, c, tasks: List[Task] or Task):
-        if self._job_id is None:
-            raise RuntimeError(f"Job not assigned, pass job_id in __init__ or use create_job() first.")
-
-        if isinstance(tasks, (Task)):
-            tasks = [tasks]
-
-        # Insert data into a table
-        # todo use some sql batch operation
+    def _add_tasks(self, c, tasks: List[Task] or Task):
         for t in tasks:
-            assert t.job_id is None
-            t.job_id = self._job_id
-
-            if callable(t.entrypoint):
-                t.entrypoint = f"{t.entrypoint.__module__}.{t.entrypoint.__name__}"
-
-            if t.targs is not None:
-                assert len(t.targs) == 2
-                assert isinstance(t.targs[0], tuple)
-                assert isinstance(t.targs[1], dict)
-                t.targs = pickle.dumps(t.targs)
             d = {k: v for k, v in t.__dict__.items() if 'task_id' not in k}
             keys = list(d.keys())
             values = list(d.values())

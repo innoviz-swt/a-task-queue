@@ -109,6 +109,10 @@ class Task:
         # self.summary_cookie = summary_cookie
         self.job_id = job_id
 
+    @staticmethod
+    def id_key():
+        return 'task_id'
+
 
 class StateKWArg(EntryPoint):
     def __init__(self,

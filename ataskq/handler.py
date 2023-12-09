@@ -1,10 +1,13 @@
-from abc import abstractmethod
+from abc import ABC, abstractmethod
+import pickle
+
 from .logger import Logger
+from .models import Task
 
 
-class Handler(Logger):
+class Handler(ABC, Logger):
     def __init__(self, job_id=None, logger: Logger = None):
-        super().__init__(logger)
+        Logger.__init__(self, logger)
 
         self._job_id = job_id
 
@@ -15,6 +18,34 @@ class Handler(Logger):
     @abstractmethod
     def create_job(self, c, name='', description=''):
         pass
+
+    @abstractmethod
+    def _add_tasks(self, tasks):
+        pass
+
+    def add_tasks(self, tasks):
+        if self._job_id is None:
+            raise RuntimeError(f"Job not assigned, pass job_id in __init__ or use create_job() first.")
+
+        if isinstance(tasks, (Task)):
+            tasks = [tasks]
+
+        # Insert data into a table
+        # todo use some sql batch operation
+        for t in tasks:
+            assert t.job_id is None
+            t.job_id = self._job_id
+
+            if callable(t.entrypoint):
+                t.entrypoint = f"{t.entrypoint.__module__}.{t.entrypoint.__name__}"
+
+            if t.targs is not None:
+                assert len(t.targs) == 2
+                assert isinstance(t.targs[0], tuple)
+                assert isinstance(t.targs[1], dict)
+                t.targs = pickle.dumps(t.targs)
+
+        self._add_tasks(tasks)
 
 
 def from_connection_str(conn=None, **kwargs) -> Handler:
