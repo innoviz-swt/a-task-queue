@@ -1,7 +1,9 @@
-from typing import Callable
+from typing import Union, Callable
 from enum import Enum
 import pickle
 from importlib import import_module
+import inspect
+from datetime import datetime
 
 
 class EntryPointRuntimeError(RuntimeError):
@@ -78,36 +80,92 @@ class EntryPoint:
         return ret
 
 
-class Task:
-    def __init__(self,
-                 task_id: int = None,
-                 name: str = '',
-                 level: float = 0,
-                 entrypoint: str = "",
-                 targs: tuple or bytes or None = None,
-                 status: EStatus = EStatus.PENDING,
-                 take_time=None,
-                 start_time=None,
-                 done_time=None,
-                 pulse_time=None,
-                 description=None,
-                 # summary_cookie = None,
-                 job_id=None,
-                 ) -> None:
+def _handle_union(self, cls_name, member, annotations, value):
+    # check if value is of supported types
+    for a in annotations:
+        if isinstance(value, a):
+            setattr(self, member, value)
+            return
 
-        self.task_id = task_id
-        self.name = name
-        self.level = level
-        self.entrypoint = entrypoint
-        self.targs = targs
-        self.status = status
-        self.take_time = take_time
-        self.start_time = start_time
-        self.done_time = done_time
-        self.pulse_time = pulse_time
-        self.description = description
-        # self.summary_cookie = summary_cookie
-        self.job_id = job_id
+    # attemp cast value
+    success = False
+    for a in annotations:
+        try:
+            v = a(v)
+            setattr(self, member, v)
+            success = True
+            break
+        except Exception:
+            continue
+
+    if not success:
+        raise Exception(f"{cls_name}::{member}({annotations}) failed casting {type(value)} - '{value}'.")
+
+
+def model_class(**defaults):
+    def wrapper(cls):
+        # Save the original __init__ method
+        cls_init = cls.__init__
+        cls_annotations = cls.__annotations__
+        cls_name = cls.__name__
+
+        def new_init(self, **kwargs):
+            for member, annotation in cls_annotations.items():
+                # default None to members not passed
+                if member not in kwargs:
+                    value = defaults.get(member)
+                    setattr(self, member, value)
+                    continue
+
+                value = kwargs[member]
+
+                # value is None, no type casting required
+                if value is None:
+                    setattr(self, member, value)
+                    continue
+
+                annotation = cls_annotations.get(member)
+                if annotation is None:
+                    # no annotation, not type casting required
+                    setattr(self, member, value)
+                    continue
+
+                if getattr(annotation, '__origin__', None) is Union:
+                    _handle_union(self, cls_name, member, annotation.__args__, value)
+                else:
+                    # Single annotation - avoid casting None
+                    try:
+                        value = annotation(value)
+                    except Exception as ex:
+                        raise Exception(f"{cls_name}::{member}({annotation}) failed casting '{value}'.") from ex
+                    setattr(self, member, value)
+
+            # Call the original __init__ method
+            cls_init(self)
+
+        # Replace the original __init__ method with the new one
+        cls.__init__ = new_init
+
+        # Return the modified class
+        return cls
+    return wrapper
+
+
+@model_class(status=EStatus.PENDING, entrypoint='', level=0.0)
+class Task:
+    task_id: int
+    name: str
+    level: float
+    entrypoint: Union[str, Callable]
+    targs: Union[tuple, bytes]
+    status: EStatus
+    take_time: Union[str, datetime]
+    start_time: Union[str, datetime]
+    done_time: Union[str, datetime]
+    pulse_time: Union[str, datetime]
+    description: Union[str, datetime]
+    # summary_cookie = None,
+    job_id: int
 
     @staticmethod
     def id_key():

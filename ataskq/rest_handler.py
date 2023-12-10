@@ -73,5 +73,5 @@ class RESTHandler(Handler):
                 else:
                     data.append((f'{i}.{k}', v))
 
-        self.post('tasks', files=files, data=data)
+        self.post(f'jobs/{self._job_id}/tasks', files=files, data=data)
         exit(0)

@@ -7,6 +7,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from ataskq.handler import from_connection_str
+from ataskq.models import Task
+from .form_utils import form_data_array
 
 app = FastAPI()
 logger = logging.getLogger("uvicorn")
@@ -54,34 +56,17 @@ async def get_job(job_id: int):
     return {"job_id": job_id}
 
 
-#########
-# Tasks #
-#########
-@app.post("/api/tasks")
-async def get_job(request: Request):
-    data = await request.form()
-    res = []
-    for k, v in data.items():
-        from starlette.datastructures import UploadFile
-        import pickle
-        if isinstance(v, UploadFile):
-            v = await v.read()
-            v = pickle.loads(v)
-        logger.info(f'{k}: {v}')
-        # expect format of index.key
-        assert '.' in k
-        i, *k = k.split('.')
-        i = int(i)
-        k = '.'.join(k)
-        # expect monotonic rising items
-        if i == len(res):
-            res += [dict()]
-        elif i == len(res) - 1:
-            pass
-        else:
-            # should never get here
-            raise RuntimeError(f"unexpected item index '{i}'. len res: {len(res)}")
-        res[i][k] = v
+@app.post("/api/jobs/{job_id}/tasks")
+async def get_job(job_id: int, request: Request):
+    # get hanlder
+    hanlder = from_connection_str(CONNECTION, job_id=job_id)
 
-    logger.info(res)
+    # get form data
+    data = await request.form()
+    data = await form_data_array(data)
+
+    # parse
+    tasks = [Task(**t) for t in data]
+    hanlder.add_tasks(tasks)
+
     return {}

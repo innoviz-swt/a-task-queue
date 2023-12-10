@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 import pickle
 
 from .logger import Logger
-from .models import Task
+from .models import Task, EStatus
 
 
 class Handler(ABC, Logger):
@@ -33,8 +33,12 @@ class Handler(ABC, Logger):
         # Insert data into a table
         # todo use some sql batch operation
         for t in tasks:
-            assert t.job_id is None
+            # set \ validate job id
+            assert t.job_id is None or t.job_id == self._job_id
             t.job_id = self._job_id
+
+            # assert status as pending
+            assert t.status == EStatus.PENDING
 
             if callable(t.entrypoint):
                 t.entrypoint = f"{t.entrypoint.__module__}.{t.entrypoint.__name__}"
