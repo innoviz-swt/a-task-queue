@@ -1,8 +1,16 @@
 from abc import ABC, abstractmethod
 import pickle
+from typing import Tuple, Union
+from enum import Enum
 
 from .logger import Logger
 from .models import Task, EStatus
+
+
+class EAction(str, Enum):
+    RUN_TASK = 'run_task'
+    WAIT = 'wait'
+    STOP = 'stop'
 
 
 class Handler(ABC, Logger):
@@ -21,6 +29,14 @@ class Handler(ABC, Logger):
 
     @abstractmethod
     def _add_tasks(self, tasks):
+        pass
+
+    @abstractmethod
+    def get_state_kwargs(self):
+        pass
+
+    @abstractmethod
+    def _take_next_task(self, level: Union[int, None]) -> Tuple[EAction, Task]:
         pass
 
     def add_tasks(self, tasks):

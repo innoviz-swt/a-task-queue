@@ -1,12 +1,16 @@
 import os
 import logging
+from typing import Union
 from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+
 from ataskq.handler import from_connection_str
+from ataskq.db_handler import DBHandler
 from ataskq.models import Task
 from .form_utils import form_data_array
 
@@ -32,16 +36,19 @@ async def root():
     return "Welcome to A-TASK-Q Server"
 
 
+@app.get("/favicon.ico")
+async def favicon():
+    return FileResponse(Path(__file__).parent / "static" / "favicon.ico")
+
+
 @app.get("/api")
-async def root():
+async def api():
     return {"message": "Welcome to A-TASK-Q Server"}
 
-# create or update
 
 ########
 # JOBS #
 ########
-
 
 @app.post("/api/jobs")
 async def create_job():
@@ -70,3 +77,25 @@ async def get_job(job_id: int, request: Request):
     hanlder.add_tasks(tasks)
 
     return {}
+
+
+@app.get("/api/jobs/{job_id}/state_kwargs")
+async def get_job(job_id: int):
+    # get hanlder
+    hanlder = from_connection_str(CONNECTION, job_id=job_id)
+
+    ret = hanlder.get_state_kwargs()
+    ret = [ret.__dict__ for r in ret]
+
+    return ret
+
+
+@app.get("/api/jobs/{job_id}/next_task")
+async def next_task(job_id: int, level: Union[int, None] = None):
+    # get hanlder
+    hanlder: DBHandler = from_connection_str(CONNECTION, job_id=job_id)
+
+    action, task = hanlder._take_next_task(level)
+    task = task.__dict__ if task is not None else None
+
+    return dict(action=action, task=task)

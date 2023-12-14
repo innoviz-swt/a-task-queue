@@ -8,7 +8,7 @@ from abc import abstractmethod
 
 
 from ..models import Job, StateKWArg, Task, EStatus
-from ..handler import Handler
+from ..handler import Handler, EAction
 from .. import __schema_version__
 
 
@@ -18,12 +18,6 @@ class EQueryType(str, Enum):
     STATE_KWARGS = 'state_kwargs',
     JOBS = 'jobs',
     JOBS_STATUS = 'jobs_status',
-
-
-class EAction(str, Enum):
-    RUN_TASK = 'run_task'
-    WAIT = 'wait'
-    STOP = 'stop'
 
 
 def fields_values(**kwargs):
@@ -320,9 +314,9 @@ class DBHandler(Handler):
 
     def get_state_kwargs(self):
         rows, col_names = self.query(query_type=EQueryType.STATE_KWARGS)
-        tasks = [StateKWArg(**dict(zip(col_names, row))) for row in rows]
+        ret = [StateKWArg(**dict(zip(col_names, row))) for row in rows]
 
-        return tasks
+        return ret
 
     def get_jobs(self):
         rows, col_names = self.query(query_type=EQueryType.JOBS)

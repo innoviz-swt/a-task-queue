@@ -1,4 +1,4 @@
-from typing import List, NamedTuple
+from typing import List, NamedTuple, Tuple
 from io import BytesIO
 from enum import Enum
 
@@ -8,7 +8,7 @@ except ImportError:
     raise Exception("'requests' is required to use ataskq REST handler.")
 
 from .models import Job, StateKWArg, Task, EStatus
-from .handler import Handler
+from .handler import Handler, EAction
 from . import __schema_version__
 
 
@@ -74,4 +74,17 @@ class RESTHandler(Handler):
                     data.append((f'{i}.{k}', v))
 
         self.post(f'jobs/{self._job_id}/tasks', files=files, data=data)
-        exit(0)
+
+    def get_state_kwargs(self):
+        res = self.get(f'jobs/{self._job_id}/state_kwargs')
+        ret = [StateKWArg(**skw) for skw in res]
+
+        return ret
+
+    def _take_next_task(self, level) -> Tuple[EAction, Task]:
+        res = self.get(f'jobs/{self._job_id}/next_task', params=dict(level=1))
+
+        action = EAction(res['action'])
+        task = Task(**res['task']) if res['task'] is not None else None
+
+        return (action, task)

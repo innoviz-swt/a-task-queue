@@ -11,7 +11,7 @@ from typing import Dict
 from .logger import Logger
 from .models import EStatus, StateKWArg, Task, EntryPointRuntimeError
 from .monitor import MonitorThread
-from .db_handler import EQueryType, EAction
+from .db_handler import EQueryType, EAction, DBHandler
 from .handler import Handler
 from .handler import from_connection_str
 
@@ -220,7 +220,8 @@ class TaskQ(Logger):
         # check for error code
         while True:
             # update tasks timeout
-            self._hanlder._set_timeout_tasks(self._monitor_timeout_internal)
+            if isinstance(self._hanlder, DBHandler):
+                self._hanlder._set_timeout_tasks(self._monitor_timeout_internal)
             # grab tasks and set them in Q
             action, task = self._hanlder._take_next_task(level)
 
