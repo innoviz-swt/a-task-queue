@@ -1,7 +1,10 @@
 import re
 from typing import NamedTuple
 import sqlite3
+from datetime import datetime
 
+from ..models import Model
+from ..handler import to_datetime, from_datetime
 from .db_handler import DBHandler
 
 
@@ -73,3 +76,20 @@ class SQLite3DBHandler(DBHandler):
     def connect(self):
         conn = sqlite3.connect(self.db_path)
         return conn
+
+    @staticmethod
+    def to_interface_type_hanlders():
+        type_handlers = {
+            str: lambda v: f"'{v}'",
+            datetime: lambda v: f"'{from_datetime(v)}'",
+        }
+
+        return type_handlers
+
+    @staticmethod
+    def from_interface_type_hanlders():
+        type_handlers = {
+            datetime: lambda v: to_datetime(v),
+        }
+
+        return type_handlers

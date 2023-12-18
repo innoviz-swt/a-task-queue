@@ -2,8 +2,8 @@ from typing import Union, Callable
 from enum import Enum
 import pickle
 from importlib import import_module
-import inspect
 from datetime import datetime
+from abc import abstractmethod
 
 
 class EntryPointRuntimeError(RuntimeError):
@@ -80,19 +80,24 @@ class EntryPoint:
         return ret
 
 
-def _handle_union(self, cls_name, member, annotations, value):
+def _handle_union(cls_name, member, annotations, value, type_handlers=None):
+    if type_handlers is None:
+        type_handlers = dict()
+
     # check if value is of supported types
-    for a in annotations:
-        if isinstance(value, a):
-            setattr(self, member, value)
-            return
+    for ann in annotations:
+        if isinstance(value, ann):
+            return value
 
     # attemp cast value
     success = False
-    for a in annotations:
+    value = None
+    for ann in annotations:
         try:
-            v = a(v)
-            setattr(self, member, v)
+            if ann in type_handlers:
+                value = type_handlers[ann](value)
+            else:
+                value = ann(value)
             success = True
             break
         except Exception:
@@ -101,75 +106,144 @@ def _handle_union(self, cls_name, member, annotations, value):
     if not success:
         raise Exception(f"{cls_name}::{member}({annotations}) failed casting {type(value)} - '{value}'.")
 
+    return value
 
-def model_class(**defaults):
-    def wrapper(cls):
-        # Save the original __init__ method
-        cls_init = cls.__init__
+
+class Model:
+    def __init__(self, **kwargs) -> None:
+        cls_annotations = self.__annotations__
+        defaults = getattr(self, '__DEFAULTS__', dict())
+
+        # check a kwargs are class members
+        for k in kwargs.keys():
+            if k not in cls_annotations.keys():
+                raise Exception(f"'{k}' not a possible class '{self.__class__.__name__}' member.")
+
+        # set defaults
+        for member in cls_annotations.keys():
+            # default None to members not passed
+            if member not in kwargs:
+                kwargs[member] = defaults.get(member)
+
+        # annotate kwargs
+        kwargs = self.annotate(kwargs)
+
+        # set kwargs as class members
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+    @staticmethod
+    @abstractmethod
+    def id_key():
+        raise NotImplementedError()
+
+    @classmethod
+    def annotate(cls, kwargs: dict, type_handlers: dict = None):
+        if type_handlers is None:
+            type_handlers = dict()
+
+        ret = dict()
         cls_annotations = cls.__annotations__
         cls_name = cls.__name__
+        for k, v in kwargs.items():
+            if k not in cls_annotations:
+                raise Exception(f"interface key '{k}' not in model annotations.")
 
-        def new_init(self, **kwargs):
-            for member, annotation in cls_annotations.items():
-                # default None to members not passed
-                if member not in kwargs:
-                    value = defaults.get(member)
-                    setattr(self, member, value)
+            # allow None values (no handling)
+            if v is None:
+                ret[k] = None
+                continue
+
+            # get member annotation
+            annotation = cls_annotations[k]
+
+            # handle union
+            if getattr(annotation, '__origin__', None) is Union:
+                ret[k] = _handle_union(cls_name, k, annotation.__args__, v, type_handlers)
+                continue
+
+            # Single annotation cast
+            ann = cls_annotations[k]
+
+            ann_name = None
+            if ann in type_handlers:
+                ann_name = f'type_handler[{ann.__name__}]'
+                ann = type_handlers[ann]
+            elif issubclass(ann, str) and str in type_handlers:
+                # string subclasses
+                ann_name = f'type_handler[{ann.__name__} - str sublcass]'
+                ann = type_handlers[str]
+            elif issubclass(ann, Enum) and Enum in type_handlers:
+                # string subclasses
+                ann_name = f'type_handler[{ann.__name__} - Enum sublcass]'
+                ann = type_handlers[Enum]
+            else:
+                # check if already in relevant type
+                if isinstance(v, ann):
+                    ret[k] = v
                     continue
 
-                value = kwargs[member]
+                ann_name = f'{ann.__name__}'
+                ann = ann
 
-                # value is None, no type casting required
-                if value is None:
-                    setattr(self, member, value)
-                    continue
+            try:
+                ret[k] = ann(v)
+            except Exception as ex:
+                raise Exception(f"{cls_name}::{k}({ann_name}) failed cast from '{type(v).__name__}'") from ex
 
-                annotation = cls_annotations.get(member)
-                if annotation is None:
-                    # no annotation, not type casting required
-                    setattr(self, member, value)
-                    continue
+        return ret
 
-                if getattr(annotation, '__origin__', None) is Union:
-                    _handle_union(self, cls_name, member, annotation.__args__, value)
-                else:
-                    # Single annotation - avoid casting None
-                    try:
-                        value = annotation(value)
-                    except Exception as ex:
-                        raise Exception(f"{cls_name}::{member}({annotation}) failed casting '{value}'.") from ex
-                    setattr(self, member, value)
+    @classmethod
+    def i2m(cls, kwargs: dict, type_handlers=None):
+        """interface to model"""
+        ret = cls.annotate(kwargs, type_handlers)
+        return ret
 
-            # Call the original __init__ method
-            cls_init(self)
+    @classmethod
+    def from_interface(cls, kwargs: dict, type_handlers=None):
+        """interface to model"""
+        mkwargs = cls.annotate(kwargs, type_handlers)
+        ret = cls(**mkwargs)
+        return ret
 
-        # Replace the original __init__ method with the new one
-        cls.__init__ = new_init
+    @classmethod
+    def m2i(cls, kwargs, type_handlers=None):
+        """model to interface"""
+        ret = cls.annotate(kwargs, type_handlers)
+        return ret
 
-        # Return the modified class
-        return cls
-    return wrapper
+    def to_interface(self, type_handlers=None):
+        ret = self.annotate(self.__dict__, type_handlers)
+        return ret
 
 
-@model_class(status=EStatus.PENDING, entrypoint='', level=0.0)
-class Task:
+class Task(Model):
     task_id: int
     name: str
     level: float
     entrypoint: Union[str, Callable]
     targs: Union[tuple, bytes]
     status: EStatus
-    take_time: Union[str, datetime]
-    start_time: Union[str, datetime]
-    done_time: Union[str, datetime]
-    pulse_time: Union[str, datetime]
-    description: Union[str, datetime]
+    take_time: datetime
+    start_time: datetime
+    done_time: datetime
+    pulse_time: datetime
+    description: datetime
     # summary_cookie = None,
     job_id: int
+
+    __DEFAULTS__ = dict(
+        status=EStatus.PENDING,
+        entrypoint='',
+        level=0.0
+    )
 
     @staticmethod
     def id_key():
         return 'task_id'
+
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
 
 
 class StateKWArg(EntryPoint):

@@ -46,10 +46,20 @@ async def api():
     return {"message": "Welcome to A-TASK-Q Server"}
 
 
+#########
+# TASKS #
+#########
+@app.put("/api/tasks/{task_id}")
+def update_task(task_id: int, **kwargs):
+    hanlder: DBHandler = from_connection_str(CONNECTION)
+    hanlder.update_task(task_id, kwargs)
+
+    return {task_id: task_id}
+
+
 ########
 # JOBS #
 ########
-
 @app.post("/api/jobs")
 async def create_job():
     hanlder = from_connection_str(CONNECTION)
@@ -91,10 +101,19 @@ async def get_job(job_id: int):
 
 
 @app.get("/api/jobs/{job_id}/next_task")
-async def next_task(job_id: int, level: Union[int, None] = None):
+async def next_task(job_id: int, level_start: Union[int, None] = None, level_stop: Union[int, None] = None):
+    # get level range
+    if level_start is not None and level_stop is not None:
+        level = range(level_start, level_stop)
+    elif level_start is not None:
+        level = range(level_start, level_start + 1)
+    else:
+        level = None
+
     # get hanlder
     hanlder: DBHandler = from_connection_str(CONNECTION, job_id=job_id)
 
+    # take next task
     action, task = hanlder._take_next_task(level)
     task = task.__dict__ if task is not None else None
 

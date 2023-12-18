@@ -232,9 +232,9 @@ class DBHandler(Handler):
         return self
 
     @transaction_decorator
-    def _add_tasks(self, c, tasks: List[Task] or Task):
+    def _add_tasks(self, c, tasks: List[dict]):
         for t in tasks:
-            d = {k: v for k, v in t.__dict__.items() if 'task_id' not in k}
+            d = {k: v for k, v in t.items() if Task.id_key() not in k}
             keys = list(d.keys())
             values = list(d.values())
             c.execute(
@@ -308,7 +308,7 @@ class DBHandler(Handler):
 
     def get_tasks(self, order_by=None):
         rows, col_names = self.query(query_type=EQueryType.TASKS, order_by=order_by)
-        tasks = [Task(**dict(zip(col_names, row))) for row in rows]
+        tasks = [self.from_interface(Task, dict(zip(col_names, row))) for row in rows]
 
         return tasks
 
@@ -419,7 +419,7 @@ class DBHandler(Handler):
             ptask = None
         else:
             col_names = [description[0] for description in c.description]
-            ptask = Task(**dict(zip(col_names, row)))
+            ptask = self.from_interface(Task, dict(zip(col_names, row)))
 
         # get running task with minimum level
         c.execute(
@@ -430,7 +430,7 @@ class DBHandler(Handler):
             rtask = None
         else:
             col_names = [description[0] for description in c.description]
-            rtask = Task(**dict(zip(col_names, row)))
+            rtask = self.from_interface(Task, dict(zip(col_names, row)))
 
         action = None
         if ptask is None and rtask is None:
@@ -474,13 +474,13 @@ class DBHandler(Handler):
         return action, task
 
     @transaction_decorator
-    def update_task_start_time(self, c, task, time=None):
-        if time is None:
-            time = datetime.now()
+    def _update_task(self, c, task_id, **kwargs):
+        if len(kwargs) == 0:
+            return
 
+        insert = ", ".join([f"{k} = {v}" for k, v in kwargs.items()])
         c.execute(
-            f"UPDATE tasks SET start_time = {self.timestamp(time)} WHERE task_id = {task.task_id};")
-        task.start_time = time
+            f"UPDATE tasks SET {insert} WHERE task_id = {task_id};")
 
     @transaction_decorator
     def update_task_status(self, c, task, status):

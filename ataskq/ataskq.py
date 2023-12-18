@@ -6,7 +6,7 @@ from importlib import import_module
 from multiprocessing import Process
 from inspect import signature
 import time
-from typing import Dict
+from typing import Dict, List
 
 from .logger import Logger
 from .models import EStatus, StateKWArg, Task, EntryPointRuntimeError
@@ -77,6 +77,10 @@ class TaskQ(Logger):
         return self._hanlder
 
     @property
+    def type_handlers(self):
+        return self._hanlder.from_interface_type_hanlders()
+
+    @property
     def task_wait_interval(self):
         return self._task_pull_interval
 
@@ -96,7 +100,7 @@ class TaskQ(Logger):
 
         return self
 
-    def add_tasks(self, tasks):
+    def add_tasks(self, tasks: Task or List[Task]):
         self._hanlder.add_tasks(tasks)
 
         return self

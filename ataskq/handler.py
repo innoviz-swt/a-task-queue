@@ -1,10 +1,25 @@
 from abc import ABC, abstractmethod
 import pickle
-from typing import Tuple, Union
+from typing import Tuple, Union, Dict, Callable, List
 from enum import Enum
+from datetime import datetime
 
 from .logger import Logger
-from .models import Task, EStatus
+from .models import Task, EStatus, Model
+
+
+__STRTIME_FORMAT__ = '%Y-%m-%d %H:%M:%S.%f'
+
+
+def to_datetime(string: datetime):
+    if string is None:
+        return None
+
+    return datetime.strptime(string, __STRTIME_FORMAT__)
+
+
+def from_datetime(time: datetime):
+    return time.strftime(__STRTIME_FORMAT__)
 
 
 class EAction(str, Enum):
@@ -23,12 +38,36 @@ class Handler(ABC, Logger):
     def job_id(self):
         return self._job_id
 
+    @staticmethod
+    @abstractmethod
+    def from_interface_type_hanlders() -> Dict[type, Callable]:
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def to_interface_type_hanlders() -> Dict[type, Callable]:
+        pass
+
+    @classmethod
+    def i2m(cls, model_cls: Model, kwargs: dict) -> dict:
+        """interface to model"""
+        return model_cls.i2m(kwargs, cls.from_interface_type_hanlders())
+
+    @classmethod
+    def m2i(cls, model_cls: Model, kwargs: dict) -> dict:
+        """modle to interface"""
+        return model_cls.m2i(kwargs, cls.to_interface_type_hanlders())
+
+    @classmethod
+    def from_interface(cls, model_cls: Model, kwargs: dict) -> Model:
+        return model_cls.from_interface(kwargs, cls.from_interface_type_hanlders())
+
     @abstractmethod
     def create_job(self, c, name='', description=''):
         pass
 
     @abstractmethod
-    def _add_tasks(self, tasks):
+    def _add_tasks(self, tasks: dict):
         pass
 
     @abstractmethod
@@ -36,10 +75,24 @@ class Handler(ABC, Logger):
         pass
 
     @abstractmethod
+    def _update_task(self, task_id: int, **kwargs):
+        pass
+
+    def update_task_start_time(self, task: Task, start_time: datetime = None):
+        if start_time is None:
+            start_time = datetime.now()
+
+        kwargs = dict(start_time=start_time)
+        kwargs = self.m2i(Task, kwargs)
+
+        self._update_task(task.task_id, **kwargs)
+        task.start_time = start_time
+
+    @abstractmethod
     def _take_next_task(self, level: Union[int, None]) -> Tuple[EAction, Task]:
         pass
 
-    def add_tasks(self, tasks):
+    def add_tasks(self, tasks: Union[Task, List[Task]]):
         if self._job_id is None:
             raise RuntimeError(f"Job not assigned, pass job_id in __init__ or use create_job() first.")
 
@@ -65,7 +118,8 @@ class Handler(ABC, Logger):
                 assert isinstance(t.targs[1], dict)
                 t.targs = pickle.dumps(t.targs)
 
-        self._add_tasks(tasks)
+        itask = [t.to_interface(self.from_interface_type_hanlders()) for t in tasks]
+        self._add_tasks(itask)
 
 
 def from_connection_str(conn=None, **kwargs) -> Handler:

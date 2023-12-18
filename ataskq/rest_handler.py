@@ -1,6 +1,7 @@
 from typing import List, NamedTuple, Tuple
 from io import BytesIO
 from enum import Enum
+from datetime import datetime
 
 try:
     import requests
@@ -8,7 +9,7 @@ except ImportError:
     raise Exception("'requests' is required to use ataskq REST handler.")
 
 from .models import Job, StateKWArg, Task, EStatus
-from .handler import Handler, EAction
+from .handler import Handler, EAction, from_datetime
 from . import __schema_version__
 
 
@@ -82,9 +83,14 @@ class RESTHandler(Handler):
         return ret
 
     def _take_next_task(self, level) -> Tuple[EAction, Task]:
-        res = self.get(f'jobs/{self._job_id}/next_task', params=dict(level=1))
+        level_start = level.start if level is not None else None
+        level_stop = level.stop if level is not None else None
+        res = self.get(f'jobs/{self._job_id}/next_task', params=dict(level_start=level_start, level_stop=level_stop))
 
         action = EAction(res['action'])
         task = Task(**res['task']) if res['task'] is not None else None
 
         return (action, task)
+
+    def _update_task(self, task_id, time: datetime):
+        self.put(f'tasks/{task_id}', data=dict(start_time=from_datetime(time)))
