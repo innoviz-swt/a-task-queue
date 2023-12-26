@@ -34,6 +34,22 @@ class SQLite3DBHandler(DBHandler):
         self._connection = from_connection_str(conn)
         super().__init__(**kwargs)
 
+    @staticmethod
+    def to_interface_type_hanlders():
+        type_handlers = {
+            datetime: lambda v: from_datetime(v),
+        }
+
+        return type_handlers
+
+    @staticmethod
+    def from_interface_type_hanlders():
+        type_handlers = {
+            datetime: lambda v: to_datetime(v),
+        }
+
+        return type_handlers
+
     @property
     def pragma_foreign_keys_on(self):
         return 'PRAGMA foreign_keys = ON'
@@ -76,20 +92,3 @@ class SQLite3DBHandler(DBHandler):
     def connect(self):
         conn = sqlite3.connect(self.db_path)
         return conn
-
-    @staticmethod
-    def to_interface_type_hanlders():
-        type_handlers = {
-            str: lambda v: f"'{v}'",
-            datetime: lambda v: f"'{from_datetime(v)}'",
-        }
-
-        return type_handlers
-
-    @staticmethod
-    def from_interface_type_hanlders():
-        type_handlers = {
-            datetime: lambda v: to_datetime(v),
-        }
-
-        return type_handlers

@@ -14,4 +14,5 @@ tr.add_tasks([
 ])
 
 # run the tasks
+tasks = tr.get_tasks()
 tr.run()  # to run in parallel add num_processes=N

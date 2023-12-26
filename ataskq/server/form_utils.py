@@ -7,7 +7,6 @@ async def form_data_array(data: dict):
         import pickle
         if isinstance(v, starlette.datastructures.UploadFile):
             v = await v.read()
-            v = pickle.loads(v)
         # expect format of index.key
         assert '.' in k
         i, *k = k.split('.')

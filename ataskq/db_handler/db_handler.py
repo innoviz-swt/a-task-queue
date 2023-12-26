@@ -474,29 +474,11 @@ class DBHandler(Handler):
         return action, task
 
     @transaction_decorator
-    def _update_task(self, c, task_id, **kwargs):
-        if len(kwargs) == 0:
+    def _update_task(self, c, task_id, **ikwargs):
+        if len(ikwargs) == 0:
             return
 
-        insert = ", ".join([f"{k} = {v}" for k, v in kwargs.items()])
+        insert = ", ".join([f"{k} = {self.format_symbol}" for k in ikwargs.keys()])
+        values = list(ikwargs.values())
         c.execute(
-            f"UPDATE tasks SET {insert} WHERE task_id = {task_id};")
-
-    @transaction_decorator
-    def update_task_status(self, c, task, status):
-        now = datetime.now()
-        if status == EStatus.RUNNING:
-            # for running task update pulse_time
-            c.execute(
-                f"UPDATE tasks SET status = '{status}', pulse_time = {self.timestamp(now)} WHERE task_id = {task.task_id}")
-            task.status = status
-            task.pulse_time = now
-        elif status == EStatus.SUCCESS or status == EStatus.FAILURE:
-            # for done task update pulse_time and done_time time as well
-            c.execute(
-                f"UPDATE tasks SET status = '{status}', pulse_time = {self.timestamp(now)}, done_time = {self.timestamp(now)} WHERE task_id = {task.task_id}")
-            task.status = status
-            task.pulse_time = now
-        else:
-            raise RuntimeError(
-                f"Unsupported status '{status}' for status update")
+            f"UPDATE tasks SET {insert} WHERE task_id = {task_id};", values)

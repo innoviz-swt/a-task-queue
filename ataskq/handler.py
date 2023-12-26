@@ -34,6 +34,9 @@ class Handler(ABC, Logger):
 
         self._job_id = job_id
 
+    def set_job_id(self, job_id):
+        self._job_id = job_id
+
     @property
     def job_id(self):
         return self._job_id
@@ -54,13 +57,17 @@ class Handler(ABC, Logger):
         return model_cls.i2m(kwargs, cls.from_interface_type_hanlders())
 
     @classmethod
+    def from_interface(cls, model_cls: Model, kwargs: dict) -> Model:
+        return model_cls.from_interface(kwargs, cls.from_interface_type_hanlders())
+
+    @classmethod
     def m2i(cls, model_cls: Model, kwargs: dict) -> dict:
         """modle to interface"""
         return model_cls.m2i(kwargs, cls.to_interface_type_hanlders())
 
     @classmethod
-    def from_interface(cls, model_cls: Model, kwargs: dict) -> Model:
-        return model_cls.from_interface(kwargs, cls.from_interface_type_hanlders())
+    def to_interface(cls, model: Model) -> Model:
+        return model.to_interface(cls.to_interface_type_hanlders())
 
     @abstractmethod
     def create_job(self, c, name='', description=''):
@@ -71,22 +78,49 @@ class Handler(ABC, Logger):
         pass
 
     @abstractmethod
+    def get_tasks(self, order_by=None):
+        pass
+
+    @abstractmethod
     def get_state_kwargs(self):
         pass
 
     @abstractmethod
-    def _update_task(self, task_id: int, **kwargs):
+    def _update_task(self, task_id: int, **ikwargs):
         pass
+
+    def update_task(self, task_id: int, **mkwargs):
+        assert task_id is not None, "task must have assigned 'task_id' for update"
+        ikwargs = self.m2i(Task, mkwargs)
+        self._update_task(task_id, **ikwargs)
 
     def update_task_start_time(self, task: Task, start_time: datetime = None):
         if start_time is None:
             start_time = datetime.now()
 
-        kwargs = dict(start_time=start_time)
-        kwargs = self.m2i(Task, kwargs)
+        mkwargs = dict(start_time=start_time)
 
-        self._update_task(task.task_id, **kwargs)
+        self.update_task(task.task_id, **mkwargs)
         task.start_time = start_time
+
+    def update_task_status(self, task: Task, status: EStatus, timestamp: datetime = None):
+        if timestamp is None:
+            timestamp = datetime.now()
+
+        if status == EStatus.RUNNING:
+            # for running task update pulse_time
+            self.update_task(task.task_id, status=status, pulse_time=timestamp)
+            task.status = status
+            task.pulse_time = timestamp
+        elif status == EStatus.SUCCESS or status == EStatus.FAILURE:
+            # for done task update pulse_time and done_time time as well
+            self.update_task(task.task_id, status=status, pulse_time=timestamp, done_time=timestamp)
+            task.status = status
+            task.pulse_time = timestamp
+            task.done_time = timestamp
+        else:
+            raise RuntimeError(
+                f"Unsupported status '{status}' for status update")
 
     @abstractmethod
     def _take_next_task(self, level: Union[int, None]) -> Tuple[EAction, Task]:
@@ -109,16 +143,7 @@ class Handler(ABC, Logger):
             # assert status as pending
             assert t.status == EStatus.PENDING
 
-            if callable(t.entrypoint):
-                t.entrypoint = f"{t.entrypoint.__module__}.{t.entrypoint.__name__}"
-
-            if t.targs is not None:
-                assert len(t.targs) == 2
-                assert isinstance(t.targs[0], tuple)
-                assert isinstance(t.targs[1], dict)
-                t.targs = pickle.dumps(t.targs)
-
-        itask = [t.to_interface(self.from_interface_type_hanlders()) for t in tasks]
+        itask = [self.to_interface(t) for t in tasks]
         self._add_tasks(itask)
 
 

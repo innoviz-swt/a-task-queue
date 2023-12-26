@@ -189,7 +189,7 @@ class Model:
             try:
                 ret[k] = ann(v)
             except Exception as ex:
-                raise Exception(f"{cls_name}::{k}({ann_name}) failed cast from '{type(v).__name__}'") from ex
+                raise Exception(f"{cls_name}::{k}({ann_name}) failed cast from '{v}'({type(v).__name__})") from ex
 
         return ret
 
@@ -221,14 +221,14 @@ class Task(Model):
     task_id: int
     name: str
     level: float
-    entrypoint: Union[str, Callable]
-    targs: Union[tuple, bytes]
+    entrypoint: str
+    targs: bytes
     status: EStatus
     take_time: datetime
     start_time: datetime
     done_time: datetime
     pulse_time: datetime
-    description: datetime
+    description: str
     # summary_cookie = None,
     job_id: int
 
@@ -243,6 +243,18 @@ class Task(Model):
         return 'task_id'
 
     def __init__(self, **kwargs) -> None:
+
+        entrypoint = kwargs.get('entrypoint')
+        if callable(entrypoint):
+            kwargs['entrypoint'] = f"{entrypoint.__module__}.{entrypoint.__name__}"
+
+        targs = kwargs.get('targs')
+        if targs is not None and isinstance(targs, tuple):
+            assert len(targs) == 2
+            assert isinstance(targs[0], tuple)
+            assert isinstance(targs[1], dict)
+            kwargs['targs'] = pickle.dumps(targs)
+
         super().__init__(**kwargs)
 
 

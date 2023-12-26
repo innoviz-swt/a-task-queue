@@ -2,13 +2,14 @@
 
 from pathlib import Path
 from copy import copy
-from .tasks_utils import dummy_args_task
+from datetime import datetime
 
 import pytest
 
-from .handler import from_connection_str
-from .db_handler import DBHandler, EQueryType, EAction
+from .handler import from_connection_str, EAction, EStatus
+from .db_handler import DBHandler, EQueryType
 from .models import Task, StateKWArg
+from .tasks_utils import dummy_args_task
 
 
 def test_db_format(conn):
@@ -67,6 +68,72 @@ def _compare_task_taken(task1: Task, task2: Task, job_id=None):
     assert task1.level == task2.level
     assert task1.entrypoint == task2.entrypoint
     assert task1.targs == task2.targs
+
+
+def test_update_task_start_time(conn):
+    db_handler: DBHandler = from_connection_str(conn=conn).create_job()
+    in_task1 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="task1")
+
+    db_handler.add_tasks([
+        in_task1,
+    ])
+
+    tasks = db_handler.get_tasks()
+    assert len(tasks) == 1  # sanity
+    task: Task = tasks[0]
+
+    # update db with task time (also updates task inplace)
+    start_time = datetime.now()
+    start_time = start_time.replace(microsecond=0)  # test to seconds resolution
+    db_handler.update_task_start_time(task, start_time)
+    assert task.start_time == start_time
+
+    # get task form db and validate
+    tasks = db_handler.get_tasks()
+    assert len(tasks) == 1  # sanity
+    task: Task = tasks[0]
+    assert task.start_time == start_time
+
+
+def test_update_task_status(conn):
+    db_handler: DBHandler = from_connection_str(conn=conn).create_job()
+    in_task1 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="task1")
+
+    db_handler.add_tasks([
+        in_task1,
+    ])
+
+    tasks = db_handler.get_tasks()
+    assert len(tasks) == 1  # sanity
+    task: Task = tasks[0]
+    assert task.status == EStatus.PENDING
+
+    now = datetime.now()
+    # update db with task status (also updates task inplace)
+    db_handler.update_task_status(task, EStatus.RUNNING, timestamp=now)
+    assert task.status == EStatus.RUNNING
+    assert task.pulse_time == now
+    assert task.done_time is None
+    # get task form db and validate
+    tasks = db_handler.get_tasks()
+    assert len(tasks) == 1  # sanity
+    task: Task = tasks[0]
+    assert task.status == EStatus.RUNNING
+    assert task.pulse_time == now
+    assert task.done_time is None
+
+    # update db with task status (also updates task inplace)
+    db_handler.update_task_status(task, EStatus.SUCCESS, timestamp=now)
+    assert task.status == EStatus.SUCCESS
+    assert task.pulse_time == now
+    assert task.done_time == now
+    # get task form db and validate
+    tasks = db_handler.get_tasks()
+    assert len(tasks) == 1  # sanity
+    task: Task = tasks[0]
+    assert task.status == EStatus.SUCCESS
+    assert task.pulse_time == now
+    assert task.done_time == now
 
 
 def test_take_next_task_sanity(conn):
