@@ -8,6 +8,7 @@ from inspect import signature
 import time
 from typing import Dict, List
 
+from .env import ATASKQ_CONNECTION
 from .logger import Logger
 from .models import EStatus, StateKWArg, Task, EntryPointRuntimeError
 from .monitor import MonitorThread
@@ -42,7 +43,7 @@ class TaskQ(Logger):
     def __init__(
             self,
             job_id=None,
-            conn="sqlite://ataskq.db.sqlite3",
+            conn=ATASKQ_CONNECTION,
             run_task_raise_exception=False,
             task_pull_intervnal=0.2,
             monitor_pulse_interval=60,
@@ -88,9 +89,7 @@ class TaskQ(Logger):
     def monitor_pulse_interval(self):
         return self._monitor_pulse_interval
 
-    def create_job(self, name='', description='', overwrite=False):
-        if overwrite and self._hanlder.db_path and os.path.exists(self._hanlder.db_path):
-            os.remove(self._hanlder.db_path)
+    def create_job(self, name='', description=''):
         self._hanlder.create_job(name=name, description=description)
 
         return self

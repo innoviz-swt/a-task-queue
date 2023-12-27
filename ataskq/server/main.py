@@ -18,7 +18,7 @@ from ataskq.models import Task
 
 app = FastAPI()
 logger = logging.getLogger("uvicorn")
-CONNECTION = os.getenv('ATASKQ_CONNECTION', "sqlite://ataskq.db.sqlite3")
+CONNECTION = os.getenv('ATASKQ_SERVER_CONNECTION', "sqlite://ataskq.db.sqlite3")
 
 # allow all cors
 app.add_middleware(

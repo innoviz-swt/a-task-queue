@@ -2,7 +2,7 @@ import context
 from ataskq import TaskQ, Task, targs
 
 # create  job to first quee
-tr = TaskQ(name='queue1').create_job(overwrite=True)
+tr = TaskQ(name='queue1').create_job()
 tr.db_handler.query('jobs')
 tr.db_handler.query('jobs_status')
 

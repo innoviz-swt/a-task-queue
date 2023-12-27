@@ -5,7 +5,7 @@ from enum import Enum
 from datetime import datetime
 
 from .logger import Logger
-from .models import Task, EStatus, Model
+from .models import Model, Task, EStatus, StateKWArg
 
 
 __STRTIME_FORMAT__ = '%Y-%m-%d %H:%M:%S.%f'
@@ -74,7 +74,11 @@ class Handler(ABC, Logger):
         pass
 
     @abstractmethod
-    def _add_tasks(self, tasks: dict):
+    def _add_tasks(self, itasks: List[dict]):
+        pass
+
+    @abstractmethod
+    def _add_state_kwargs(self, i_state_kwargs: List[dict]):
         pass
 
     @abstractmethod
@@ -145,6 +149,35 @@ class Handler(ABC, Logger):
 
         itask = [self.to_interface(t) for t in tasks]
         self._add_tasks(itask)
+
+        return self
+
+    def add_state_kwargs(self, state_kwargs: Union[StateKWArg, List[StateKWArg]]):
+        if self._job_id is None:
+            raise RuntimeError(f"Job not assigned, pass job_id in __init__, set_job_id or use create_job() first.")
+
+        if isinstance(state_kwargs, StateKWArg):
+            state_kwargs = [state_kwargs]
+
+        # Insert data into a table
+        # todo use some sql batch operation
+        for skw in state_kwargs:
+            assert skw.job_id is None
+            skw.job_id = self._job_id
+
+            if callable(skw.entrypoint):
+                skw.entrypoint = f"{skw.entrypoint.__module__}.{skw.entrypoint.__name__}"
+
+            if skw.targs is not None:
+                assert len(skw.targs) == 2
+                assert isinstance(skw.targs[0], tuple)
+                assert isinstance(skw.targs[1], dict)
+                skw.targs = pickle.dumps(skw.targs)
+
+        i_state_kwargs = [self.to_interface(t) for t in state_kwargs]
+        self._add_state_kwargs(i_state_kwargs)
+
+        return self
 
 
 def from_connection_str(conn=None, **kwargs) -> Handler:

@@ -30,9 +30,18 @@ class EStatus(str, Enum):
 
 
 class EntryPoint:
-    def __init__(self, targs=None, entrypoint='') -> None:
-        self.targs = targs
-        self.entrypoint = entrypoint
+    @staticmethod
+    def init(kwargs) -> None:
+        entrypoint = kwargs.get('entrypoint')
+        if callable(entrypoint):
+            kwargs['entrypoint'] = f"{entrypoint.__module__}.{entrypoint.__name__}"
+
+        targs = kwargs.get('targs')
+        if targs is not None and isinstance(targs, tuple):
+            assert len(targs) == 2
+            assert isinstance(targs[0], tuple)
+            assert isinstance(targs[1], dict)
+            kwargs['targs'] = pickle.dumps(targs)
 
     def get_targs(self):
         if self.targs is not None:
@@ -217,7 +226,7 @@ class Model:
         return ret
 
 
-class Task(Model):
+class Task(Model, EntryPoint):
     task_id: int
     name: str
     level: float
@@ -243,35 +252,25 @@ class Task(Model):
         return 'task_id'
 
     def __init__(self, **kwargs) -> None:
-
-        entrypoint = kwargs.get('entrypoint')
-        if callable(entrypoint):
-            kwargs['entrypoint'] = f"{entrypoint.__module__}.{entrypoint.__name__}"
-
-        targs = kwargs.get('targs')
-        if targs is not None and isinstance(targs, tuple):
-            assert len(targs) == 2
-            assert isinstance(targs[0], tuple)
-            assert isinstance(targs[1], dict)
-            kwargs['targs'] = pickle.dumps(targs)
-
-        super().__init__(**kwargs)
+        EntryPoint.init(kwargs)
+        Model.__init__(self, **kwargs)
 
 
-class StateKWArg(EntryPoint):
-    def __init__(self,
-                 state_kwargs_id: int = None,
-                 name: str = None,
-                 entrypoint: Callable or str = None,
-                 targs: tuple or bytes or None = None,
-                 description: str = None,
-                 job_id: int = None) -> None:
-        super().__init__(targs=targs, entrypoint=entrypoint)
+class StateKWArg(Model, EntryPoint):
+    state_kwargs_id: int
+    name: str
+    entrypoint: str
+    targs: bytes
+    description: str
+    job_id: int
 
-        self.state_kwargs_id = state_kwargs_id
-        self.name = name
-        self.description = description
-        self.job_id = job_id
+    @staticmethod
+    def id_key():
+        return 'state_kwargs_id'
+
+    def __init__(self, **kwargs) -> None:
+        EntryPoint.init(kwargs)
+        Model.__init__(self, **kwargs)
 
 
 class Job:

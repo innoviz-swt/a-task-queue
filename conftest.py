@@ -14,8 +14,7 @@ if os.getenv('_PYTEST_RAISE', "0") != "0":
 
 @fixture
 def conn(tmp_path):
-    conn = os.getenv('ATASKQ_TEST_CONNECTION', 'sqlite://{tmp_path}/ataskq.db')
-    # conn = 'postgresql://postgres:cvalgo.devops@localhost:5432/ataskq'
+    conn = os.getenv('ATASKQ_CONNECTION', 'sqlite://{tmp_path}/ataskq.db')
     if 'sqlite' in conn:
         conn = conn.format(tmp_path=tmp_path)
     elif 'postgresql' in conn:

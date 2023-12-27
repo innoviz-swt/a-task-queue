@@ -201,37 +201,6 @@ class DBHandler(Handler):
         c.execute(f"DELETE FROM jobs WHERE job_id = {job_id}")
 
     @transaction_decorator
-    def add_state_kwargs(self, c, state_kwargs: List[StateKWArg] or StateKWArg):
-        if self._job_id is None:
-            raise RuntimeError(f"Job not assigned, pass job_id in __init__ or use create_job() first.")
-
-        if isinstance(state_kwargs, StateKWArg):
-            state_kwargs = [state_kwargs]
-
-        # Insert data into a table
-        # todo use some sql batch operation
-        for skw in state_kwargs:
-            assert skw.job_id is None
-            skw.job_id = self._job_id
-
-            if callable(skw.entrypoint):
-                skw.entrypoint = f"{skw.entrypoint.__module__}.{skw.entrypoint.__name__}"
-
-            if skw.targs is not None:
-                assert len(skw.targs) == 2
-                assert isinstance(skw.targs[0], tuple)
-                assert isinstance(skw.targs[1], dict)
-                skw.targs = pickle.dumps(skw.targs)
-            d = {k: v for k, v in skw.__dict__.items() if 'state_kwargs_id' not in k}
-            keys = list(d.keys())
-            values = list(d.values())
-            c.execute(
-                f"INSERT INTO state_kwargs ({', '.join(keys)}) VALUES ({', '.join([self.format_symbol] * len(keys))})",
-                values)
-
-        return self
-
-    @transaction_decorator
     def _add_tasks(self, c, tasks: List[dict]):
         for t in tasks:
             d = {k: v for k, v in t.items() if Task.id_key() not in k}
@@ -239,6 +208,18 @@ class DBHandler(Handler):
             values = list(d.values())
             c.execute(
                 f'INSERT INTO tasks ({", ".join(keys)}) VALUES ({", ".join([self.format_symbol] * len(keys))})', values)
+
+        return self
+
+    @transaction_decorator
+    def _add_state_kwargs(self, c, state_kwargs: List[dict]):
+        for t in state_kwargs:
+            d = {k: v for k, v in t.items() if Task.id_key() not in k}
+            keys = list(d.keys())
+            values = list(d.values())
+            c.execute(
+                f'INSERT INTO state_kwargs ({", ".join(keys)}) VALUES ({", ".join([self.format_symbol] * len(keys))})',
+                values)
 
         return self
 

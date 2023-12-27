@@ -18,7 +18,7 @@ class RESTConnection(NamedTuple):
     url: None or str
 
     def __str__(self):
-        return f"rest://{self.url}"
+        return {self.url}
 
 
 def from_connection_str(conn):
