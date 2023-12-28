@@ -212,8 +212,8 @@ class DBHandler(Handler):
         return self
 
     @transaction_decorator
-    def _add_state_kwargs(self, c, state_kwargs: List[dict]):
-        for t in state_kwargs:
+    def _add_state_kwargs(self, c, i_state_kwargs: List[dict]):
+        for t in i_state_kwargs:
             d = {k: v for k, v in t.items() if Task.id_key() not in k}
             keys = list(d.keys())
             values = list(d.values())

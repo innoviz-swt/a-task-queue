@@ -105,6 +105,9 @@ class RESTHandler(Handler):
     def _add_tasks(self, itasks: List[Task]):
         self.post(f'jobs/{self._job_id}/tasks', json=itasks)
 
+    def _add_state_kwargs(self, i_state_kwargs: List[dict]):
+        self.post(f'jobs/{self._job_id}/state_kwargs', json=i_state_kwargs)
+
     def get_state_kwargs(self):
         res = self.get(f'jobs/{self._job_id}/state_kwargs')
         ret = [self.from_interface(StateKWArg, skw) for skw in res]

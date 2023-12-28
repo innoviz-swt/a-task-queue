@@ -162,7 +162,7 @@ class Handler(ABC, Logger):
         # Insert data into a table
         # todo use some sql batch operation
         for skw in state_kwargs:
-            assert skw.job_id is None
+            assert skw.job_id is None or skw.job_id == self._job_id
             skw.job_id = self._job_id
 
             if callable(skw.entrypoint):

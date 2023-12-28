@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from ataskq.handler import from_connection_str
 from ataskq.db_handler import DBHandler
 from ataskq.rest_handler import RESTHandler as rh
-from ataskq.models import Task
+from ataskq.models import Task, StateKWArg
 # from .form_utils import form_data_array
 
 
@@ -88,16 +88,11 @@ async def get_job(job_id: int):
 
 
 @app.get("/api/jobs/{job_id}/tasks")
-async def get_job_tasks(request: Request, job_id: int, dbh: DBHandler = Depends(db_handler)):
+async def get_job_tasks(job_id: int, dbh: DBHandler = Depends(db_handler)):
     dbh.set_job_id(job_id)
 
     tasks = dbh.get_tasks()
     itasks = [rh.to_interface(t) for t in tasks]
-
-    # convert bytes to relevant rest api's
-    for t in itasks:
-        if isinstance(t['targs'], bytes):
-            t['targs'] = '/a'
 
     return itasks
 
@@ -117,7 +112,31 @@ async def post_job_tasks(job_id: int, request: Request, dbh: DBHandler = Depends
     tasks = [rh.from_interface(Task, t) for t in itasks]
     dbh.add_tasks(tasks)
 
-    return {}
+    return [t.task_id for t in tasks]
+
+
+@app.get("/api/jobs/{job_id}/state_kwargs")
+async def get_job_state_kwargs(job_id: int, dbh: DBHandler = Depends(db_handler)):
+    dbh.set_job_id(job_id)
+
+    state_kwargs = dbh.get_state_kwargs()
+    i_state_kwargs = [rh.to_interface(t) for t in state_kwargs]
+
+    return i_state_kwargs
+
+
+@app.post("/api/jobs/{job_id}/state_kwargs")
+async def post_job_state_kwargs(job_id: int, request: Request, dbh: DBHandler = Depends(db_handler)):
+    dbh.set_job_id(job_id)
+
+    # get data
+    i_state_kwargs = await request.json()
+
+    # from interrface
+    state_kwargs = [rh.from_interface(StateKWArg, t) for t in i_state_kwargs]
+    dbh.add_state_kwargs(state_kwargs)
+
+    return [skw.state_kwargs_id for skw in state_kwargs]
 
 
 @app.get("/api/jobs/{job_id}/next_task")
