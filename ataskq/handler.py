@@ -5,7 +5,7 @@ from enum import Enum
 from datetime import datetime
 
 from .logger import Logger
-from .models import Model, Task, EStatus, StateKWArg
+from .models import Model, Job, Task, EStatus, StateKWArg
 
 
 __STRTIME_FORMAT__ = '%Y-%m-%d %H:%M:%S.%f'
@@ -68,6 +68,10 @@ class Handler(ABC, Logger):
     @classmethod
     def to_interface(cls, model: Model) -> Model:
         return model.to_interface(cls.to_interface_type_hanlders())
+
+    @abstractmethod
+    def get_jobs(self) -> List[Job]:
+        pass
 
     @abstractmethod
     def create_job(self, c, name='', description=''):

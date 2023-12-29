@@ -75,6 +75,14 @@ async def get_task_byte_field(task_id: int, field: str, dbh: DBHandler = Depends
 ########
 # JOBS #
 ########
+@app.get("/api/jobs")
+async def create_job(dbh: DBHandler = Depends(db_handler)):
+    jobs = dbh.get_jobs()
+    ijobs = [rh.to_interface(j) for j in jobs]
+
+    return ijobs
+
+
 @app.post("/api/jobs")
 async def create_job(dbh: DBHandler = Depends(db_handler)):
     job_id = dbh.create_job().job_id

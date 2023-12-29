@@ -4,6 +4,8 @@ from enum import Enum
 from datetime import datetime
 import base64
 
+from ataskq.models import Job
+
 try:
     import requests
 except ImportError:
@@ -77,6 +79,12 @@ class RESTHandler(Handler):
         assert res.ok, f"put url '{url}' failed. message: {res.text}"
 
         return res.json()
+
+    def get_jobs(self) -> List[Job]:
+        ijobs = self.get('jobs')
+        jobs = [self.from_interface(Job, j) for j in ijobs]
+
+        return jobs
 
     def create_job(self, name='', description='') -> Handler:
         res = self.post('jobs', data=dict(

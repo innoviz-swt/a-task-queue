@@ -34,5 +34,9 @@ def conn(tmp_path):
         c.execute('DROP TABLE IF EXISTS jobs')
         ps_conn.commit()
         ps_conn.close()
+    elif 'http' in conn:
+        pass
+    else:
+        raise Exception(f"Unkown connection format '{conn}'")
 
     return conn

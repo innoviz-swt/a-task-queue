@@ -273,13 +273,11 @@ class StateKWArg(Model, EntryPoint):
         Model.__init__(self, **kwargs)
 
 
-class Job:
-    def __init__(self,
-                 job_id: int = None,
-                 name: None or str = None,
-                 priority: float = 0,
-                 description: None or str = None) -> None:
-        self.job_id = job_id
-        self.name = name
-        self.priority = priority
-        self.description = description
+class Job(Model):
+    job_id: int
+    name: str
+    priority: float
+    description: str
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
