@@ -1,5 +1,4 @@
 from typing import List, NamedTuple, Tuple
-from io import BytesIO
 from enum import Enum
 from datetime import datetime
 import base64
@@ -39,7 +38,7 @@ class RESTHandler(Handler):
     @staticmethod
     def to_interface_type_hanlders():
         type_handlers = {
-            datetime: lambda v: f"{from_datetime(v)}",
+            datetime: lambda v: from_datetime(v),
             Enum: lambda v: v.value,
             bytes: lambda v: base64.b64encode(v).decode('ascii')
         }
@@ -80,14 +79,21 @@ class RESTHandler(Handler):
 
         return res.json()
 
+    def delete(self, url, *args, **kwargs):
+        url = f'{self.api_url}/{url}'
+        res = requests.delete(url, *args, **kwargs)
+        assert res.ok, f"delete url '{url}' failed. message: {res.text}"
+
+        return res.json()
+
     def get_jobs(self) -> List[Job]:
         ijobs = self.get('jobs')
         jobs = [self.from_interface(Job, j) for j in ijobs]
 
         return jobs
 
-    def create_job(self, name='', description='') -> Handler:
-        res = self.post('jobs', data=dict(
+    def create_job(self, name=None, description=None) -> Handler:
+        res = self.post('jobs', json=dict(
             name=name,
             description=description
         ))
@@ -109,6 +115,9 @@ class RESTHandler(Handler):
     #                 data.append((f'{i}.{k}', v))
 
     #     self.post(f'jobs/{self._job_id}/tasks', files=files, data=data)
+
+    def _delete_job(self):
+        self.delete(f'jobs/{self._job_id}')
 
     def _add_tasks(self, itasks: List[Task]):
         self.post(f'jobs/{self._job_id}/tasks', json=itasks)

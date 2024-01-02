@@ -13,7 +13,9 @@ def test_create_job(conn):
     if 'sqlite' in conn:
         assert Path(taskq.db_handler.db_path).exists()
         assert Path(taskq.db_handler.db_path).is_file()
-    elif 'postgresql' in conn:
+    elif 'pg' in conn:
+        pass
+    elif 'http' in conn:
         pass
     else:
         raise Exception(f"unknown db type in connection string '{conn}'")
@@ -88,7 +90,8 @@ def test_run_2_processes(conn, tmp_path: Path):
     assert "task 1\n" in text
 
 
-def _test_run_by_level(conn, tmp_path: Path, num_processes: int):
+@pytest.mark.parametrize("num_processes", [None, 2])
+def test_run_by_level(conn, tmp_path: Path, num_processes: int):
     filepath = tmp_path / 'file.txt'
 
     taskq = TaskQ(conn=conn).create_job()
@@ -129,14 +132,6 @@ def _test_run_by_level(conn, tmp_path: Path, num_processes: int):
     assert "task 1\n" in text
     assert "task 2\n" in text
     assert "task 3\n" in text
-
-
-def test_run_by_level(conn, tmp_path: Path):
-    _test_run_by_level(conn, tmp_path, num_processes=None)
-
-
-def test_run_by_level_2_processes(conn, tmp_path: Path):
-    _test_run_by_level(conn, tmp_path, num_processes=2)
 
 
 def test_monitor_pulse_failure(conn):

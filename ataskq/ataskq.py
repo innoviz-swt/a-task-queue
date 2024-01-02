@@ -89,7 +89,7 @@ class TaskQ(Logger):
     def monitor_pulse_interval(self):
         return self._monitor_pulse_interval
 
-    def create_job(self, name='', description=''):
+    def create_job(self, name=None, description=None):
         self._hanlder.create_job(name=name, description=description)
 
         return self

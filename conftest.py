@@ -12,30 +12,37 @@ if os.getenv('_PYTEST_RAISE', "0") != "0":
         raise excinfo.value
 
 
+def drop_pg_tables(conn):
+    assert 'pg' in conn
+    import psycopg2
+    from ataskq.db_handler.postgresql import from_connection_str
+    handler = from_connection_str(conn)
+    db_conn = psycopg2.connect(
+        host=handler.host,
+        database=handler.database,
+        user=handler.user,
+        password=handler.password)
+    c = db_conn.cursor()
+    c.execute('DROP TABLE IF EXISTS schema_version')
+    c.execute('DROP TABLE IF EXISTS tasks')
+    c.execute('DROP TABLE IF EXISTS state_kwargs')
+    c.execute('DROP TABLE IF EXISTS jobs')
+    db_conn.commit()
+    db_conn.close()
+
+
 @fixture
 def conn(tmp_path):
-    conn = os.getenv('ATASKQ_CONNECTION', 'sqlite://{tmp_path}/ataskq.db')
+    conn = os.getenv('ATASKQ_CONNECTION', 'sqlite://{tmp_path}/ataskq.db.sqlite3')
     if 'sqlite' in conn:
         conn = conn.format(tmp_path=tmp_path)
-    elif 'postgresql' in conn:
+    elif 'pg' in conn:
         # connect and clear all db tables
-        import psycopg2
-        from ataskq.db_handler.postgresql import from_connection_str
-        c = from_connection_str(conn)
-        ps_conn = psycopg2.connect(
-            host=c.host,
-            database=c.database,
-            user=c.user,
-            password=c.password)
-        c = ps_conn.cursor()
-        c.execute('DROP TABLE IF EXISTS schema_version')
-        c.execute('DROP TABLE IF EXISTS tasks')
-        c.execute('DROP TABLE IF EXISTS state_kwargs')
-        c.execute('DROP TABLE IF EXISTS jobs')
-        ps_conn.commit()
-        ps_conn.close()
+        drop_pg_tables(conn)
     elif 'http' in conn:
-        pass
+        server_conn = os.getenv('ATASKQ_SERVER_CONNECTION', 'pg://postgres:postgres@localhost/postgres')
+        assert 'pg' in server_conn, 'rest api test must be with posgres server'
+        drop_pg_tables(server_conn)
     else:
         raise Exception(f"Unkown connection format '{conn}'")
 

@@ -3,6 +3,7 @@
 # x.x.x
 - TASKQ __init__ db renamed to conn
 - add postgresql support
+- ATASKQ::create_job removed overwrite flag
 - schema v4: update schema with jobs. tasks.tid renamed to task_id
 
 # 0.4.1

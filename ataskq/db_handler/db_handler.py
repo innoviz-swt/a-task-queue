@@ -127,7 +127,7 @@ class DBHandler(Handler):
         pass
 
     @transaction_decorator
-    def create_job(self, c=None, name='', description='') -> Handler:
+    def create_job(self, c=None, name=None, description=None) -> Handler:
         if self._job_id is not None:
             raise RuntimeError(f"Job already assigned with job_id '{self._job_id}'.")
 
@@ -196,9 +196,8 @@ class DBHandler(Handler):
         return self
 
     @transaction_decorator
-    def delete_job(self, c, job_id=None):
-        job_id = self._job_id if job_id is None else job_id
-        c.execute(f"DELETE FROM jobs WHERE job_id = {job_id}")
+    def _delete_job(self, c):
+        c.execute(f"DELETE FROM jobs WHERE job_id = {self.job_id}")
 
     @transaction_decorator
     def _add_tasks(self, c, tasks: List[dict]):
@@ -214,7 +213,7 @@ class DBHandler(Handler):
     @transaction_decorator
     def _add_state_kwargs(self, c, i_state_kwargs: List[dict]):
         for t in i_state_kwargs:
-            d = {k: v for k, v in t.items() if Task.id_key() not in k}
+            d = {k: v for k, v in t.items() if StateKWArg.id_key() not in k}
             keys = list(d.keys())
             values = list(d.values())
             c.execute(

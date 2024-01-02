@@ -119,7 +119,7 @@ def _handle_union(cls_name, member, annotations, value, type_handlers=None):
 
 
 class Model:
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, _annotate=True, **kwargs) -> None:
         cls_annotations = self.__annotations__
         defaults = getattr(self, '__DEFAULTS__', dict())
 
@@ -135,7 +135,8 @@ class Model:
                 kwargs[member] = defaults.get(member)
 
         # annotate kwargs
-        kwargs = self.annotate(kwargs)
+        if _annotate:
+            kwargs = self.annotate(kwargs)
 
         # set kwargs as class members
         for k, v in kwargs.items():
@@ -212,7 +213,7 @@ class Model:
     def from_interface(cls, kwargs: dict, type_handlers=None):
         """interface to model"""
         mkwargs = cls.annotate(kwargs, type_handlers)
-        ret = cls(**mkwargs)
+        ret = cls(_annotate=False, **mkwargs)
         return ret
 
     @classmethod
