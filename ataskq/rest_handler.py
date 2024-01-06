@@ -149,3 +149,7 @@ class RESTHandler(Handler):
 
     def _update_task(self, task_id, **ikwargs):
         self.put(f'tasks/{task_id}', json=ikwargs)
+
+    def count_pending_tasks_below_level(self, level: int):
+        res = self.get(f'jobs/{self._job_id}/count_pending_tasks_below_level', params=dict(level=level))
+        return res['count']

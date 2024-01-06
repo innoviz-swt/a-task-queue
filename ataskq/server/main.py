@@ -32,11 +32,11 @@ app.add_middleware(
 # Custom exception handler
 
 
-async def custom_exception_handler(request: Request, exc: Exception):
-    raise exc
+# async def custom_exception_handler(request: Request, exc: Exception):
+#     raise exc
 
-# Adding the custom exception handler to the app
-app.add_exception_handler(Exception, custom_exception_handler)
+# # Adding the custom exception handler to the app
+# app.add_exception_handler(Exception, custom_exception_handler)
 
 # Example route with intentional exception
 
@@ -87,6 +87,14 @@ async def get_task_byte_field(task_id: int, field: str, dbh: DBHandler = Depends
 ########
 # JOBS #
 ########
+@app.get("/api/jobs")
+async def get_jobs(dbh: DBHandler = Depends(db_handler)):
+    jobs = dbh.get_jobs()
+    i_jobs = [rh.to_interface(j) for j in jobs]
+
+    return i_jobs
+
+
 @app.post("/api/jobs")
 async def create_job(data: dict, dbh: DBHandler = Depends(db_handler)):
     job_id = dbh.create_job(name=data.get('name'), description=data.get('description')).job_id
@@ -99,11 +107,6 @@ async def delete_job(job_id: int, dbh: DBHandler = Depends(db_handler)):
     dbh.set_job_id(job_id)
     dbh.delete_job()
 
-    return {"job_id": job_id}
-
-
-@app.get("/api/jobs/{job_id}")
-async def get_job(job_id: int):
     return {"job_id": job_id}
 
 
@@ -179,10 +182,21 @@ async def next_job_task(job_id: int, level_start: Union[int, None] = None, level
 
 
 @app.get("/api/jobs/{job_id}/state_kwargs")
-async def get_job_state_kwargs(job_id: int):
-    dbh: DBHandler = from_connection_str(ATASKQ_SERVER_CONNECTION, job_id=job_id)
+async def get_job_state_kwargs(job_id: int, dbh: DBHandler = Depends(db_handler)):
+    dbh.set_job_id(job_id)
 
-    ret = dbh.get_state_kwargs()
-    ret = [ret.__dict__ for r in ret]
+    state_kwargs = dbh.get_state_kwargs()
+    i_state_kwargs = [rh.to_interface(skw) for skw in state_kwargs]
 
-    return ret
+    return i_state_kwargs
+
+
+@app.get("/api/jobs/{job_id}/count_pending_tasks_below_level")
+async def get_count_pending_tasks_below_level(job_id: int, level: int, dbh: DBHandler = Depends(db_handler)):
+    dbh.set_job_id(job_id)
+
+    count = dbh.count_pending_tasks_below_level(level)
+
+    return {
+        'count': count,
+    }

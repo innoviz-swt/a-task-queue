@@ -193,6 +193,10 @@ class Handler(ABC, Logger):
 
         return self
 
+    @abstractmethod
+    def count_pending_tasks_below_level(self, level: int) -> int:
+        pass
+
 
 def from_connection_str(conn=None, **kwargs) -> Handler:
     if conn is None:
