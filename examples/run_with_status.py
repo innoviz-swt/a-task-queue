@@ -13,7 +13,7 @@ port = 8900
 tr = TaskQ(monitor_pulse_interval=1, logger=logger)
 # set monitor update interval to 1 second for example to show monitor pulse update
 tr.create_job()
-run_server(tr.db_handler, port=port, background=True, popup='tasks_status', print_logs=False)
+run_server(tr.handler, port=port, background=True, popup='tasks_status', print_logs=False)
 
 # add tasks
 tr.add_tasks([

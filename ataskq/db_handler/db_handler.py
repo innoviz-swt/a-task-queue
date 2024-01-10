@@ -378,7 +378,7 @@ class DBHandler(Handler):
         return row[0]
 
     @transaction_decorator
-    def _set_timeout_tasks(self, c, timeout_sec):
+    def fail_pulse_timeout_tasks(self, c, timeout_sec):
         # set timeout tasks
         last_valid_pulse = datetime.now() - timedelta(seconds=timeout_sec)
         c.execute(

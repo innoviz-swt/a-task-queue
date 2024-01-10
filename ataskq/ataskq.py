@@ -8,7 +8,7 @@ from inspect import signature
 import time
 from typing import Dict, List
 
-from .env import ATASKQ_CONNECTION
+from .env import ATASKQ_CONNECTION, ATASKQ_MONITOR_PULSE_INTERVAL, ATASKQ_TASK_PULSE_TIMEOUT, ATASKQ_TASK_PULL_INTERVAL
 from .logger import Logger
 from .models import EStatus, StateKWArg, Task, EntryPointRuntimeError
 from .monitor import MonitorThread
@@ -45,15 +45,15 @@ class TaskQ(Logger):
             job_id=None,
             conn=ATASKQ_CONNECTION,
             run_task_raise_exception=False,
-            task_pull_intervnal=0.2,
-            monitor_pulse_interval=60,
-            monitor_timeout_internal=60 * 5,
+            task_pull_intervnal=ATASKQ_TASK_PULL_INTERVAL,
+            monitor_pulse_interval=ATASKQ_MONITOR_PULSE_INTERVAL,
+            task_pulse_timeout=ATASKQ_TASK_PULSE_TIMEOUT,
             max_jobs=None,
             logger: logging.Logger or None = None) -> None:
         """
         Args:
         task_pull_intervnal: pulling interval for task to complete in seconds.
-        monitor_pulse_interval: update interval for pulse in seconds while taks is running.
+        task_pulse_timeout: update interval for pulse in seconds while taks is running.
         monitor_timeout_internal: timeout for task last monitor pulse in seconds, if passed before getting next task, set to Failure.
         run_task_raise_exception: if True, run_task will raise exception when task fails. This is for debugging purpose only and will fail production flow.
         """
@@ -66,7 +66,7 @@ class TaskQ(Logger):
         self._run_task_raise_exception = run_task_raise_exception
         self._task_pull_interval = task_pull_intervnal
         self._monitor_pulse_interval = monitor_pulse_interval
-        self._monitor_timeout_internal = monitor_timeout_internal
+        self._task_pulse_timeout = task_pulse_timeout
 
         # state kwargs for jobs
         self._state_kwargs: Dict[str: object] = dict()
@@ -74,7 +74,7 @@ class TaskQ(Logger):
         self._running = False
 
     @property
-    def db_handler(self):
+    def handler(self):
         return self._hanlder
 
     @property
@@ -222,9 +222,9 @@ class TaskQ(Logger):
 
         # check for error code
         while True:
-            # update tasks timeout
+            # if the taskq handler is db handler, the taskq performs background tasks before each run
             if isinstance(self._hanlder, DBHandler):
-                self._hanlder._set_timeout_tasks(self._monitor_timeout_internal)
+                self._hanlder.fail_pulse_timeout_tasks(self._task_pulse_timeout)
             # grab tasks and set them in Q
             action, task = self._hanlder._take_next_task(level)
 

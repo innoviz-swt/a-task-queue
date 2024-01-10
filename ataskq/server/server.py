@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from typing import Union
 from pathlib import Path
 
@@ -6,19 +7,50 @@ from fastapi import FastAPI, Request, Depends
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from contextlib import asynccontextmanager
 
 
 from ataskq.handler import from_connection_str
 from ataskq.db_handler import DBHandler
 from ataskq.rest_handler import RESTHandler as rh
 from ataskq.models import Task, StateKWArg
-from ataskq.env import ATASKQ_SERVER_CONNECTION
+from ataskq.env import ATASKQ_SERVER_CONNECTION, ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL, ATASKQ_TASK_PULSE_TIMEOUT
 # from .form_utils import form_data_array
 
-
-app = FastAPI()
 logger = logging.getLogger("uvicorn")
 logger.info(f"ATASKQ_SERVER_CONNECTION: {ATASKQ_SERVER_CONNECTION}")
+logger.info(f"ATASKQ_TASK_PULSE_TIMEOUT: {ATASKQ_TASK_PULSE_TIMEOUT}")
+logger.info(f"ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL: {ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL}")
+
+
+# DB Handler
+
+
+def db_handler(job_id: int = None) -> DBHandler:
+    return from_connection_str(ATASKQ_SERVER_CONNECTION, job_id=job_id)
+
+
+async def set_timout_tasks_task():
+    dbh = db_handler()
+    while True:
+        logger.debug('Set Timeout Tasks')
+        dbh.fail_pulse_timeout_tasks(ATASKQ_TASK_PULSE_TIMEOUT)
+        await asyncio.sleep(ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info('enter lifspan')
+    task = asyncio.create_task(set_timout_tasks_task())
+
+    # Load the ML model
+    yield
+    # Clean up the ML models and release the resources
+    logger.info('cancel task')
+    task.cancel()
+    logger.info('exit lifspan')
+
+app = FastAPI(lifespan=lifespan)
 
 # allow all cors
 app.add_middleware(
@@ -45,9 +77,10 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
 
-# DB Handler
-def db_handler(job_id: int = None) -> DBHandler:
-    return from_connection_str(ATASKQ_SERVER_CONNECTION, job_id=job_id)
+# @app.on_event('startup')
+# @repeat_every(seconds=3)
+# async def print_hello():
+#     logger.info("hello")
 
 
 @app.get("/")

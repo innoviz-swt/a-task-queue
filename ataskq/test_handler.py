@@ -271,7 +271,7 @@ def test_get_tasks(jhandler):
             _compare_task_taken(in_task3, t)
 
 
-def test_query(conn):
+def test_query(conn, jhandler):
     if not isinstance(jhandler, DBHandler):
         pytest.skip()
 

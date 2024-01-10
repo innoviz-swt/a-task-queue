@@ -11,8 +11,8 @@ def test_create_job(conn):
     assert isinstance(taskq, TaskQ)
 
     if 'sqlite' in conn:
-        assert Path(taskq.db_handler.db_path).exists()
-        assert Path(taskq.db_handler.db_path).is_file()
+        assert Path(taskq.handler.db_path).exists()
+        assert Path(taskq.handler.db_path).is_file()
     elif 'pg' in conn:
         pass
     elif 'http' in conn:
@@ -137,7 +137,7 @@ def test_run_by_level(conn, tmp_path: Path, num_processes: int):
 def test_monitor_pulse_failure(conn):
     # set monitor pulse longer than timeout
     taskq = TaskQ(conn=conn, monitor_pulse_interval=10,
-                  monitor_timeout_internal=1.5).create_job()
+                  task_pulse_timeout=1.5).create_job()
     taskq.add_tasks([
         # reserved keyward for ignored task for testing
         Task(entrypoint='ataskq.skip_run_task', targs=targs('task will fail')),
