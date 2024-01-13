@@ -26,28 +26,34 @@ def fields_values(**kwargs):
     return f'({fields}) VALUES ({values})'
 
 
-def transaction_decorator(func):
-    def wrapper(self, *args, **kwargs):
-        with self.connect() as conn:
-            c = conn.cursor()
-            try:
-                # enable foreign keys for each connection (sqlite default is off)
-                # https://www.sqlite.org/foreignkeys.html
-                # Foreign key constraints are disabled by default (for backwards
-                # compatibility), so must be enabled separately for each database
-                # connection
-                if self.pragma_foreign_keys_on:
-                    c.execute(self.pragma_foreign_keys_on)
-                ret = func(self, c, *args, **kwargs)
-            except Exception as e:
-                conn.commit()
-                self.error(f"Failed to execute transaction: {e}")
-                raise e
+def transaction_decorator(exclusive=False):
+    def decorator(func):
+        def wrapper(self, *args, **kwargs):
+            with self.connect() as conn:
+                c = conn.cursor()
+                try:
+                    if exclusive:
+                        c.execute(self.begin_exclusive)
+                    else:
+                        c.execute('BEGIN')
+                    # enable foreign keys for each connection (sqlite default is off)
+                    # https://www.sqlite.org/foreignkeys.html
+                    # Foreign key constraints are disabled by default (for backwards
+                    # compatibility), so must be enabled separately for each database
+                    # connection
+                    if self.pragma_foreign_keys_on:
+                        c.execute(self.pragma_foreign_keys_on)
+                    ret = func(self, c, *args, **kwargs)
+                    conn.commit()
+                except Exception as e:
+                    self.error(f"Failed to execute transaction '{type(e)}:{e}'. Rolling back")
+                    conn.rollback()
+                    raise e
 
-        conn.commit()
-        return ret
+            return ret
 
-    return wrapper
+        return wrapper
+    return decorator
 
 
 def _field_with_order(f):
@@ -126,7 +132,7 @@ class DBHandler(Handler):
     def connect(self):
         pass
 
-    @transaction_decorator
+    @transaction_decorator()
     def create_job(self, c=None, name=None, description=None) -> Handler:
         if self._job_id is not None:
             raise RuntimeError(f"Job already assigned with job_id '{self._job_id}'.")
@@ -195,11 +201,11 @@ class DBHandler(Handler):
 
         return self
 
-    @transaction_decorator
+    @transaction_decorator()
     def _delete_job(self, c):
         c.execute(f"DELETE FROM jobs WHERE job_id = {self.job_id}")
 
-    @transaction_decorator
+    @transaction_decorator()
     def _add_tasks(self, c, tasks: List[dict]):
         for t in tasks:
             d = {k: v for k, v in t.items() if Task.id_key() not in k}
@@ -210,7 +216,7 @@ class DBHandler(Handler):
 
         return self
 
-    @transaction_decorator
+    @transaction_decorator()
     def _add_state_kwargs(self, c, i_state_kwargs: List[dict]):
         for t in i_state_kwargs:
             d = {k: v for k, v in t.items() if StateKWArg.id_key() not in k}
@@ -256,7 +262,7 @@ class DBHandler(Handler):
 
         return query
 
-    @transaction_decorator
+    @transaction_decorator()
     def query(self, c, query_type=EQueryType.JOBS_STATUS, order_by=None):
         queries = {
             # query func, default sort by ASC
@@ -369,7 +375,7 @@ class DBHandler(Handler):
 
         return html
 
-    @transaction_decorator
+    @transaction_decorator()
     def count_pending_tasks_below_level(self, c, level) -> int:
         c.execute(
             f"SELECT COUNT(*) FROM tasks WHERE job_id = {self.job_id} AND level < {level} AND status in ('{EStatus.PENDING}')")
@@ -377,18 +383,16 @@ class DBHandler(Handler):
         row = c.fetchone()
         return row[0]
 
-    @transaction_decorator
+    @transaction_decorator()
     def fail_pulse_timeout_tasks(self, c, timeout_sec):
         # set timeout tasks
         last_valid_pulse = datetime.now() - timedelta(seconds=timeout_sec)
         c.execute(
             f"UPDATE tasks SET status = '{EStatus.FAILURE}' WHERE pulse_time < {self.timestamp(last_valid_pulse)} AND status NOT IN ('{EStatus.SUCCESS}', '{EStatus.FAILURE}');")
 
-    @transaction_decorator
+    @transaction_decorator(exclusive=True)
     def _take_next_task(self, c, level) -> Tuple[EAction, Task]:
         # todo: add FOR UPDATE in the queries postgresql
-        c.execute(self.begin_exclusive)
-
         level_query = f' AND level >= {level.start} AND level < {level.stop}' if level is not None else ''
         # get pending task with minimum level
         c.execute(
@@ -453,7 +457,7 @@ class DBHandler(Handler):
         # self.log_tasks()
         return action, task
 
-    @transaction_decorator
+    @transaction_decorator()
     def _update_task(self, c, task_id, **ikwargs):
         if len(ikwargs) == 0:
             return

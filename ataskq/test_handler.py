@@ -9,6 +9,7 @@ import pytest
 from .handler import from_connection_str, EAction, EStatus
 from .handler import Handler
 from .db_handler import DBHandler, EQueryType
+from .db_handler.db_handler import transaction_decorator
 from .models import Task, StateKWArg
 from .tasks_utils import dummy_args_task
 
@@ -21,6 +22,34 @@ def handler(conn) -> Handler:
 @pytest.fixture
 def jhandler(handler) -> Handler:
     return handler.create_job()
+
+
+class TestDBHandler:
+
+    def __init__(self, handler):
+        self._handler = handler
+        self.error_msg = []
+
+    def connect(self):
+        return self._handler.connect()
+
+    def __getattr__(self, name):
+        return getattr(self._handler, name)
+
+    @transaction_decorator()
+    def invalid(self, c):
+        c.execute('SOME INVALID TRANSACTION')
+
+
+def test_invalid_transaction(jhandler):
+    if not isinstance(jhandler, DBHandler):
+        pytest.skip()
+        return
+
+    handler = TestDBHandler(jhandler)
+    with pytest.raises(Exception) as excinfo:
+        handler.invalid()
+    assert 'syntax error' in str(excinfo.value)
 
 
 def test_db_format(conn, handler):
