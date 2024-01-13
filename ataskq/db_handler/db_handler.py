@@ -128,6 +128,11 @@ class DBHandler(Handler):
     def begin_exclusive(self):
         pass
 
+    @property
+    @abstractmethod
+    def for_update(self):
+        pass
+
     @abstractmethod
     def connect(self):
         pass
@@ -395,9 +400,11 @@ class DBHandler(Handler):
         # todo: add FOR UPDATE in the queries postgresql
         level_query = f' AND level >= {level.start} AND level < {level.stop}' if level is not None else ''
         # get pending task with minimum level
-        c.execute(
-            f"SELECT * FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.PENDING}'){level_query} AND level = "
-            f"(SELECT MIN(level) FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.PENDING}'){level_query});")
+        query = f"SELECT * FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.PENDING}'){level_query} AND level = " \
+            f"(SELECT MIN(level) FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.PENDING}'){level_query})" \
+            f" {self.for_update}"
+        query = query.strip()
+        c.execute(query)
         row = c.fetchone()
         if row is None:
             ptask = None
@@ -406,9 +413,11 @@ class DBHandler(Handler):
             ptask = self.from_interface(Task, dict(zip(col_names, row)))
 
         # get running task with minimum level
-        c.execute(
-            f"SELECT * FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.RUNNING}'){level_query} AND level = "
-            f"(SELECT MIN(level) FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.RUNNING}'){level_query});")
+        query = f"SELECT * FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.RUNNING}'){level_query} AND level = " \
+            f"(SELECT MIN(level) FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.RUNNING}'){level_query})" \
+            f" {self.for_update}"
+        query = query.strip()
+        c.execute(query)
         row = c.fetchone()
         if row is None:
             rtask = None

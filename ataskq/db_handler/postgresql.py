@@ -94,6 +94,10 @@ class PostgresqlDBHandler(DBHandler):
     def begin_exclusive(self):
         return 'BEGIN'
 
+    @property
+    def for_update(self):
+        return "FOR UPDATE"
+
     def connect(self):
         conn = psycopg2.connect(
             host=self.connection.host,

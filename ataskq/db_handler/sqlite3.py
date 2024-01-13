@@ -86,6 +86,10 @@ class SQLite3DBHandler(DBHandler):
         return 'BEGIN EXCLUSIVE'
 
     @property
+    def for_update(self):
+        return ''
+
+    @property
     def db_path(self):
         return self._connection.path
 
