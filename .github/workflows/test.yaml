@@ -71,6 +71,7 @@ jobs:
           sleep 5
           python -m pytest . -v --junitxml=tmp/report.xml
         env:
+          ATASKQ_DB_INIT_ON_HANDLER_INIT: 0
           ATASKQ_CONNECTION: http://127.0.0.1:8080
           PG_CONNECTION: ${{ steps.postgres.outputs.connection-uri }}
           ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL: 2

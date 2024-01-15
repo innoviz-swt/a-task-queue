@@ -12,6 +12,16 @@ if os.getenv('_PYTEST_RAISE', "0") != "0":
         raise excinfo.value
 
 
+def truncate_query(table_name):
+    return f"""DO $$
+BEGIN
+   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = '{table_name}') THEN
+      TRUNCATE TABLE {table_name} CASCADE;
+   END IF;
+END $$;
+"""
+
+
 def drop_pg_tables(conn):
     assert 'pg' in conn
     import psycopg2
@@ -23,10 +33,12 @@ def drop_pg_tables(conn):
         user=handler.user,
         password=handler.password)
     c = db_conn.cursor()
-    c.execute('DROP TABLE IF EXISTS schema_version')
-    c.execute('DROP TABLE IF EXISTS tasks')
-    c.execute('DROP TABLE IF EXISTS state_kwargs')
-    c.execute('DROP TABLE IF EXISTS jobs')
+    c.execute(truncate_query('tasks'))
+    c.execute(truncate_query('state_kwargs'))
+    c.execute(truncate_query('jobs'))
+    # c.execute('DROP TABLE IF EXISTS tasks;')
+    # c.execute('DROP TABLE IF EXISTS state_kwargs;')
+    # c.execute('DROP TABLE IF EXISTS jobs;')
     db_conn.commit()
     db_conn.close()
 
