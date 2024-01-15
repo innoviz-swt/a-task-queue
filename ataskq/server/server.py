@@ -41,6 +41,10 @@ async def set_timout_tasks_task():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info('enter lifspan')
+
+    logger.info('init db')
+    db_handler().init_db()
+
     task = asyncio.create_task(set_timout_tasks_task())
 
     # Load the ML model

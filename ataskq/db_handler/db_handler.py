@@ -10,6 +10,7 @@ from abc import abstractmethod
 from ..models import Job, StateKWArg, Task, EStatus
 from ..handler import Handler, EAction
 from .. import __schema_version__
+from ..env import ATASKQ_DB_INIT_ON_HANDLER_INIT
 
 
 class EQueryType(str, Enum):
@@ -80,11 +81,13 @@ def order_query(order_by):
 
 
 class DBHandler(Handler):
-    def __init__(self, job_id=None, max_jobs=None, logger=None) -> None:
+    def __init__(self, job_id=None, max_jobs=None, init_db=ATASKQ_DB_INIT_ON_HANDLER_INIT, logger=None) -> None:
         super().__init__(job_id, logger)
 
         self._max_jobs = max_jobs
         self._templates_dir = Path(__file__).parent.parent / 'templates'
+        if init_db:
+            self.init_db()
 
     @property
     def db_path(self):
@@ -137,11 +140,8 @@ class DBHandler(Handler):
     def connect(self):
         pass
 
-    @transaction_decorator()
-    def create_job(self, c=None, name=None, description=None) -> Handler:
-        if self._job_id is not None:
-            raise RuntimeError(f"Job already assigned with job_id '{self._job_id}'.")
-
+    @transaction_decorator(exclusive=True)
+    def init_db(self, c):
         # Create schema version table if not exists
         c.execute("CREATE TABLE IF NOT EXISTS schema_version ("
                   "version INTEGER PRIMARY KEY"
@@ -193,6 +193,11 @@ class DBHandler(Handler):
                   "job_id INTEGER NOT NULL, "
                   "CONSTRAINT fk_job_id FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE CASCADE"
                   ")")
+
+    @transaction_decorator()
+    def create_job(self, c=None, name=None, description=None) -> Handler:
+        if self._job_id is not None:
+            raise RuntimeError(f"Job already assigned with job_id '{self._job_id}'.")
 
         # Create job and store job id
         c.execute(
