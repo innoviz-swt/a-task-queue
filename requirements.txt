@@ -7,6 +7,8 @@ cfgv==3.4.0
 charset-normalizer==3.3.2
 click==8.1.7
 distlib==0.3.7
+elastic-transport==8.11.0
+elasticsearch==8.11.1
 exceptiongroup==1.2.0
 fastapi==0.104.1
 filelock==3.13.1
