@@ -24,7 +24,7 @@ def jhandler(handler) -> Handler:
     return handler.create_job()
 
 
-class TestDBHandler:
+class ForTestDBHandler:
 
     def __init__(self, handler):
         self._handler = handler
@@ -41,12 +41,18 @@ class TestDBHandler:
         c.execute('SOME INVALID TRANSACTION')
 
 
+@pytest.mark.parametrize('conn_type', ['sqlite', 'pg', 'http'])
+def test_conn_type_check(conn_type, conn):
+    if f'{conn_type}://' not in conn:
+        pytest.skip()
+
+
 def test_invalid_transaction(jhandler):
     if not isinstance(jhandler, DBHandler):
         pytest.skip()
         return
 
-    handler = TestDBHandler(jhandler)
+    handler = ForTestDBHandler(jhandler)
     with pytest.raises(Exception) as excinfo:
         handler.invalid()
     assert 'syntax error' in str(excinfo.value)
@@ -54,6 +60,7 @@ def test_invalid_transaction(jhandler):
 
 def test_db_format(conn, handler):
     assert isinstance(handler, Handler)
+
     if 'sqlite' in conn:
         from .db_handler.sqlite3 import SQLite3DBHandler
         assert isinstance(handler, SQLite3DBHandler)
