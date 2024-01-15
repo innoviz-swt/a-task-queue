@@ -5,7 +5,7 @@ on:
 
 jobs:
   sqlite-test:
-    runs-on: ubuntu:22.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
@@ -24,7 +24,7 @@ jobs:
           check_name: sqlite3 report
 
   postgresql-test:
-    runs-on: ubuntu:22.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
@@ -49,7 +49,7 @@ jobs:
           check_name: postgres report
 
   restapi-test:
-    runs-on: ubuntu:22.04
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
