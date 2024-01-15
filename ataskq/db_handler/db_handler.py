@@ -4,12 +4,13 @@ import pickle
 from typing import List, Tuple
 from pathlib import Path
 from io import TextIOWrapper
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 
 from ..models import Job, StateKWArg, Task, EStatus
-from ..logger import Logger
+from ..handler import Handler, EAction
 from .. import __schema_version__
+from ..env import ATASKQ_DB_INIT_ON_HANDLER_INIT
 
 
 class EQueryType(str, Enum):
@@ -20,40 +21,40 @@ class EQueryType(str, Enum):
     JOBS_STATUS = 'jobs_status',
 
 
-class EAction(str, Enum):
-    RUN_TASK = 'run_task'
-    WAIT = 'wait'
-    STOP = 'stop'
-
-
 def fields_values(**kwargs):
     fields = ", ".join(kwargs.keys())
     values = ", ".join([(v and f"'{v}'") or 'NULL' for v in kwargs.values()])
     return f'({fields}) VALUES ({values})'
 
 
-def transaction_decorator(func):
-    def wrapper(self, *args, **kwargs):
-        with self.connect() as conn:
-            c = conn.cursor()
-            try:
-                # enable foreign keys for each connection (sqlite default is off)
-                # https://www.sqlite.org/foreignkeys.html
-                # Foreign key constraints are disabled by default (for backwards
-                # compatibility), so must be enabled separately for each database
-                # connection
-                if self.pragma_foreign_keys_on:
-                    c.execute(self.pragma_foreign_keys_on)
-                ret = func(self, c, *args, **kwargs)
-            except Exception as e:
-                conn.commit()
-                self.error(f"Failed to execute transaction: {e}")
-                raise e
+def transaction_decorator(exclusive=False):
+    def decorator(func):
+        def wrapper(self, *args, **kwargs):
+            with self.connect() as conn:
+                c = conn.cursor()
+                try:
+                    if exclusive:
+                        c.execute(self.begin_exclusive)
+                    else:
+                        c.execute('BEGIN')
+                    # enable foreign keys for each connection (sqlite default is off)
+                    # https://www.sqlite.org/foreignkeys.html
+                    # Foreign key constraints are disabled by default (for backwards
+                    # compatibility), so must be enabled separately for each database
+                    # connection
+                    if self.pragma_foreign_keys_on:
+                        c.execute(self.pragma_foreign_keys_on)
+                    ret = func(self, c, *args, **kwargs)
+                    conn.commit()
+                except Exception as e:
+                    self.error(f"Failed to execute transaction '{type(e)}:{e}'. Rolling back")
+                    conn.rollback()
+                    raise e
 
-        conn.commit()
-        return ret
+            return ret
 
-    return wrapper
+        return wrapper
+    return decorator
 
 
 def _field_with_order(f):
@@ -79,13 +80,14 @@ def order_query(order_by):
     return order_by
 
 
-class DBHandler(Logger):
-    def __init__(self, job_id=None, max_jobs=None, logger=None) -> None:
-        super().__init__(logger)
+class DBHandler(Handler):
+    def __init__(self, job_id=None, max_jobs=None, init_db=ATASKQ_DB_INIT_ON_HANDLER_INIT, logger=None) -> None:
+        super().__init__(job_id, logger)
 
         self._max_jobs = max_jobs
         self._templates_dir = Path(__file__).parent.parent / 'templates'
-        self._job_id = job_id
+        if init_db:
+            self.init_db()
 
     @property
     def db_path(self):
@@ -129,19 +131,17 @@ class DBHandler(Logger):
     def begin_exclusive(self):
         pass
 
+    @property
+    @abstractmethod
+    def for_update(self):
+        pass
+
     @abstractmethod
     def connect(self):
         pass
 
-    @property
-    def job_id(self):
-        return self._job_id
-
-    @transaction_decorator
-    def create_job(self, c, name='', description=''):
-        if self._job_id is not None:
-            raise RuntimeError(f"Job already assigned with job_id '{self._job_id}'.")
-
+    @transaction_decorator(exclusive=True)
+    def init_db(self, c):
         # Create schema version table if not exists
         c.execute("CREATE TABLE IF NOT EXISTS schema_version ("
                   "version INTEGER PRIMARY KEY"
@@ -194,6 +194,11 @@ class DBHandler(Logger):
                   "CONSTRAINT fk_job_id FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE CASCADE"
                   ")")
 
+    @transaction_decorator()
+    def create_job(self, c=None, name=None, description=None) -> Handler:
+        if self._job_id is not None:
+            raise RuntimeError(f"Job already assigned with job_id '{self._job_id}'.")
+
         # Create job and store job id
         c.execute(
             f"INSERT INTO jobs{fields_values(name=name, description=description)} RETURNING job_id")
@@ -206,69 +211,30 @@ class DBHandler(Logger):
 
         return self
 
-    @transaction_decorator
-    def delete_job(self, c, job_id=None):
-        job_id = self._job_id if job_id is None else job_id
-        c.execute(f"DELETE FROM jobs WHERE job_id = {job_id}")
+    @transaction_decorator()
+    def _delete_job(self, c):
+        c.execute(f"DELETE FROM jobs WHERE job_id = {self.job_id}")
 
-    @transaction_decorator
-    def add_state_kwargs(self, c, state_kwargs: List[StateKWArg] or StateKWArg):
-        if self._job_id is None:
-            raise RuntimeError(f"Job not assigned, pass job_id in __init__ or use create_job() first.")
-
-        if isinstance(state_kwargs, StateKWArg):
-            state_kwargs = [state_kwargs]
-
-        # Insert data into a table
-        # todo use some sql batch operation
-        for skw in state_kwargs:
-            assert skw.job_id is None
-            skw.job_id = self._job_id
-
-            if callable(skw.entrypoint):
-                skw.entrypoint = f"{skw.entrypoint.__module__}.{skw.entrypoint.__name__}"
-
-            if skw.targs is not None:
-                assert len(skw.targs) == 2
-                assert isinstance(skw.targs[0], tuple)
-                assert isinstance(skw.targs[1], dict)
-                skw.targs = pickle.dumps(skw.targs)
-            d = {k: v for k, v in skw.__dict__.items() if 'state_kwargs_id' not in k}
-            keys = list(d.keys())
-            values = list(d.values())
-            c.execute(
-                f"INSERT INTO state_kwargs ({', '.join(keys)}) VALUES ({', '.join([self.format_symbol] * len(keys))})",
-                values)
-
-        return self
-
-    @transaction_decorator
-    def add_tasks(self, c, tasks: List[Task] or Task):
-        if self._job_id is None:
-            raise RuntimeError(f"Job not assigned, pass job_id in __init__ or use create_job() first.")
-
-        if isinstance(tasks, (Task)):
-            tasks = [tasks]
-
-        # Insert data into a table
-        # todo use some sql batch operation
+    @transaction_decorator()
+    def _add_tasks(self, c, tasks: List[dict]):
         for t in tasks:
-            assert t.job_id is None
-            t.job_id = self._job_id
-
-            if callable(t.entrypoint):
-                t.entrypoint = f"{t.entrypoint.__module__}.{t.entrypoint.__name__}"
-
-            if t.targs is not None:
-                assert len(t.targs) == 2
-                assert isinstance(t.targs[0], tuple)
-                assert isinstance(t.targs[1], dict)
-                t.targs = pickle.dumps(t.targs)
-            d = {k: v for k, v in t.__dict__.items() if 'task_id' not in k}
+            d = {k: v for k, v in t.items() if Task.id_key() not in k}
             keys = list(d.keys())
             values = list(d.values())
             c.execute(
                 f'INSERT INTO tasks ({", ".join(keys)}) VALUES ({", ".join([self.format_symbol] * len(keys))})', values)
+
+        return self
+
+    @transaction_decorator()
+    def _add_state_kwargs(self, c, i_state_kwargs: List[dict]):
+        for t in i_state_kwargs:
+            d = {k: v for k, v in t.items() if StateKWArg.id_key() not in k}
+            keys = list(d.keys())
+            values = list(d.values())
+            c.execute(
+                f'INSERT INTO state_kwargs ({", ".join(keys)}) VALUES ({", ".join([self.format_symbol] * len(keys))})',
+                values)
 
         return self
 
@@ -306,7 +272,7 @@ class DBHandler(Logger):
 
         return query
 
-    @transaction_decorator
+    @transaction_decorator()
     def query(self, c, query_type=EQueryType.JOBS_STATUS, order_by=None):
         queries = {
             # query func, default sort by ASC
@@ -338,15 +304,15 @@ class DBHandler(Logger):
 
     def get_tasks(self, order_by=None):
         rows, col_names = self.query(query_type=EQueryType.TASKS, order_by=order_by)
-        tasks = [Task(**dict(zip(col_names, row))) for row in rows]
+        tasks = [self.from_interface(Task, dict(zip(col_names, row))) for row in rows]
 
         return tasks
 
     def get_state_kwargs(self):
         rows, col_names = self.query(query_type=EQueryType.STATE_KWARGS)
-        tasks = [StateKWArg(**dict(zip(col_names, row))) for row in rows]
+        ret = [StateKWArg(**dict(zip(col_names, row))) for row in rows]
 
-        return tasks
+        return ret
 
     def get_jobs(self):
         rows, col_names = self.query(query_type=EQueryType.JOBS)
@@ -419,7 +385,7 @@ class DBHandler(Logger):
 
         return html
 
-    @transaction_decorator
+    @transaction_decorator()
     def count_pending_tasks_below_level(self, c, level) -> int:
         c.execute(
             f"SELECT COUNT(*) FROM tasks WHERE job_id = {self.job_id} AND level < {level} AND status in ('{EStatus.PENDING}')")
@@ -427,40 +393,42 @@ class DBHandler(Logger):
         row = c.fetchone()
         return row[0]
 
-    @transaction_decorator
-    def _set_timeout_tasks(self, c, timeout_sec):
+    @transaction_decorator()
+    def fail_pulse_timeout_tasks(self, c, timeout_sec):
         # set timeout tasks
         last_valid_pulse = datetime.now() - timedelta(seconds=timeout_sec)
         c.execute(
             f"UPDATE tasks SET status = '{EStatus.FAILURE}' WHERE pulse_time < {self.timestamp(last_valid_pulse)} AND status NOT IN ('{EStatus.SUCCESS}', '{EStatus.FAILURE}');")
 
-    @transaction_decorator
+    @transaction_decorator(exclusive=True)
     def _take_next_task(self, c, level) -> Tuple[EAction, Task]:
         # todo: add FOR UPDATE in the queries postgresql
-        c.execute(self.begin_exclusive)
-
         level_query = f' AND level >= {level.start} AND level < {level.stop}' if level is not None else ''
         # get pending task with minimum level
-        c.execute(
-            f"SELECT * FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.PENDING}'){level_query} AND level = "
-            f"(SELECT MIN(level) FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.PENDING}'){level_query});")
+        query = f"SELECT * FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.PENDING}'){level_query} AND level = " \
+            f"(SELECT MIN(level) FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.PENDING}'){level_query})" \
+            f" {self.for_update}"
+        query = query.strip()
+        c.execute(query)
         row = c.fetchone()
         if row is None:
             ptask = None
         else:
             col_names = [description[0] for description in c.description]
-            ptask = Task(**dict(zip(col_names, row)))
+            ptask = self.from_interface(Task, dict(zip(col_names, row)))
 
         # get running task with minimum level
-        c.execute(
-            f"SELECT * FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.RUNNING}'){level_query} AND level = "
-            f"(SELECT MIN(level) FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.RUNNING}'){level_query});")
+        query = f"SELECT * FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.RUNNING}'){level_query} AND level = " \
+            f"(SELECT MIN(level) FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.RUNNING}'){level_query})" \
+            f" {self.for_update}"
+        query = query.strip()
+        c.execute(query)
         row = c.fetchone()
         if row is None:
             rtask = None
         else:
             col_names = [description[0] for description in c.description]
-            rtask = Task(**dict(zip(col_names, row)))
+            rtask = self.from_interface(Task, dict(zip(col_names, row)))
 
         action = None
         if ptask is None and rtask is None:
@@ -503,61 +471,12 @@ class DBHandler(Logger):
         # self.log_tasks()
         return action, task
 
-    @transaction_decorator
-    def update_task_start_time(self, c, task, time=None):
-        if time is None:
-            time = datetime.now()
+    @transaction_decorator()
+    def _update_task(self, c, task_id, **ikwargs):
+        if len(ikwargs) == 0:
+            return
 
+        insert = ", ".join([f"{k} = {self.format_symbol}" for k in ikwargs.keys()])
+        values = list(ikwargs.values())
         c.execute(
-            f"UPDATE tasks SET start_time = {self.timestamp(time)} WHERE task_id = {task.task_id};")
-        task.start_time = time
-
-    @transaction_decorator
-    def update_task_status(self, c, task, status):
-        now = datetime.now()
-        if status == EStatus.RUNNING:
-            # for running task update pulse_time
-            c.execute(
-                f"UPDATE tasks SET status = '{status}', pulse_time = {self.timestamp(now)} WHERE task_id = {task.task_id}")
-            task.status = status
-            task.pulse_time = now
-        elif status == EStatus.SUCCESS or status == EStatus.FAILURE:
-            # for done task update pulse_time and done_time time as well
-            c.execute(
-                f"UPDATE tasks SET status = '{status}', pulse_time = {self.timestamp(now)}, done_time = {self.timestamp(now)} WHERE task_id = {task.task_id}")
-            task.status = status
-            task.pulse_time = now
-        else:
-            raise RuntimeError(
-                f"Unsupported status '{status}' for status update")
-
-
-def from_connection_str(conn=None, **kwargs) -> DBHandler:
-    if conn is None:
-        conn = ''
-
-    sep = '://'
-    sep_index = conn.find(sep)
-    if sep_index == -1:
-        raise RuntimeError(f'connection must be of format <db type>://<connection string>')
-    db_type = conn[:sep_index]
-
-    # validate connectino
-    if not db_type:
-        raise RuntimeError(f'missing db type, connection must be of format <db type>://<connection string>')
-
-    connection_str = conn[sep_index + len(sep):]
-    if not connection_str:
-        raise RuntimeError(f'missing connection string, connection must be of format <db type>://<connection string>')
-
-    # get db type handler
-    if db_type == 'sqlite':
-        from .sqlite3 import SQLite3DBHandler
-        db_handler = SQLite3DBHandler(conn, **kwargs)
-    elif db_type == 'postgresql':
-        from .postgresql import PostgresqlDBHandler
-        db_handler = PostgresqlDBHandler(conn, **kwargs)
-    else:
-        raise Exception(f"unsupported db type '{db_type}', db type must be one of ['sqlite', 'postgresql']")
-
-    return db_handler
+            f"UPDATE tasks SET {insert} WHERE task_id = {task_id};", values)

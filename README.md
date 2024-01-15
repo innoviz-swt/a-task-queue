@@ -6,7 +6,7 @@ An in process task queue for distributed computing systems.
 from ataskq import TaskQ, Task, targs
 
 # create  job
-tr = TaskQ().create_job(overwrite=True)
+tr = TaskQ().create_job()
 
 # add tasks
 # entrypoint stands for the relevant function import statement

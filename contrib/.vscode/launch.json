@@ -21,10 +21,12 @@
             "request": "launch",
             "module": "pytest",
             "args": ["${file}", "-vs"],
-            // "args": ["${file}", "-vs"],
-            // "args": ["${file}", "-vs", "-k", "<test_name>"],
+            // "args": ["${file}::<test_name>"],
             "cwd": "${workspaceFolder}",
-            "console": "integratedTerminal"
+            "console": "integratedTerminal",
+            "env": {
+                "_PYTEST_RAISE": "1",
+            }
         },
         {
             "name": "Pytest ALL",
@@ -39,6 +41,15 @@
             "justMyCode": true
         },
         {
+            "name": "rest_server",
+            "type": "python",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": ["ataskq.server.server:app", "--port", "8080", "--reload"], // "--host", "${env:HOSTNAME}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
             "name": "basic_task_queue",
             "type": "python",
             "request": "launch",
@@ -47,10 +58,26 @@
             "justMyCode": true
         },
         {
-            "name": "run_multiprocess",
+            "name": "run_in_parallel",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/examples/run_multiprocess.py",
+            "program": "${workspaceFolder}/examples/run_in_parallel.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "run_with_status",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/run_with_status.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "run_with_state_kwargs",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/run_with_state_kwargs.py",
             "console": "integratedTerminal",
             "justMyCode": true
         },

@@ -1,7 +1,6 @@
 #/bin/bash
 set -e
-
-cd $(dirname $0)
+cd $(dirname $0)/..
 
 # remove build and dist folder
 rm -rf ./build ./dist ./*.egg-info

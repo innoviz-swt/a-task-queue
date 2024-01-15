@@ -11,9 +11,11 @@ def test_create_job(conn):
     assert isinstance(taskq, TaskQ)
 
     if 'sqlite' in conn:
-        assert Path(taskq.db_handler.db_path).exists()
-        assert Path(taskq.db_handler.db_path).is_file()
-    elif 'postgresql' in conn:
+        assert Path(taskq.handler.db_path).exists()
+        assert Path(taskq.handler.db_path).is_file()
+    elif 'pg' in conn:
+        pass
+    elif 'http' in conn:
         pass
     else:
         raise Exception(f"unknown db type in connection string '{conn}'")
@@ -88,7 +90,8 @@ def test_run_2_processes(conn, tmp_path: Path):
     assert "task 1\n" in text
 
 
-def _test_run_by_level(conn, tmp_path: Path, num_processes: int):
+@pytest.mark.parametrize("num_processes", [None, 2])
+def test_run_by_level(conn, tmp_path: Path, num_processes: int):
     filepath = tmp_path / 'file.txt'
 
     taskq = TaskQ(conn=conn).create_job()
@@ -131,18 +134,10 @@ def _test_run_by_level(conn, tmp_path: Path, num_processes: int):
     assert "task 3\n" in text
 
 
-def test_run_by_level(conn, tmp_path: Path):
-    _test_run_by_level(conn, tmp_path, num_processes=None)
-
-
-def test_run_by_level_2_processes(conn, tmp_path: Path):
-    _test_run_by_level(conn, tmp_path, num_processes=2)
-
-
 def test_monitor_pulse_failure(conn):
     # set monitor pulse longer than timeout
     taskq = TaskQ(conn=conn, monitor_pulse_interval=10,
-                  monitor_timeout_internal=1.5).create_job()
+                  task_pulse_timeout=1.5).create_job()
     taskq.add_tasks([
         # reserved keyward for ignored task for testing
         Task(entrypoint='ataskq.skip_run_task', targs=targs('task will fail')),

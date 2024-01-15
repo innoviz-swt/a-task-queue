@@ -15,9 +15,7 @@ logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
 # create  job
-tr = TaskQ(conn='postgresql://postgres:cvalgo.devops@localhost:5432/ataskq').create_job(overwrite=True)
-
-# tr = TaskQ(logger=logger).create_job(overwrite=True)
+tr = TaskQ(logger=logger).create_job()
 
 # add tasks
 tr.add_tasks([

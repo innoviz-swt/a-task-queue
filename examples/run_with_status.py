@@ -2,7 +2,7 @@ import time
 
 import context
 from ataskq import TaskQ, Task, targs
-from ataskq.server import run_server
+from ataskq.simple_server import run_server
 
 from common import init_logger
 
@@ -12,8 +12,8 @@ port = 8900
 
 tr = TaskQ(monitor_pulse_interval=1, logger=logger)
 # set monitor update interval to 1 second for example to show monitor pulse update
-tr.create_job(overwrite=True)
-run_server(tr.db_handler, port=port, background=True, popup='tasks_status', print_logs=False)
+tr.create_job()
+run_server(tr.handler, port=port, background=True, popup='tasks_status', print_logs=False)
 
 # add tasks
 tr.add_tasks([

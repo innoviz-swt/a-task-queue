@@ -1,7 +1,9 @@
-from typing import Callable
+from typing import Union, Callable
 from enum import Enum
 import pickle
 from importlib import import_module
+from datetime import datetime
+from abc import abstractmethod
 
 
 class EntryPointRuntimeError(RuntimeError):
@@ -28,9 +30,18 @@ class EStatus(str, Enum):
 
 
 class EntryPoint:
-    def __init__(self, targs=None, entrypoint='') -> None:
-        self.targs = targs
-        self.entrypoint = entrypoint
+    @staticmethod
+    def init(kwargs) -> None:
+        entrypoint = kwargs.get('entrypoint')
+        if callable(entrypoint):
+            kwargs['entrypoint'] = f"{entrypoint.__module__}.{entrypoint.__name__}"
+
+        targs = kwargs.get('targs')
+        if targs is not None and isinstance(targs, tuple):
+            assert len(targs) == 2
+            assert isinstance(targs[0], tuple)
+            assert isinstance(targs[1], dict)
+            kwargs['targs'] = pickle.dumps(targs)
 
     def get_targs(self):
         if self.targs is not None:
@@ -78,61 +89,196 @@ class EntryPoint:
         return ret
 
 
-class Task:
-    def __init__(self,
-                 task_id: int = None,
-                 name: str = '',
-                 level: float = 0,
-                 entrypoint: str = "",
-                 targs: tuple or bytes or None = None,
-                 status: EStatus = EStatus.PENDING,
-                 take_time=None,
-                 start_time=None,
-                 done_time=None,
-                 pulse_time=None,
-                 description=None,
-                 # summary_cookie = None,
-                 job_id=None,
-                 ) -> None:
+def _handle_union(cls_name, member, annotations, value, type_handlers=None):
+    if type_handlers is None:
+        type_handlers = dict()
 
-        self.task_id = task_id
-        self.name = name
-        self.level = level
-        self.entrypoint = entrypoint
-        self.targs = targs
-        self.status = status
-        self.take_time = take_time
-        self.start_time = start_time
-        self.done_time = done_time
-        self.pulse_time = pulse_time
-        self.description = description
-        # self.summary_cookie = summary_cookie
-        self.job_id = job_id
+    # check if value is of supported types
+    for ann in annotations:
+        if isinstance(value, ann):
+            return value
+
+    # attemp cast value
+    success = False
+    value = None
+    for ann in annotations:
+        try:
+            if ann in type_handlers:
+                value = type_handlers[ann](value)
+            else:
+                value = ann(value)
+            success = True
+            break
+        except Exception:
+            continue
+
+    if not success:
+        raise Exception(f"{cls_name}::{member}({annotations}) failed casting {type(value)} - '{value}'.")
+
+    return value
 
 
-class StateKWArg(EntryPoint):
-    def __init__(self,
-                 state_kwargs_id: int = None,
-                 name: str = None,
-                 entrypoint: Callable or str = None,
-                 targs: tuple or bytes or None = None,
-                 description: str = None,
-                 job_id: int = None) -> None:
-        super().__init__(targs=targs, entrypoint=entrypoint)
+class Model:
+    def __init__(self, _annotate=True, **kwargs) -> None:
+        cls_annotations = self.__annotations__
+        defaults = getattr(self, '__DEFAULTS__', dict())
 
-        self.state_kwargs_id = state_kwargs_id
-        self.name = name
-        self.description = description
-        self.job_id = job_id
+        # check a kwargs are class members
+        for k in kwargs.keys():
+            if k not in cls_annotations.keys():
+                raise Exception(f"'{k}' not a possible class '{self.__class__.__name__}' member.")
+
+        # set defaults
+        for member in cls_annotations.keys():
+            # default None to members not passed
+            if member not in kwargs:
+                kwargs[member] = defaults.get(member)
+
+        # annotate kwargs
+        if _annotate:
+            kwargs = self.annotate(kwargs)
+
+        # set kwargs as class members
+        for k, v in kwargs.items():
+            setattr(self, k, v)
+
+    @staticmethod
+    @abstractmethod
+    def id_key():
+        raise NotImplementedError()
+
+    @classmethod
+    def annotate(cls, kwargs: dict, type_handlers: dict = None):
+        if type_handlers is None:
+            type_handlers = dict()
+
+        ret = dict()
+        cls_annotations = cls.__annotations__
+        cls_name = cls.__name__
+        for k, v in kwargs.items():
+            if k not in cls_annotations:
+                raise Exception(f"interface key '{k}' not in model annotations.")
+
+            # allow None values (no handling)
+            if v is None:
+                ret[k] = None
+                continue
+
+            # get member annotation
+            annotation = cls_annotations[k]
+
+            # handle union
+            if getattr(annotation, '__origin__', None) is Union:
+                ret[k] = _handle_union(cls_name, k, annotation.__args__, v, type_handlers)
+                continue
+
+            # Single annotation cast
+            ann = cls_annotations[k]
+
+            ann_name = None
+            if ann in type_handlers:
+                ann_name = f'type_handler[{ann.__name__}]'
+                ann = type_handlers[ann]
+            elif issubclass(ann, str) and str in type_handlers:
+                # string subclasses
+                ann_name = f'type_handler[{ann.__name__} - str sublcass]'
+                ann = type_handlers[str]
+            elif issubclass(ann, Enum) and Enum in type_handlers:
+                # string subclasses
+                ann_name = f'type_handler[{ann.__name__} - Enum sublcass]'
+                ann = type_handlers[Enum]
+            else:
+                # check if already in relevant type
+                if isinstance(v, ann):
+                    ret[k] = v
+                    continue
+
+                ann_name = f'{ann.__name__}'
+                ann = ann
+
+            try:
+                ret[k] = ann(v)
+            except Exception as ex:
+                raise Exception(f"{cls_name}::{k}({ann_name}) failed cast from '{v}'({type(v).__name__})") from ex
+
+        return ret
+
+    @classmethod
+    def i2m(cls, kwargs: dict, type_handlers=None):
+        """interface to model"""
+        ret = cls.annotate(kwargs, type_handlers)
+        return ret
+
+    @classmethod
+    def from_interface(cls, kwargs: dict, type_handlers=None):
+        """interface to model"""
+        mkwargs = cls.annotate(kwargs, type_handlers)
+        ret = cls(_annotate=False, **mkwargs)
+        return ret
+
+    @classmethod
+    def m2i(cls, kwargs, type_handlers=None):
+        """model to interface"""
+        ret = cls.annotate(kwargs, type_handlers)
+        return ret
+
+    def to_interface(self, type_handlers=None):
+        ret = self.annotate(self.__dict__, type_handlers)
+        return ret
 
 
-class Job:
-    def __init__(self,
-                 job_id: int = None,
-                 name: None or str = None,
-                 priority: float = 0,
-                 description: None or str = None) -> None:
-        self.job_id = job_id
-        self.name = name
-        self.priority = priority
-        self.description = description
+class Task(Model, EntryPoint):
+    task_id: int
+    name: str
+    level: float
+    entrypoint: str
+    targs: bytes
+    status: EStatus
+    take_time: datetime
+    start_time: datetime
+    done_time: datetime
+    pulse_time: datetime
+    description: str
+    # summary_cookie = None,
+    job_id: int
+
+    __DEFAULTS__ = dict(
+        status=EStatus.PENDING,
+        entrypoint='',
+        level=0.0
+    )
+
+    @staticmethod
+    def id_key():
+        return 'task_id'
+
+    def __init__(self, **kwargs) -> None:
+        EntryPoint.init(kwargs)
+        Model.__init__(self, **kwargs)
+
+
+class StateKWArg(Model, EntryPoint):
+    state_kwargs_id: int
+    name: str
+    entrypoint: str
+    targs: bytes
+    description: str
+    job_id: int
+
+    @staticmethod
+    def id_key():
+        return 'state_kwargs_id'
+
+    def __init__(self, **kwargs) -> None:
+        EntryPoint.init(kwargs)
+        Model.__init__(self, **kwargs)
+
+
+class Job(Model):
+    job_id: int
+    name: str
+    priority: float
+    description: str
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)

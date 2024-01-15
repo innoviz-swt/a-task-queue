@@ -6,12 +6,15 @@ from importlib import import_module
 from multiprocessing import Process
 from inspect import signature
 import time
-from typing import Dict
+from typing import Dict, List
 
+from .env import ATASKQ_CONNECTION, ATASKQ_MONITOR_PULSE_INTERVAL, ATASKQ_TASK_PULSE_TIMEOUT, ATASKQ_TASK_PULL_INTERVAL
 from .logger import Logger
 from .models import EStatus, StateKWArg, Task, EntryPointRuntimeError
 from .monitor import MonitorThread
-from .db_handler import DBHandler, EQueryType, EAction, from_connection_str
+from .db_handler import EQueryType, EAction, DBHandler
+from .handler import Handler
+from .handler import from_connection_str
 
 
 def targs(*args, **kwargs):
@@ -40,30 +43,30 @@ class TaskQ(Logger):
     def __init__(
             self,
             job_id=None,
-            conn="sqlite://ataskq.db.sqlite3",
+            conn=ATASKQ_CONNECTION,
             run_task_raise_exception=False,
-            task_pull_intervnal=0.2,
-            monitor_pulse_interval=60,
-            monitor_timeout_internal=60 * 5,
+            task_pull_intervnal=ATASKQ_TASK_PULL_INTERVAL,
+            monitor_pulse_interval=ATASKQ_MONITOR_PULSE_INTERVAL,
+            task_pulse_timeout=ATASKQ_TASK_PULSE_TIMEOUT,
             max_jobs=None,
             logger: logging.Logger or None = None) -> None:
         """
         Args:
         task_pull_intervnal: pulling interval for task to complete in seconds.
-        monitor_pulse_interval: update interval for pulse in seconds while taks is running.
+        task_pulse_timeout: update interval for pulse in seconds while taks is running.
         monitor_timeout_internal: timeout for task last monitor pulse in seconds, if passed before getting next task, set to Failure.
         run_task_raise_exception: if True, run_task will raise exception when task fails. This is for debugging purpose only and will fail production flow.
         """
         super().__init__(logger)
 
         # init db handler
-        self._db_handler: DBHandler = from_connection_str(
+        self._hanlder: Handler = from_connection_str(
             conn=conn, job_id=job_id, max_jobs=max_jobs, logger=self._logger)
 
         self._run_task_raise_exception = run_task_raise_exception
         self._task_pull_interval = task_pull_intervnal
         self._monitor_pulse_interval = monitor_pulse_interval
-        self._monitor_timeout_internal = monitor_timeout_internal
+        self._task_pulse_timeout = task_pulse_timeout
 
         # state kwargs for jobs
         self._state_kwargs: Dict[str: object] = dict()
@@ -71,8 +74,12 @@ class TaskQ(Logger):
         self._running = False
 
     @property
-    def db_handler(self):
-        return self._db_handler
+    def handler(self):
+        return self._hanlder
+
+    @property
+    def type_handlers(self):
+        return self._hanlder.from_interface_type_hanlders()
 
     @property
     def task_wait_interval(self):
@@ -82,44 +89,42 @@ class TaskQ(Logger):
     def monitor_pulse_interval(self):
         return self._monitor_pulse_interval
 
-    def create_job(self, name='', description='', overwrite=False):
-        if overwrite and self._db_handler.db_path and os.path.exists(self._db_handler.db_path):
-            os.remove(self._db_handler.db_path)
-        self._db_handler.create_job(name=name, description=description)
+    def create_job(self, name=None, description=None):
+        self._hanlder.create_job(name=name, description=description)
 
         return self
 
     def add_state_kwargs(self, state_kwargs):
-        self._db_handler.add_state_kwargs(state_kwargs)
+        self._hanlder.add_state_kwargs(state_kwargs)
 
         return self
 
-    def add_tasks(self, tasks):
-        self._db_handler.add_tasks(tasks)
+    def add_tasks(self, tasks: Task or List[Task]):
+        self._hanlder.add_tasks(tasks)
 
         return self
 
     def count_pending_tasks_below_level(self, level):
-        return self._db_handler.count_pending_tasks_below_level(level)
+        return self._hanlder.count_pending_tasks_below_level(level)
 
     def log_tasks(self):
-        rows, _ = self._db_handler.query(query_type=EQueryType.TASKS)
+        rows, _ = self._hanlder.query(query_type=EQueryType.TASKS)
 
         self.info("# tasks:")
         for row in rows:
             self.info(row)
 
     def get_tasks(self, order_by=None):
-        return self._db_handler.get_tasks(order_by=order_by)
+        return self._hanlder.get_tasks(order_by=order_by)
 
     def get_jobs(self):
-        return self._db_handler.get_jobs()
+        return self._hanlder.get_jobs()
 
     def update_task_start_time(self, task: Task):
-        self._db_handler.update_task_start_time(task)
+        self._hanlder.update_task_start_time(task)
 
     def update_task_status(self, task: Task, status: EStatus):
-        self._db_handler.update_task_status(task, status)
+        self._hanlder.update_task_status(task, status)
 
     def _run_task(self, task: Task):
         # get entry point func to execute
@@ -210,17 +215,18 @@ class TaskQ(Logger):
 
     def _run(self, level):
         # make sure all state kwargs for job have key in self._state_kwargs, later to be used in _run_task
-        state_kwargs_db = self._db_handler.get_state_kwargs()
+        state_kwargs_db = self._hanlder.get_state_kwargs()
         for skw in state_kwargs_db:
             if skw.name not in self._state_kwargs:
                 self._state_kwargs[skw.name] = skw
 
         # check for error code
         while True:
-            # update tasks timeout
-            self._db_handler._set_timeout_tasks(self._monitor_timeout_internal)
+            # if the taskq handler is db handler, the taskq performs background tasks before each run
+            if isinstance(self._hanlder, DBHandler):
+                self._hanlder.fail_pulse_timeout_tasks(self._task_pulse_timeout)
             # grab tasks and set them in Q
-            action, task = self._db_handler._take_next_task(level)
+            action, task = self._hanlder._take_next_task(level)
 
             # handle no task available
             if action == EAction.STOP:

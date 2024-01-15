@@ -1,0 +1,22 @@
+{
+    "info": {
+        "_postman_id": "142d2d32-c289-4d07-81a9-a8761419d080",
+        "name": "ataskq",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+        "description": ""
+    },
+    "item": [
+        {
+            "name": "api",
+            "request": {
+                "method": "GET",
+                "url": {
+                    "raw": "{{ataskq-api}}",
+                    "host": [
+                        "{{ataskq-api}}"
+                    ]
+                }
+            }
+        }
+    ]
+}

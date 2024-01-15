@@ -5,7 +5,7 @@ on:
 
 jobs:
   sqlite-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
@@ -13,9 +13,9 @@ jobs:
           python-version: '3.8'
       - name: Build and run tests
         run: |
-         python --version
-         python -m pip install -r requirements.txt
-         python -m pytest . -v --junitxml=tmp/report.xml
+          python --version
+          python -m pip install -r requirements.txt
+          python -m pytest . -v --junitxml=tmp/report.xml
       - name: Publish Test Report
         uses: mikepenz/action-junit-report@v4
         if: success() || failure() # always run even if the previous step fails
@@ -24,7 +24,7 @@ jobs:
           check_name: sqlite3 report
 
   postgresql-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
@@ -34,15 +34,51 @@ jobs:
         id: postgres
       - name:  Build and run tests
         run: |
-         python --version
-         python -m pip install -r requirements.txt
-         echo CONNECTION_STR $CONNECTION_STR
-         ATASKQ_TEST_CONNECTION=$CONNECTION_STR python -m pytest . -v --junitxml=tmp/report.xml
+          python --version
+          python -m pip install -r requirements.txt
+          export ATASKQ_CONNECTION=${PG_CONNECTION/postgresql/pg}
+          echo ATASKQ_CONNECTION $ATASKQ_CONNECTION
+          python -m pytest . -v --junitxml=tmp/report.xml
         env:
-          CONNECTION_STR: ${{ steps.postgres.outputs.connection-uri }}
+          PG_CONNECTION: ${{ steps.postgres.outputs.connection-uri }}
       - name: Publish Test Report
         uses: mikepenz/action-junit-report@v4
         if: success() || failure() # always run even if the previous step fails
         with:
           report_paths: tmp/report.xml
           check_name: postgres report
+
+  restapi-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.8'
+      - uses: ikalnytskyi/action-setup-postgres@v4
+        id: postgres
+      - name:  Build and run tests
+        run: |
+          python --version
+          python -m pip install -r requirements.txt
+          export ATASKQ_SERVER_CONNECTION=${PG_CONNECTION/postgresql/pg}
+          echo ATASKQ_CONNECTION $ATASKQ_CONNECTION
+          echo ATASKQ_SERVER_CONNECTION $ATASKQ_SERVER_CONNECTION
+          echo ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL $ATASKQ_SERVER_CONNECTION
+          echo ATASKQ_TASK_PULSE_TIMEOUT $ATASKQ_TASK_PULSE_TIMEOUT
+          ATASKQ_SERVER_CONNECTION=${ATASKQ_SERVER_CONNECTION/postgresql/pg}
+          python -m uvicorn ataskq.server.server:app --port 8080 &
+          sleep 5
+          python -m pytest . -v --junitxml=tmp/report.xml
+        env:
+          ATASKQ_DB_INIT_ON_HANDLER_INIT: 0
+          ATASKQ_CONNECTION: http://127.0.0.1:8080
+          PG_CONNECTION: ${{ steps.postgres.outputs.connection-uri }}
+          ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL: 2
+          ATASKQ_TASK_PULSE_TIMEOUT: 1.5
+      - name: Publish Test Report
+        uses: mikepenz/action-junit-report@v4
+        if: success() || failure() # always run even if the previous step fails
+        with:
+          report_paths: tmp/report.xml
+          check_name: rest api report

@@ -1,7 +1,10 @@
 import re
 from typing import NamedTuple
 import sqlite3
+from datetime import datetime
 
+from ..models import Model
+from ..handler import to_datetime, from_datetime
 from .db_handler import DBHandler
 
 
@@ -12,13 +15,13 @@ class SqliteConnection(NamedTuple):
         return f"sqlite://{self.path}"
 
 
-def from_connection_str(db):
+def from_connection_str(conn):
     format = 'sqlite://path'
     pattern = r'sqlite://(?P<path>.+)$'
-    match = re.match(pattern, db)
+    match = re.match(pattern, conn)
 
     if not match:
-        raise Exception(f"db must be in '{format}', ex: 'sqlite://ataskq.db.sqlite3'")
+        raise Exception(f"conn must be in '{format}', ex: 'sqlite://ataskq.db.sqlite3'")
 
     path = match.group('path')
     ret = SqliteConnection(path=path)
@@ -31,10 +34,26 @@ class SQLite3DBHandler(DBHandler):
         self._connection = from_connection_str(conn)
         super().__init__(**kwargs)
 
+    @staticmethod
+    def to_interface_type_hanlders():
+        type_handlers = {
+            datetime: lambda v: from_datetime(v),
+        }
+
+        return type_handlers
+
+    @staticmethod
+    def from_interface_type_hanlders():
+        type_handlers = {
+            datetime: lambda v: to_datetime(v),
+        }
+
+        return type_handlers
+
     @property
     def pragma_foreign_keys_on(self):
         return 'PRAGMA foreign_keys = ON'
-        
+
     @property
     def format_symbol(self):
         return '?'
@@ -65,6 +84,10 @@ class SQLite3DBHandler(DBHandler):
     @property
     def begin_exclusive(self):
         return 'BEGIN EXCLUSIVE'
+
+    @property
+    def for_update(self):
+        return ''
 
     @property
     def db_path(self):
