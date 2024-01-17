@@ -1,0 +1,115 @@
+from elasticsearch import Elasticsearch, helpers
+import datetime
+import numpy as np
+import time
+
+# Create an Elasticsearch instance
+es = Elasticsearch([{'host': 'localhost', 'port': 9200, 'scheme': 'https'}],
+                   basic_auth=('elastic', 'elastic'),
+                   verify_certs=False,
+                   ca_certs=None,
+                   ssl_show_warn=False,
+                   )
+
+# Check if the connection was successful
+if es.ping():
+    print("Connected to Elasticsearch")
+else:
+    print("Connection failed")
+    exit(0)
+
+# Define an index name and document
+index_name = "my_index"
+document = {
+    "title": "Example Document",
+    "asd": "hahaha."
+}
+
+# Create an index (if it doesn't exist)
+if not es.indices.exists(index=index_name):
+    es.indices.create(index=index_name)
+    print(f"Index '{index_name}' created")
+else:
+    es.indices.delete(index=index_name)
+    print(f"Index '{index_name}' deleted")
+    es.indices.create(index=index_name)
+    print(f"Index '{index_name}' created")
+
+# # Index a document
+# response = es.index(index=index_name, body=document)
+# print(f"Document indexed with ID: {response['_id']}")
+
+
+def update(data, i):
+    # print(f"{i}: Bulk send {len(data)} documents")
+    # Use helpers.bulk to perform the bulk indexing
+    start = time.time()
+    success, failed = helpers.bulk(es, data)
+    end = time.time()
+    duration = end - start
+    print(f"{i}: Bulk send {len(data)}, Success: {success}, Failed: {failed}, Duration: {duration:.2f} sec")
+
+
+ntasks = 2
+n_sub_tasks = 10
+n_obj_a = 100
+n_obj_b = 10
+n_item_a = 30
+
+iid = 0
+for t in range(0, ntasks):
+    timestamp = datetime.datetime(2020, 3, 6, 10)
+    # sub tasks
+    for st in range(0, n_sub_tasks):
+        data = []
+
+        def append(doc):
+            data.append({"_index": index_name, "_source": doc})
+        timestamp = timestamp + datetime.timedelta(seconds=1)
+
+        for i in range(n_obj_a):
+            append({
+                "task": f"task_{t}",
+                "subtask": st,
+                "id": i,
+                "type": "object",
+                "class": "a",
+                "full_name": f"object.a.{i}",
+                "prop1": 3 - i % 7 + 1000,
+                "timestamp": timestamp,
+                "iid": iid,
+                "test": {
+                    "asd": [1, 2, 3],
+                    "dsa": {2: 3, 4: 5},
+                }
+            })
+            iid += 1
+
+        for i in range(n_obj_b):
+            append({
+                "task": f"task_{t}",
+                "subtask": st,
+                "id": i,
+                "type": "object",
+                "class": "b",
+                "full_name": f"object.b.{i}",
+                "prop1": -2 + i % 4 + 1000,
+                "timestamp": timestamp,
+                "iid": iid,
+            })
+            iid += 1
+
+        for i in range(n_item_a):
+            append({
+                "task": f"task_{t}",
+                "subtask": st,
+                "id": i,
+                "type": "item",
+                "full_name": f"object.item.{i}",
+                "prop1": -10 + i % 20 + 1000,
+                "timestamp": timestamp,
+                "iid": iid,
+            })
+            iid += 1
+
+        update(data, iid)
