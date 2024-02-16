@@ -252,6 +252,10 @@ class Task(Model, EntryPoint):
     def id_key():
         return 'task_id'
 
+    @staticmethod
+    def table_key():
+        return 'tasks'
+
     def __init__(self, **kwargs) -> None:
         EntryPoint.init(kwargs)
         Model.__init__(self, **kwargs)
@@ -269,6 +273,10 @@ class StateKWArg(Model, EntryPoint):
     def id_key():
         return 'state_kwargs_id'
 
+    @staticmethod
+    def table_key():
+        return 'state_kwargs'
+
     def __init__(self, **kwargs) -> None:
         EntryPoint.init(kwargs)
         Model.__init__(self, **kwargs)
@@ -280,5 +288,16 @@ class Job(Model):
     priority: float
     description: str
 
+    @staticmethod
+    def id_key():
+        return 'job_id'
+
+    @staticmethod
+    def table_key():
+        return 'jobs'
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+
+__MODELS__ = {m.table_key(): m for m in [Task, StateKWArg, Job]}

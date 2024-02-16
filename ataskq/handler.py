@@ -71,6 +71,9 @@ class Handler(ABC, Logger):
     def to_interface(cls, model: Model) -> Model:
         return model.to_interface(cls.to_interface_type_hanlders())
 
+    def get_model(model: str) -> List[Model]:
+        pass
+
     @abstractmethod
     def get_jobs(self) -> List[Job]:
         pass

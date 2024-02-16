@@ -4,7 +4,7 @@ from typing import Union
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Depends
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 from ataskq.handler import from_connection_str
 from ataskq.db_handler import DBHandler
 from ataskq.rest_handler import RESTHandler as rh
-from ataskq.models import Task, StateKWArg
+from ataskq.models import Task, StateKWArg, __MODELS__
 from ataskq.env import ATASKQ_SERVER_CONNECTION, ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL, ATASKQ_TASK_PULSE_TIMEOUT
 # from .form_utils import form_data_array
 
@@ -81,12 +81,6 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
 
-# @app.on_event('startup')
-# @repeat_every(seconds=3)
-# async def print_hello():
-#     logger.info("hello")
-
-
 @app.get("/")
 async def root():
     return "Welcome to A-TASK-Q Server"
@@ -99,7 +93,7 @@ async def favicon():
 
 @app.get("/api")
 async def api():
-    return {"message": "Welcome to A-TASK-Q Server"}
+    return {"message": "Welcome to A-TASK-Q Server API"}
 
 
 #########
@@ -114,16 +108,22 @@ async def update_task(task_id: int, request: Request, dbh: DBHandler = Depends(d
     return {task_id: task_id}
 
 
-@app.get("/api/tasks/{task_id}/bytes/{field}")
-async def get_task_byte_field(task_id: int, field: str, dbh: DBHandler = Depends(db_handler), **kwargs):
-    dbh.get_task[task_id]
+#######
+# WWW #
+#######
+@app.get("/{model}")
+async def show_model(model: str, dbh: DBHandler = Depends(db_handler)):
+    model_class = __MODELS__[model]
+    rows, col_names = dbh.select_query(model_class)
+    ret = dbh.table(col_names, rows)
 
-    return {task_id: task_id}
-
+    return HTMLResponse(ret)
 
 ########
 # JOBS #
 ########
+
+
 @app.get("/api/jobs")
 async def get_jobs(dbh: DBHandler = Depends(db_handler)):
     jobs = dbh.get_jobs()

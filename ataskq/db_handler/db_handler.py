@@ -6,8 +6,7 @@ from pathlib import Path
 from io import TextIOWrapper
 from abc import abstractmethod
 
-
-from ..models import Job, StateKWArg, Task, EStatus
+from ..models import __MODELS__, Model, Job, StateKWArg, Task, EStatus
 from ..handler import Handler, EAction
 from .. import __schema_version__
 from ..env import ATASKQ_DB_INIT_ON_HANDLER_INIT
@@ -92,6 +91,26 @@ class DBHandler(Handler):
     @property
     def db_path(self):
         raise Exception(f"'{self.__class__.__name__}' db doesn't support db path property'")
+
+    def get_model(self, model: str) -> List[Model]:
+        data = self.get_model_dict(model)
+        models = [model_class(**d) for d in data]
+
+        return models
+
+    def get_model_row_col(self, model: str) -> List[Model]:
+        from pandas import DataFrame
+        data = self.get_model_dict(model)
+        models = [model_class(**d) for d in data]
+
+        return models
+
+    def get_model_dict(self, model: str) -> List[dict]:
+        model_class = __MODELS__[model]
+        rows, col_names = self.select_query(model_class)
+        models = [model_class(**dict(zip(col_names, row))) for row in rows]
+
+        return models
 
     @property
     def pragma_foreign_keys_on(self):
@@ -238,9 +257,22 @@ class DBHandler(Handler):
 
         return self
 
-    def task_query(self):
-        query = f'SELECT * FROM tasks WHERE job_id = {self._job_id}'
-        return query
+    @transaction_decorator()
+    def select_query(self, c, model: Model, order_by=None):
+        query_str = f'SELECT * FROM {model.table_key()}'
+
+        if order_by:
+            order_str = order_query(order_by)
+        else:
+            default_order_by = f"{model.table_key()}.{model.id_key()} ASC"
+            order_str = order_query(default_order_by)
+        query_str += f" ORDER BY {order_str}"
+
+        c.execute(query_str)
+        rows = c.fetchall()
+        col_names = [description[0] for description in c.description]
+
+        return rows, col_names
 
     def tasks_status_query(self):
         query = "SELECT level, name," \
@@ -251,6 +283,10 @@ class DBHandler(Handler):
             f"FROM tasks WHERE job_id = {self._job_id} " \
             "GROUP BY level, name"
 
+        return query
+
+    def task_query(self):
+        query = f'SELECT * FROM tasks WHERE job_id = {self._job_id}'
         return query
 
     def state_kwargs_query(self):
