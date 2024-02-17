@@ -111,13 +111,26 @@ async def update_task(task_id: int, request: Request, dbh: DBHandler = Depends(d
 #######
 # WWW #
 #######
+# @app.get("/{model}")
+# async def show_model(model: str, dbh: DBHandler = Depends(db_handler)):
+#     model_class = __MODELS__[model]
+#     rows, col_names = dbh.select_query(model_class)
+#     ret = dbh.table(col_names, rows)
+
+#     return HTMLResponse(ret)
+
 @app.get("/{model}")
 async def show_model(model: str, dbh: DBHandler = Depends(db_handler)):
-    model_class = __MODELS__[model]
-    rows, col_names = dbh.select_query(model_class)
-    ret = dbh.table(col_names, rows)
+    return FileResponse(Path(__file__).parent / "static" / "index.html")
 
-    return HTMLResponse(ret)
+
+@app.get("/api1/{model}")
+async def get_model(model: str, dbh: DBHandler = Depends(db_handler)):
+    ret = dbh.get_model_dict(model)
+    iret = [rh.to_interface(m) for m in ret]
+
+    return iret
+
 
 ########
 # JOBS #
