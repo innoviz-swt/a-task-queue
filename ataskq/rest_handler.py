@@ -36,7 +36,7 @@ class RESTHandler(Handler):
         super().__init__(job_id, logger)
 
     @staticmethod
-    def to_interface_type_hanlders():
+    def to_interface_hanlders():
         type_handlers = {
             datetime: lambda v: from_datetime(v),
             Enum: lambda v: v.value,
@@ -46,7 +46,7 @@ class RESTHandler(Handler):
         return type_handlers
 
     @staticmethod
-    def from_interface_type_hanlders():
+    def from_interface_hanlders():
         type_handlers = {
             datetime: lambda v: to_datetime(v),
             bytes: lambda v: base64.b64decode(v.encode('ascii'))

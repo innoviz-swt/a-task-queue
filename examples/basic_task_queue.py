@@ -13,7 +13,9 @@ tr.add_tasks([
         'arg0', 'arg1', kwarg1=10, kwarg2='this is kwarg2')),
 ])
 
-tr.get_tasks()
+tasks = tr.get_tasks()
+for t in tasks:
+    print(t)
 
 # run the tasks
 tr.run()  # to run in parallel add num_processes=N

@@ -35,7 +35,7 @@ class SQLite3DBHandler(DBHandler):
         super().__init__(**kwargs)
 
     @staticmethod
-    def to_interface_type_hanlders():
+    def to_interface_hanlders():
         type_handlers = {
             datetime: lambda v: from_datetime(v),
         }
@@ -43,7 +43,7 @@ class SQLite3DBHandler(DBHandler):
         return type_handlers
 
     @staticmethod
-    def from_interface_type_hanlders():
+    def from_interface_hanlders():
         type_handlers = {
             datetime: lambda v: to_datetime(v),
         }

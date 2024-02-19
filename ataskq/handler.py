@@ -45,31 +45,31 @@ class Handler(ABC, Logger):
 
     @staticmethod
     @abstractmethod
-    def from_interface_type_hanlders() -> Dict[type, Callable]:
+    def from_interface_hanlders() -> Dict[type, Callable]:
         pass
 
     @staticmethod
     @abstractmethod
-    def to_interface_type_hanlders() -> Dict[type, Callable]:
+    def to_interface_hanlders() -> Dict[type, Callable]:
         pass
 
     @classmethod
     def i2m(cls, model_cls: Model, kwargs: dict) -> dict:
         """interface to model"""
-        return model_cls.i2m(kwargs, cls.from_interface_type_hanlders())
+        return model_cls.i2m(kwargs, cls.from_interface_hanlders())
 
     @classmethod
     def from_interface(cls, model_cls: Model, kwargs: dict) -> Model:
-        return model_cls.from_interface(kwargs, cls.from_interface_type_hanlders())
+        return model_cls.from_interface(kwargs, cls.from_interface_hanlders())
 
     @classmethod
     def m2i(cls, model_cls: Model, kwargs: dict) -> dict:
         """modle to interface"""
-        return model_cls.m2i(kwargs, cls.to_interface_type_hanlders())
+        return model_cls.m2i(kwargs, cls.to_interface_hanlders())
 
     @classmethod
     def to_interface(cls, model: Model) -> Model:
-        return model.to_interface(cls.to_interface_type_hanlders())
+        return model.to_interface(cls.to_interface_hanlders())
 
     def get_model(model: str) -> List[Model]:
         pass

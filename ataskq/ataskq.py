@@ -78,10 +78,6 @@ class TaskQ(Logger):
         return self._hanlder
 
     @property
-    def type_handlers(self):
-        return self._hanlder.from_interface_type_hanlders()
-
-    @property
     def task_wait_interval(self):
         return self._task_pull_interval
 

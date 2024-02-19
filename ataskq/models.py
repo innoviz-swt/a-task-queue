@@ -6,6 +6,42 @@ from datetime import datetime
 from abc import abstractmethod
 
 
+__TO_INTERFACE_HANDLERS__ = dict()
+
+
+# def register_to_interface_handlers(name, handlers):
+#     __TO_INTERFACE_HANDLERS__[name] = handlers
+
+
+# def get_to_interface_handlers(name=None):
+#     if len(__TO_INTERFACE_HANDLERS__) == 0:
+#         return None
+#     elif len(__TO_INTERFACE_HANDLERS__) == 1:
+#         return list(__TO_INTERFACE_HANDLERS__.values())[0]
+#     else:
+#         assert name is not None, "more than 1 type hander registered, please specify hanlder name. registered handlers: {list(__TYPE_HANDLERS__.keys())}"
+#         assert name in __TO_INTERFACE_HANDLERS__, f"no handler named '{name}' is registered. registered handlers: {list(__TO_INTERFACE_HANDLERS__.keys())}"
+#         return __TO_INTERFACE_HANDLERS__[name]
+
+
+# __FROM_INTERFACE_HANDLERS__ = dict()
+
+
+# def register_from_interface_handlers(name, handlers):
+#     __FROM_INTERFACE_HANDLERS__[name] = handlers
+
+
+# def get_from_interface_handlers(name=None):
+#     if len(__FROM_INTERFACE_HANDLERS__) == 0:
+#         return None
+#     elif len(__FROM_INTERFACE_HANDLERS__) == 1:
+#         return list(__FROM_INTERFACE_HANDLERS__.values())[0]
+#     else:
+#         assert name is not None, "more than 1 type hander registered, please specify hanlder name. registered handlers: {list(__TYPE_HANDLERS__.keys())}"
+#         assert name in __FROM_INTERFACE_HANDLERS__, f"no handler named '{name}' is registered. registered handlers: {list(__TO_INTERFACE_HANDLERS__.keys())}"
+#         return __FROM_INTERFACE_HANDLERS__[name]
+
+
 class EntryPointRuntimeError(RuntimeError):
     pass
 
@@ -136,7 +172,7 @@ class Model:
 
         # annotate kwargs
         if _annotate:
-            kwargs = self.annotate(kwargs)
+            kwargs = self._serialize(kwargs, dict())  # flag passed on constructor with no interface handlers
 
         # set kwargs as class members
         for k, v in kwargs.items():
@@ -148,10 +184,7 @@ class Model:
         raise NotImplementedError()
 
     @classmethod
-    def annotate(cls, kwargs: dict, type_handlers: dict = None):
-        if type_handlers is None:
-            type_handlers = dict()
-
+    def _serialize(cls, kwargs: dict, type_handlers: dict):
         ret = dict()
         cls_annotations = cls.__annotations__
         cls_name = cls.__name__
@@ -204,26 +237,29 @@ class Model:
         return ret
 
     @classmethod
-    def i2m(cls, kwargs: dict, type_handlers=None):
+    def i2m(cls, kwargs: dict, type_handlers) -> dict:
         """interface to model"""
-        ret = cls.annotate(kwargs, type_handlers)
+        ret = cls._serialize(kwargs, type_handlers)
+
         return ret
 
     @classmethod
-    def from_interface(cls, kwargs: dict, type_handlers=None):
+    def from_interface(cls, kwargs: dict, type_handlers):
         """interface to model"""
-        mkwargs = cls.annotate(kwargs, type_handlers)
+        mkwargs = cls.i2m(kwargs, type_handlers)
         ret = cls(_annotate=False, **mkwargs)
+
         return ret
 
     @classmethod
-    def m2i(cls, kwargs, type_handlers=None):
+    def m2i(cls, kwargs: dict, type_handlers) -> dict:
         """model to interface"""
-        ret = cls.annotate(kwargs, type_handlers)
+        ret = cls._serialize(kwargs, type_handlers)
         return ret
 
-    def to_interface(self, type_handlers=None):
-        ret = self.annotate(self.__dict__, type_handlers)
+    def to_interface(self, type_handlers) -> dict:
+        ret = self.m2i(self.__dict__, type_handlers)
+
         return ret
 
 
