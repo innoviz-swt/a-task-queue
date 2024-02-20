@@ -3,7 +3,7 @@ from enum import Enum
 from datetime import datetime
 import base64
 
-from ataskq.models import Job
+from ataskq.models import Job, Model
 
 try:
     import requests
@@ -31,6 +31,8 @@ def from_connection_str(conn):
 class RESTHandler(Handler):
     # todo: remove max jobs
     def __init__(self, conn=None, max_jobs=None, job_id=None, logger=None) -> None:
+        assert max_jobs is None, "RESTHandler doesn't support max jobs handling."
+        self._max_jobs = max_jobs
         self._connection = from_connection_str(conn)
         self._job_id = job_id
         super().__init__(job_id, logger)
@@ -79,27 +81,31 @@ class RESTHandler(Handler):
 
         return res.json()
 
-    def delete(self, url, *args, **kwargs):
+    def rdelete(self, url, *args, **kwargs):
         url = f'{self.api_url}/{url}'
         res = requests.delete(url, *args, **kwargs)
         assert res.ok, f"delete url '{url}' failed. message: {res.text}"
 
         return res.json()
 
+    def _create(self, model_cls: Model, **ikwargs: dict):
+        res = self.post(model_cls.table_key(), json=ikwargs)
+        return res[model_cls.id_key()]
+
+    def delete(self, model_cls: Model, model_id: int):
+        self.rdelete(f'{model_cls.table_key()}/{model_id}')
+
+    def _update(self, model_cls: Model, model_id, **ikwargs):
+        self.put(f'{model_cls.table_key()}/{model_id}', json=ikwargs)
+
+    def keep_max_jobs(self):
+        raise NotImplementedError(f"{self.__class__.__name__} doesn't implement keep_max_jobs")
+
     def get_jobs(self) -> List[Job]:
         ijobs = self.get('jobs')
         jobs = [self.from_interface(Job, j) for j in ijobs]
 
         return jobs
-
-    def create_job(self, name=None, description=None) -> Handler:
-        res = self.post('jobs', json=dict(
-            name=name,
-            description=description
-        ))
-        self._job_id = res['job_id']
-
-        return self
 
     # # form based implementation
     # def _add_tasks(self, tasks: List[Task]):
@@ -115,9 +121,6 @@ class RESTHandler(Handler):
     #                 data.append((f'{i}.{k}', v))
 
     #     self.post(f'jobs/{self._job_id}/tasks', files=files, data=data)
-
-    def _delete_job(self):
-        self.delete(f'jobs/{self._job_id}')
 
     def _add_tasks(self, itasks: List[Task]):
         self.post(f'jobs/{self._job_id}/tasks', json=itasks)
@@ -146,9 +149,6 @@ class RESTHandler(Handler):
         task = self.from_interface(Task, res['task']) if res['task'] is not None else None
 
         return (action, task)
-
-    def _update_task(self, task_id, **ikwargs):
-        self.put(f'tasks/{task_id}', json=ikwargs)
 
     def count_pending_tasks_below_level(self, level: int):
         res = self.get(f'jobs/{self._job_id}/count_pending_tasks_below_level', params=dict(level=level))

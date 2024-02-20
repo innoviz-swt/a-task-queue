@@ -30,7 +30,61 @@ class EAction(str, Enum):
     STOP = 'stop'
 
 
-class Handler(ABC, Logger):
+class IHandler(ABC):
+    @staticmethod
+    @abstractmethod
+    def from_interface_hanlders() -> Dict[type, Callable]:
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def to_interface_hanlders() -> Dict[type, Callable]:
+        pass
+
+    @classmethod
+    def i2m(cls, model_cls: Model, kwargs: Union[dict, List[dict]]) -> Union[dict, List[dict]]:
+        """interface to model"""
+        return model_cls.i2m(kwargs, cls.from_interface_hanlders())
+
+    @classmethod
+    def from_interface(cls, model_cls: Model, kwargs: Union[dict, List[dict]]) -> Union[Model, List[Model]]:
+        return model_cls.from_interface(kwargs, cls.from_interface_hanlders())
+
+    @classmethod
+    def m2i(cls, model_cls: Model, kwargs: Union[dict, List[dict]]) -> Union[dict, List[dict]]:
+        """modle to interface"""
+        return model_cls.m2i(kwargs, cls.to_interface_hanlders())
+
+    @classmethod
+    def to_interface(cls, model: Model) -> Model:
+        return model.to_interface(cls.to_interface_hanlders())
+
+    @abstractmethod
+    def _create(self, model_cls: Model, **ikwargs: dict):
+        pass
+
+    def create(self, model_cls: Model, **mkwargs):
+        assert model_cls.id_key() not in mkwargs, \
+            f"id '{model_cls.id_key()}' can't be passed to create '{model_cls.__name__}({model_cls.table_key()})'"
+        ikwargs = self.m2i(model_cls, mkwargs)
+        model_id = self._create(model_cls, **ikwargs)
+        return model_id
+
+    @abstractmethod
+    def delete(self, model_cls: Model, model_id: int):
+        pass
+
+    @abstractmethod
+    def _update(self, model_cls: Model, model_id: int, **ikwargs):
+        pass
+
+    def update(self, model_cls: Model, model_id: int, **mkwargs):
+        assert model_id is not None, f"{model_cls} must have assigned '{model_cls.id_key()}' for update"
+        ikwargs = self.m2i(model_cls, mkwargs)
+        self._update(model_cls, model_id, **ikwargs)
+
+
+class Handler(IHandler, Logger):
     def __init__(self, job_id=None, logger: Logger = None):
         Logger.__init__(self, logger)
 
@@ -43,51 +97,27 @@ class Handler(ABC, Logger):
     def job_id(self):
         return self._job_id
 
-    @staticmethod
-    @abstractmethod
-    def from_interface_hanlders() -> Dict[type, Callable]:
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def to_interface_hanlders() -> Dict[type, Callable]:
-        pass
-
-    @classmethod
-    def i2m(cls, model_cls: Model, kwargs: dict) -> dict:
-        """interface to model"""
-        return model_cls.i2m(kwargs, cls.from_interface_hanlders())
-
-    @classmethod
-    def from_interface(cls, model_cls: Model, kwargs: dict) -> Model:
-        return model_cls.from_interface(kwargs, cls.from_interface_hanlders())
-
-    @classmethod
-    def m2i(cls, model_cls: Model, kwargs: dict) -> dict:
-        """modle to interface"""
-        return model_cls.m2i(kwargs, cls.to_interface_hanlders())
-
-    @classmethod
-    def to_interface(cls, model: Model) -> Model:
-        return model.to_interface(cls.to_interface_hanlders())
-
-    def get_model(model: str) -> List[Model]:
-        pass
-
     @abstractmethod
     def get_jobs(self) -> List[Job]:
         pass
 
     @abstractmethod
-    def create_job(self, c, name=None, description=None):
+    def keep_max_jobs(self):
         pass
 
-    @abstractmethod
-    def _delete_job(self):
-        pass
+    def create_job(self, name=None, description=None):
+        if self._job_id is not None:
+            raise RuntimeError(f"Handler already assigned with job_id '{self._job_id}'.")
+
+        # Create job and store job id
+        self._job_id = self.create(Job, name=name, description=description)
+        if self._max_jobs is not None:
+            self.keep_max_jobs()
+
+        return self
 
     def delete_job(self):
-        self._delete_job()
+        self.delete(Job, self._job_id)
         self._job_id = None
 
     @abstractmethod
@@ -106,22 +136,13 @@ class Handler(ABC, Logger):
     def get_state_kwargs(self):
         pass
 
-    @abstractmethod
-    def _update_task(self, task_id: int, **ikwargs):
-        pass
-
-    def update_task(self, task_id: int, **mkwargs):
-        assert task_id is not None, "task must have assigned 'task_id' for update"
-        ikwargs = self.m2i(Task, mkwargs)
-        self._update_task(task_id, **ikwargs)
-
     def update_task_start_time(self, task: Task, start_time: datetime = None):
         if start_time is None:
             start_time = datetime.now()
 
         mkwargs = dict(start_time=start_time)
 
-        self.update_task(task.task_id, **mkwargs)
+        self.update(Task, task.task_id, **mkwargs)
         task.start_time = start_time
 
     def update_task_status(self, task: Task, status: EStatus, timestamp: datetime = None):
@@ -130,12 +151,12 @@ class Handler(ABC, Logger):
 
         if status == EStatus.RUNNING:
             # for running task update pulse_time
-            self.update_task(task.task_id, status=status, pulse_time=timestamp)
+            self.update(Task, task.task_id, status=status, pulse_time=timestamp)
             task.status = status
             task.pulse_time = timestamp
         elif status == EStatus.SUCCESS or status == EStatus.FAILURE:
             # for done task update pulse_time and done_time time as well
-            self.update_task(task.task_id, status=status, pulse_time=timestamp, done_time=timestamp)
+            self.update(Task, task.task_id, status=status, pulse_time=timestamp, done_time=timestamp)
             task.status = status
             task.pulse_time = timestamp
             task.done_time = timestamp
@@ -208,16 +229,16 @@ def from_connection_str(conn=None, **kwargs) -> Handler:
     sep = '://'
     sep_index = conn.find(sep)
     if sep_index == -1:
-        raise RuntimeError(f'connection must be of format <type>://<connection string>')
+        raise RuntimeError('connection must be of format <type>://<connection string>')
     handler_type = conn[:sep_index]
 
     # validate connectino
     if not handler_type:
-        raise RuntimeError(f'missing handler type, connection must be of format <type>://<connection string>')
+        raise RuntimeError('missing handler type, connection must be of format <type>://<connection string>')
 
     connection_str = conn[sep_index + len(sep):]
     if not connection_str:
-        raise RuntimeError(f'missing connection string, connection must be of format <type>://<connection string>')
+        raise RuntimeError('missing connection string, connection must be of format <type>://<connection string>')
 
     # get db type handler
     if handler_type == 'sqlite':

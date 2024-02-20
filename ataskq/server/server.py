@@ -4,7 +4,7 @@ from typing import Union
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Depends
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 from ataskq.handler import from_connection_str
 from ataskq.db_handler import DBHandler
 from ataskq.rest_handler import RESTHandler as rh
-from ataskq.models import Task, StateKWArg, __MODELS__
+from ataskq.models import Model, Task, StateKWArg, __MODELS__
 from ataskq.env import ATASKQ_SERVER_CONNECTION, ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL, ATASKQ_TASK_PULSE_TIMEOUT
 # from .form_utils import form_data_array
 
@@ -96,18 +96,6 @@ async def api():
     return {"message": "Welcome to A-TASK-Q Server API"}
 
 
-#########
-# TASKS #
-#########
-@app.put("/api/tasks/{task_id}")
-async def update_task(task_id: int, request: Request, dbh: DBHandler = Depends(db_handler)):
-    ikwargs = await request.json()
-    mkwargs = rh.i2m(Task, ikwargs)
-    dbh.update_task(task_id, **mkwargs)
-
-    return {task_id: task_id}
-
-
 #######
 # WWW #
 #######
@@ -124,38 +112,49 @@ async def show_model(model: str, dbh: DBHandler = Depends(db_handler)):
     return FileResponse(Path(__file__).parent / "static" / "index.html")
 
 
-@app.get("/api1/{model}")
+@app.get("/api/{model}")
 async def get_model(model: str, dbh: DBHandler = Depends(db_handler)):
-    ret = dbh.get_model_dict(model)
-    iret = [rh.to_interface(m) for m in ret]
+    model_cls = __MODELS__[model]
+    ret = dbh.get_model_dict(model_cls)
+    iret = rh.m2i(model_cls, ret)
 
     return iret
+
+
+@app.post("/api/{model}")
+async def create_model(model: str, request: Request, dbh: DBHandler = Depends(db_handler)):
+    model_cls: Model = __MODELS__[model]
+    ikwargs = await request.json()
+    mkwargs = rh.i2m(model_cls, ikwargs)
+    model_id = dbh.create(model_cls, **mkwargs)
+
+    return {model_cls.id_key(): model_id}
+
+
+@app.put("/api/{model}/{model_id}")
+async def update_model(model: str, model_id: int, request: Request, dbh: DBHandler = Depends(db_handler)):
+    model_cls: Model = __MODELS__[model]
+    ikwargs = await request.json()
+    mkwargs = rh.i2m(model_cls, ikwargs)
+    dbh.update(model_cls, model_id, **mkwargs)
+
+    return {model_cls.id_key(): model_id}
+
+
+@app.delete("/api/{model}/{model_id}")
+async def delete_model(model: str, model_id: int, dbh: DBHandler = Depends(db_handler)):
+    model_cls: Model = __MODELS__[model]
+    dbh.delete(model_cls, model_id)
+
+    return {model_cls.id_key(): model_id}
 
 
 ########
 # JOBS #
 ########
-
-
-@app.get("/api/jobs")
-async def get_jobs(dbh: DBHandler = Depends(db_handler)):
-    jobs = dbh.get_jobs()
-    i_jobs = [rh.to_interface(j) for j in jobs]
-
-    return i_jobs
-
-
 @app.post("/api/jobs")
 async def create_job(data: dict, dbh: DBHandler = Depends(db_handler)):
     job_id = dbh.create_job(name=data.get('name'), description=data.get('description')).job_id
-
-    return {"job_id": job_id}
-
-
-@app.delete("/api/jobs/{job_id}")
-async def delete_job(job_id: int, dbh: DBHandler = Depends(db_handler)):
-    dbh.set_job_id(job_id)
-    dbh.delete_job()
 
     return {"job_id": job_id}
 
@@ -229,16 +228,6 @@ async def next_job_task(job_id: int, level_start: Union[int, None] = None, level
     task = rh.to_interface(task) if task is not None else None
 
     return dict(action=action, task=task)
-
-
-@app.get("/api/jobs/{job_id}/state_kwargs")
-async def get_job_state_kwargs(job_id: int, dbh: DBHandler = Depends(db_handler)):
-    dbh.set_job_id(job_id)
-
-    state_kwargs = dbh.get_state_kwargs()
-    i_state_kwargs = [rh.to_interface(skw) for skw in state_kwargs]
-
-    return i_state_kwargs
 
 
 @app.get("/api/jobs/{job_id}/count_pending_tasks_below_level")

@@ -1,5 +1,5 @@
 import multiprocessing
-import os
+from typing import Union
 import pickle
 import logging
 from importlib import import_module
@@ -48,8 +48,8 @@ class TaskQ(Logger):
             task_pull_intervnal=ATASKQ_TASK_PULL_INTERVAL,
             monitor_pulse_interval=ATASKQ_MONITOR_PULSE_INTERVAL,
             task_pulse_timeout=ATASKQ_TASK_PULSE_TIMEOUT,
-            max_jobs=None,
-            logger: logging.Logger or None = None) -> None:
+            max_jobs: int = None,
+            logger: Union[logging.Logger, None] = None) -> None:
         """
         Args:
         task_pull_intervnal: pulling interval for task to complete in seconds.

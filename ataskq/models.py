@@ -1,4 +1,4 @@
-from typing import Union, Callable
+from typing import Union, List
 from enum import Enum
 import pickle
 from importlib import import_module
@@ -183,6 +183,11 @@ class Model:
     def id_key():
         raise NotImplementedError()
 
+    @staticmethod
+    @abstractmethod
+    def table_key():
+        raise NotImplementedError()
+
     @classmethod
     def _serialize(cls, kwargs: dict, type_handlers: dict):
         ret = dict()
@@ -237,24 +242,34 @@ class Model:
         return ret
 
     @classmethod
-    def i2m(cls, kwargs: dict, type_handlers) -> dict:
+    def i2m(cls, kwargs: Union[dict, List[dict]], type_handlers) -> Union[dict, List[dict]]:
         """interface to model"""
-        ret = cls._serialize(kwargs, type_handlers)
+        if isinstance(kwargs, list):
+            ret = [cls._serialize(kw, type_handlers) for kw in kwargs]
+        else:
+            ret = cls._serialize(kwargs, type_handlers)
 
         return ret
 
     @classmethod
-    def from_interface(cls, kwargs: dict, type_handlers):
+    def from_interface(cls, kwargs: Union[dict, List[dict]], type_handlers):
         """interface to model"""
         mkwargs = cls.i2m(kwargs, type_handlers)
-        ret = cls(_annotate=False, **mkwargs)
+        if isinstance(kwargs, list):
+            ret = [cls(_annotate=False, **kw) for kw in mkwargs]
+        else:
+            ret = cls(_annotate=False, **mkwargs)
 
         return ret
 
     @classmethod
     def m2i(cls, kwargs: dict, type_handlers) -> dict:
         """model to interface"""
-        ret = cls._serialize(kwargs, type_handlers)
+        if isinstance(kwargs, list):
+            ret = [cls._serialize(kw, type_handlers) for kw in kwargs]
+        else:
+            ret = cls._serialize(kwargs, type_handlers)
+
         return ret
 
     def to_interface(self, type_handlers) -> dict:

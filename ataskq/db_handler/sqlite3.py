@@ -89,10 +89,6 @@ class SQLite3DBHandler(DBHandler):
     def for_update(self):
         return ''
 
-    @property
-    def db_path(self):
-        return self._connection.path
-
     def connect(self):
         conn = sqlite3.connect(self.db_path)
         return conn

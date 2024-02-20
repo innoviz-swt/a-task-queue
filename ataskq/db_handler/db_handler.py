@@ -20,12 +20,6 @@ class EQueryType(str, Enum):
     JOBS_STATUS = 'jobs_status',
 
 
-def fields_values(**kwargs):
-    fields = ", ".join(kwargs.keys())
-    values = ", ".join([(v and f"'{v}'") or 'NULL' for v in kwargs.values()])
-    return f'({fields}) VALUES ({values})'
-
-
 def transaction_decorator(exclusive=False):
     def decorator(func):
         def wrapper(self, *args, **kwargs):
@@ -92,25 +86,12 @@ class DBHandler(Handler):
     def db_path(self):
         raise Exception(f"'{self.__class__.__name__}' db doesn't support db path property'")
 
-    def get_model(self, model: str) -> List[Model]:
-        data = self.get_model_dict(model)
-        models = [model_class(**d) for d in data]
+    def get_model_dict(self, model_cls) -> List[dict]:
+        rows, col_names = self.select_query(model_cls)
+        ret = [dict(zip(col_names, row)) for row in rows]
+        ret = self.i2m(model_cls, ret)
 
-        return models
-
-    def get_model_row_col(self, model: str) -> List[Model]:
-        from pandas import DataFrame
-        data = self.get_model_dict(model)
-        models = [model_class(**d) for d in data]
-
-        return models
-
-    def get_model_dict(self, model: str) -> List[dict]:
-        model_class = __MODELS__[model]
-        rows, col_names = self.select_query(model_class)
-        models = [model_class(**dict(zip(col_names, row))) for row in rows]
-
-        return models
+        return ret
 
     @property
     def pragma_foreign_keys_on(self):
@@ -158,6 +139,33 @@ class DBHandler(Handler):
     @abstractmethod
     def connect(self):
         pass
+
+    @transaction_decorator()
+    def _create(self, c, model_cls: Model, **ikwargs) -> Handler:
+        d = {k: v for k, v in ikwargs.items() if model_cls.id_key() not in k}
+        keys = list(d.keys())
+        values = list(d.values())
+        c.execute(
+            f'INSERT INTO {model_cls.table_key()} ({", ".join(keys)}) VALUES ({", ".join([self.format_symbol] * len(keys))}) RETURNING {model_cls.id_key()}',
+            values)
+
+        model_id = c.fetchone()[0]
+
+        return model_id
+
+    @transaction_decorator()
+    def _update(self, c, model_cls: Model, model_id, **ikwargs):
+        if len(ikwargs) == 0:
+            return
+
+        insert = ", ".join([f"{k} = {self.format_symbol}" for k in ikwargs.keys()])
+        values = list(ikwargs.values())
+        c.execute(
+            f"UPDATE {model_cls.table_key()} SET {insert} WHERE {model_cls.id_key()} = {model_id};", values)
+
+    @transaction_decorator()
+    def delete(self, c, model_cls: Model, model_id: int):
+        c.execute(f"DELETE FROM {model_cls.table_key()} WHERE {model_cls.id_key()} = {model_id}")
 
     @transaction_decorator(exclusive=True)
     def init_db(self, c):
@@ -214,25 +222,9 @@ class DBHandler(Handler):
                   ")")
 
     @transaction_decorator()
-    def create_job(self, c=None, name=None, description=None) -> Handler:
-        if self._job_id is not None:
-            raise RuntimeError(f"Job already assigned with job_id '{self._job_id}'.")
-
-        # Create job and store job id
+    def keep_max_jobs(self, c):
         c.execute(
-            f"INSERT INTO jobs{fields_values(name=name, description=description)} RETURNING job_id")
-        # c.execute("SELECT last_insert_rowid()")
-        self._job_id = c.fetchone()[0]
-
-        if self._max_jobs is not None:
-            c.execute(
-                f"DELETE FROM jobs WHERE job_id NOT IN (SELECT job_id FROM jobs ORDER BY job_id DESC limit {self._max_jobs})")
-
-        return self
-
-    @transaction_decorator()
-    def _delete_job(self, c):
-        c.execute(f"DELETE FROM jobs WHERE job_id = {self.job_id}")
+            f"DELETE FROM jobs WHERE job_id NOT IN (SELECT job_id FROM jobs ORDER BY job_id DESC limit {self._max_jobs})")
 
     @transaction_decorator()
     def _add_tasks(self, c, tasks: List[dict]):
@@ -258,13 +250,13 @@ class DBHandler(Handler):
         return self
 
     @transaction_decorator()
-    def select_query(self, c, model: Model, order_by=None):
-        query_str = f'SELECT * FROM {model.table_key()}'
+    def select_query(self, c, model_cls: Model, order_by=None):
+        query_str = f'SELECT * FROM {model_cls.table_key()}'
 
         if order_by:
             order_str = order_query(order_by)
         else:
-            default_order_by = f"{model.table_key()}.{model.id_key()} ASC"
+            default_order_by = f"{model_cls.table_key()}.{model_cls.id_key()} ASC"
             order_str = order_query(default_order_by)
         query_str += f" ORDER BY {order_str}"
 
@@ -506,13 +498,3 @@ class DBHandler(Handler):
 
         # self.log_tasks()
         return action, task
-
-    @transaction_decorator()
-    def _update_task(self, c, task_id, **ikwargs):
-        if len(ikwargs) == 0:
-            return
-
-        insert = ", ".join([f"{k} = {self.format_symbol}" for k in ikwargs.keys()])
-        values = list(ikwargs.values())
-        c.execute(
-            f"UPDATE tasks SET {insert} WHERE task_id = {task_id};", values)
