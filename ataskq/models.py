@@ -4,42 +4,10 @@ import pickle
 from importlib import import_module
 from datetime import datetime
 from abc import abstractmethod
+from copy import copy
 
-
-__TO_INTERFACE_HANDLERS__ = dict()
-
-
-# def register_to_interface_handlers(name, handlers):
-#     __TO_INTERFACE_HANDLERS__[name] = handlers
-
-
-# def get_to_interface_handlers(name=None):
-#     if len(__TO_INTERFACE_HANDLERS__) == 0:
-#         return None
-#     elif len(__TO_INTERFACE_HANDLERS__) == 1:
-#         return list(__TO_INTERFACE_HANDLERS__.values())[0]
-#     else:
-#         assert name is not None, "more than 1 type hander registered, please specify hanlder name. registered handlers: {list(__TYPE_HANDLERS__.keys())}"
-#         assert name in __TO_INTERFACE_HANDLERS__, f"no handler named '{name}' is registered. registered handlers: {list(__TO_INTERFACE_HANDLERS__.keys())}"
-#         return __TO_INTERFACE_HANDLERS__[name]
-
-
-# __FROM_INTERFACE_HANDLERS__ = dict()
-
-
-# def register_from_interface_handlers(name, handlers):
-#     __FROM_INTERFACE_HANDLERS__[name] = handlers
-
-
-# def get_from_interface_handlers(name=None):
-#     if len(__FROM_INTERFACE_HANDLERS__) == 0:
-#         return None
-#     elif len(__FROM_INTERFACE_HANDLERS__) == 1:
-#         return list(__FROM_INTERFACE_HANDLERS__.values())[0]
-#     else:
-#         assert name is not None, "more than 1 type hander registered, please specify hanlder name. registered handlers: {list(__TYPE_HANDLERS__.keys())}"
-#         assert name in __FROM_INTERFACE_HANDLERS__, f"no handler named '{name}' is registered. registered handlers: {list(__TO_INTERFACE_HANDLERS__.keys())}"
-#         return __FROM_INTERFACE_HANDLERS__[name]
+from .imodel import IModel
+from .register import get_handlers, IHandler
 
 
 class EntryPointRuntimeError(RuntimeError):
@@ -59,25 +27,25 @@ class EntrypointCallRuntimeError(EntryPointRuntimeError):
 
 
 class EStatus(str, Enum):
-    PENDING = 'pending'
-    RUNNING = 'running'
-    SUCCESS = 'success'
-    FAILURE = 'failure'
+    PENDING = "pending"
+    RUNNING = "running"
+    SUCCESS = "success"
+    FAILURE = "failure"
 
 
 class EntryPoint:
     @staticmethod
     def init(kwargs) -> None:
-        entrypoint = kwargs.get('entrypoint')
+        entrypoint = kwargs.get("entrypoint")
         if callable(entrypoint):
-            kwargs['entrypoint'] = f"{entrypoint.__module__}.{entrypoint.__name__}"
+            kwargs["entrypoint"] = f"{entrypoint.__module__}.{entrypoint.__name__}"
 
-        targs = kwargs.get('targs')
+        targs = kwargs.get("targs")
         if targs is not None and isinstance(targs, tuple):
             assert len(targs) == 2
             assert isinstance(targs[0], tuple)
             assert isinstance(targs[1], dict)
-            kwargs['targs'] = pickle.dumps(targs)
+            kwargs["targs"] = pickle.dumps(targs)
 
     def get_targs(self):
         if self.targs is not None:
@@ -98,11 +66,12 @@ class EntryPoint:
         ep = self.entrypoint
 
         try:
-            assert '.' in ep, 'entry point must be inside a module.'
-            module_name, func_name = ep.rsplit('.', 1)
+            assert "." in ep, "entry point must be inside a module."
+            module_name, func_name = ep.rsplit(".", 1)
             m = import_module(module_name)
             assert hasattr(
-                m, func_name), f"failed to load entry point, module '{module_name}' doen't have func named '{func_name}'."
+                m, func_name
+            ), f"failed to load entry point, module '{module_name}' doen't have func named '{func_name}'."
             func = getattr(m, func_name)
             assert callable(func), f"entry point is not callable, '{module_name}.{func}'."
         except ImportError as ex:
@@ -120,7 +89,8 @@ class EntryPoint:
             ret = entrypoint(*args, **kwargs)
         except Exception as ex:
             raise EntrypointCallRuntimeError(
-                f"Failed while call entrypoint function '{self.entrypoint}'. Exception: '{ex}'") from ex
+                f"Failed while call entrypoint function '{self.entrypoint}'. Exception: '{ex}'"
+            ) from ex
 
         return ret
 
@@ -154,10 +124,10 @@ def _handle_union(cls_name, member, annotations, value, type_handlers=None):
     return value
 
 
-class Model:
-    def __init__(self, _annotate=True, **kwargs) -> None:
+class Model(IModel):
+    def __init__(self, _serialize=True, **kwargs) -> None:
         cls_annotations = self.__annotations__
-        defaults = getattr(self, '__DEFAULTS__', dict())
+        defaults = getattr(self, "__DEFAULTS__", dict())
 
         # check a kwargs are class members
         for k in kwargs.keys():
@@ -171,22 +141,12 @@ class Model:
                 kwargs[member] = defaults.get(member)
 
         # annotate kwargs
-        if _annotate:
+        if _serialize:
             kwargs = self._serialize(kwargs, dict())  # flag passed on constructor with no interface handlers
 
         # set kwargs as class members
         for k, v in kwargs.items():
             setattr(self, k, v)
-
-    @staticmethod
-    @abstractmethod
-    def id_key():
-        raise NotImplementedError()
-
-    @staticmethod
-    @abstractmethod
-    def table_key():
-        raise NotImplementedError()
 
     @classmethod
     def _serialize(cls, kwargs: dict, type_handlers: dict):
@@ -206,7 +166,7 @@ class Model:
             annotation = cls_annotations[k]
 
             # handle union
-            if getattr(annotation, '__origin__', None) is Union:
+            if getattr(annotation, "__origin__", None) is Union:
                 ret[k] = _handle_union(cls_name, k, annotation.__args__, v, type_handlers)
                 continue
 
@@ -215,15 +175,15 @@ class Model:
 
             ann_name = None
             if ann in type_handlers:
-                ann_name = f'type_handler[{ann.__name__}]'
+                ann_name = f"type_handler[{ann.__name__}]"
                 ann = type_handlers[ann]
             elif issubclass(ann, str) and str in type_handlers:
                 # string subclasses
-                ann_name = f'type_handler[{ann.__name__} - str sublcass]'
+                ann_name = f"type_handler[{ann.__name__} - str sublcass]"
                 ann = type_handlers[str]
             elif issubclass(ann, Enum) and Enum in type_handlers:
                 # string subclasses
-                ann_name = f'type_handler[{ann.__name__} - Enum sublcass]'
+                ann_name = f"type_handler[{ann.__name__} - Enum sublcass]"
                 ann = type_handlers[Enum]
             else:
                 # check if already in relevant type
@@ -231,7 +191,7 @@ class Model:
                     ret[k] = v
                     continue
 
-                ann_name = f'{ann.__name__}'
+                ann_name = f"{ann.__name__}"
                 ann = ann
 
             try:
@@ -256,14 +216,14 @@ class Model:
         """interface to model"""
         mkwargs = cls.i2m(kwargs, type_handlers)
         if isinstance(kwargs, list):
-            ret = [cls(_annotate=False, **kw) for kw in mkwargs]
+            ret = [cls(_serialize=False, **kw) for kw in mkwargs]
         else:
-            ret = cls(_annotate=False, **mkwargs)
+            ret = cls(_serialize=False, **mkwargs)
 
         return ret
 
     @classmethod
-    def m2i(cls, kwargs: dict, type_handlers) -> dict:
+    def m2i(cls, kwargs: Union[dict, List[dict]], type_handlers) -> Union[dict, List[dict]]:
         """model to interface"""
         if isinstance(kwargs, list):
             ret = [cls._serialize(kw, type_handlers) for kw in kwargs]
@@ -273,9 +233,29 @@ class Model:
         return ret
 
     def to_interface(self, type_handlers) -> dict:
+        """model to interface"""
         ret = self.m2i(self.__dict__, type_handlers)
 
         return ret
+
+    def create(self, _handler: IHandler = None, **mkwargs):
+        assert (
+            self.id_key() not in mkwargs
+        ), f"id '{self.id_key()}' can't be passed to create '{self.__class__.__name__}({self.table_key()})'"
+
+        if _handler is None:
+            _handler = get_handlers()
+
+        if not mkwargs:
+            mkwargs = copy(self.__dict__)
+            mkwargs.pop(self.id_key())
+
+        ikwargs = self.m2i(mkwargs, _handler.to_interface_hanlders())
+        model_id = _handler._create(self.__class__, **ikwargs)
+
+        setattr(self, self.id_key(), model_id)
+
+        return self
 
 
 class Task(Model, EntryPoint):
@@ -293,19 +273,15 @@ class Task(Model, EntryPoint):
     # summary_cookie = None,
     job_id: int
 
-    __DEFAULTS__ = dict(
-        status=EStatus.PENDING,
-        entrypoint='',
-        level=0.0
-    )
+    __DEFAULTS__ = dict(status=EStatus.PENDING, entrypoint="", level=0.0)
 
     @staticmethod
     def id_key():
-        return 'task_id'
+        return "task_id"
 
     @staticmethod
     def table_key():
-        return 'tasks'
+        return "tasks"
 
     def __init__(self, **kwargs) -> None:
         EntryPoint.init(kwargs)
@@ -322,11 +298,11 @@ class StateKWArg(Model, EntryPoint):
 
     @staticmethod
     def id_key():
-        return 'state_kwargs_id'
+        return "state_kwargs_id"
 
     @staticmethod
     def table_key():
-        return 'state_kwargs'
+        return "state_kwargs"
 
     def __init__(self, **kwargs) -> None:
         EntryPoint.init(kwargs)
@@ -341,11 +317,11 @@ class Job(Model):
 
     @staticmethod
     def id_key():
-        return 'job_id'
+        return "job_id"
 
     @staticmethod
     def table_key():
-        return 'jobs'
+        return "jobs"
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

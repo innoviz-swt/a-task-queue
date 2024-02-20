@@ -10,7 +10,7 @@ from typing import Dict, List
 
 from .env import ATASKQ_CONNECTION, ATASKQ_MONITOR_PULSE_INTERVAL, ATASKQ_TASK_PULSE_TIMEOUT, ATASKQ_TASK_PULL_INTERVAL
 from .logger import Logger
-from .models import EStatus, StateKWArg, Task, EntryPointRuntimeError
+from .models import EStatus, Job, StateKWArg, Task, EntryPointRuntimeError
 from .monitor import MonitorThread
 from .db_handler import EQueryType, EAction, DBHandler
 from .handler import Handler
@@ -30,26 +30,29 @@ def keyval_store_retry(retries=1000, polling_delta=0.1):
                     # self.info(f' success in {i} iteration.')
                     return ret
                 except Exception:
-                    if (i != 0 and i % 100 == 0):
-                        self.warning(f'keyval store retry {i} iteration.')
+                    if i != 0 and i % 100 == 0:
+                        self.warning(f"keyval store retry {i} iteration.")
                     time.sleep(polling_delta)
                     continue
             raise RuntimeError(f"Failed keyval store retry retry. retries: {retries}, polling_delta: {polling_delta}.")
+
         return wrapper
+
     return decorator
 
 
 class TaskQ(Logger):
     def __init__(
-            self,
-            job_id=None,
-            conn=ATASKQ_CONNECTION,
-            run_task_raise_exception=False,
-            task_pull_intervnal=ATASKQ_TASK_PULL_INTERVAL,
-            monitor_pulse_interval=ATASKQ_MONITOR_PULSE_INTERVAL,
-            task_pulse_timeout=ATASKQ_TASK_PULSE_TIMEOUT,
-            max_jobs: int = None,
-            logger: Union[logging.Logger, None] = None) -> None:
+        self,
+        job_id=None,
+        conn=ATASKQ_CONNECTION,
+        run_task_raise_exception=False,
+        task_pull_intervnal=ATASKQ_TASK_PULL_INTERVAL,
+        monitor_pulse_interval=ATASKQ_MONITOR_PULSE_INTERVAL,
+        task_pulse_timeout=ATASKQ_TASK_PULSE_TIMEOUT,
+        max_jobs: int = None,
+        logger: Union[logging.Logger, None] = None,
+    ) -> None:
         """
         Args:
         task_pull_intervnal: pulling interval for task to complete in seconds.
@@ -60,16 +63,16 @@ class TaskQ(Logger):
         super().__init__(logger)
 
         # init db handler
-        self._hanlder: Handler = from_connection_str(
-            conn=conn, job_id=job_id, max_jobs=max_jobs, logger=self._logger)
+        self._hanlder: Handler = from_connection_str(conn=conn, job_id=job_id, max_jobs=max_jobs, logger=self._logger)
 
         self._run_task_raise_exception = run_task_raise_exception
         self._task_pull_interval = task_pull_intervnal
         self._monitor_pulse_interval = monitor_pulse_interval
         self._task_pulse_timeout = task_pulse_timeout
+        self._max_jobs = max_jobs
 
         # state kwargs for jobs
-        self._state_kwargs: Dict[str: object] = dict()
+        self._state_kwargs: Dict[str:object] = dict()
 
         self._running = False
 
@@ -86,7 +89,11 @@ class TaskQ(Logger):
         return self._monitor_pulse_interval
 
     def create_job(self, name=None, description=None):
-        self._hanlder.create_job(name=name, description=description)
+        job_id = Job(name=name, description=description).create(_handler=self._hanlder).job_id
+        self._hanlder.set_job_id(job_id)
+
+        if self._max_jobs is not None:
+            self._hanlder.keep_max_jobs()
 
         return self
 
@@ -125,18 +132,19 @@ class TaskQ(Logger):
     def _run_task(self, task: Task):
         # get entry point func to execute
         ep = task.entrypoint
-        if ep == 'ataskq.skip_run_task':
+        if ep == "ataskq.skip_run_task":
             self.info(f"task '{task.task_id}' is marked as 'skip_run_task', skipping run task.")
             return
 
-        assert '.' in ep, 'entry point must be inside a module.'
-        module_name, func_name = ep.rsplit('.', 1)
+        assert "." in ep, "entry point must be inside a module."
+        module_name, func_name = ep.rsplit(".", 1)
         try:
             m = import_module(module_name)
         except ImportError as ex:
             raise RuntimeError(f"Failed to load module '{module_name}'. Exception: '{ex}'")
         assert hasattr(
-            m, func_name), f"failed to load entry point, module '{module_name}' doen't have func named '{func_name}'."
+            m, func_name
+        ), f"failed to load entry point, module '{module_name}' doen't have func named '{func_name}'."
         func = getattr(m, func_name)
         assert callable(func), f"entry point is not callable, '{module_name},{func}'."
 
@@ -158,8 +166,11 @@ class TaskQ(Logger):
             targs = ((), {})
 
         # get state kwargs for kwarg in function signature
-        ep_state_kwargs = {param.name: param.default for param in signature(
-            func).parameters.values() if param.default is not param.empty and param.name in self._state_kwargs}
+        ep_state_kwargs = {
+            param.name: param.default
+            for param in signature(func).parameters.values()
+            if param.default is not param.empty and param.name in self._state_kwargs
+        }
 
         for name, default in ep_state_kwargs.items():
             state_kwarg = self._state_kwargs.get(name)
@@ -237,14 +248,14 @@ class TaskQ(Logger):
         if isinstance(level, int):
             level = range(level, level + 1)
         elif isinstance(level, (list, tuple)):
-            assert len(level) == 2, 'level of type list or tuple must have length of 2'
+            assert len(level) == 2, "level of type list or tuple must have length of 2"
             level = range(level[0], level[1])
         else:
-            assert isinstance(level, range), 'level must be int, list, tuple or range'
+            assert isinstance(level, range), "level must be int, list, tuple or range"
 
         # check all task < level.start are done
         count = self.count_pending_tasks_below_level(level.start)
-        assert count == 0, f'all tasks below level must be done before running tasks at levels {level}'
+        assert count == 0, f"all tasks below level must be done before running tasks at levels {level}"
 
         return level
 

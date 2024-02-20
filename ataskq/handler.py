@@ -1,14 +1,15 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 import pickle
-from typing import Tuple, Union, Dict, Callable, List
+from typing import Tuple, Union, List
 from enum import Enum
 from datetime import datetime
 
 from .logger import Logger
-from .models import Model, Job, Task, EStatus, StateKWArg
+from .models import Job, Task, EStatus, StateKWArg
+from .register import register_ihandlers, IHandler
 
 
-__STRTIME_FORMAT__ = '%Y-%m-%d %H:%M:%S.%f'
+__STRTIME_FORMAT__ = "%Y-%m-%d %H:%M:%S.%f"
 
 
 def to_datetime(string: Union[str, datetime, None]):
@@ -25,63 +26,9 @@ def from_datetime(time: datetime):
 
 
 class EAction(str, Enum):
-    RUN_TASK = 'run_task'
-    WAIT = 'wait'
-    STOP = 'stop'
-
-
-class IHandler(ABC):
-    @staticmethod
-    @abstractmethod
-    def from_interface_hanlders() -> Dict[type, Callable]:
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def to_interface_hanlders() -> Dict[type, Callable]:
-        pass
-
-    @classmethod
-    def i2m(cls, model_cls: Model, kwargs: Union[dict, List[dict]]) -> Union[dict, List[dict]]:
-        """interface to model"""
-        return model_cls.i2m(kwargs, cls.from_interface_hanlders())
-
-    @classmethod
-    def from_interface(cls, model_cls: Model, kwargs: Union[dict, List[dict]]) -> Union[Model, List[Model]]:
-        return model_cls.from_interface(kwargs, cls.from_interface_hanlders())
-
-    @classmethod
-    def m2i(cls, model_cls: Model, kwargs: Union[dict, List[dict]]) -> Union[dict, List[dict]]:
-        """modle to interface"""
-        return model_cls.m2i(kwargs, cls.to_interface_hanlders())
-
-    @classmethod
-    def to_interface(cls, model: Model) -> Model:
-        return model.to_interface(cls.to_interface_hanlders())
-
-    @abstractmethod
-    def _create(self, model_cls: Model, **ikwargs: dict):
-        pass
-
-    def create(self, model_cls: Model, **mkwargs):
-        assert model_cls.id_key() not in mkwargs, \
-            f"id '{model_cls.id_key()}' can't be passed to create '{model_cls.__name__}({model_cls.table_key()})'"
-        ikwargs = self.m2i(model_cls, mkwargs)
-        model_id = self._create(model_cls, **ikwargs)
-        return model_id
-
-    @abstractmethod
-    def delete(self, model_cls: Model, model_id: int):
-        pass
-
-    @abstractmethod
-    def _update(self, model_cls: Model, model_id: int, **ikwargs):
-        pass
-
-    def update(self, model_cls: Model, model_id: int, **mkwargs):
-        assert model_id is not None, f"{model_cls} must have assigned '{model_cls.id_key()}' for update"
-        ikwargs = self.m2i(model_cls, mkwargs)
-        self._update(model_cls, model_id, **ikwargs)
+    RUN_TASK = "run_task"
+    WAIT = "wait"
+    STOP = "stop"
 
 
 class Handler(IHandler, Logger):
@@ -161,8 +108,7 @@ class Handler(IHandler, Logger):
             task.pulse_time = timestamp
             task.done_time = timestamp
         else:
-            raise RuntimeError(
-                f"Unsupported status '{status}' for status update")
+            raise RuntimeError(f"Unsupported status '{status}' for status update")
 
     @abstractmethod
     def _take_next_task(self, level: Union[int, None]) -> Tuple[EAction, Task]:
@@ -170,7 +116,7 @@ class Handler(IHandler, Logger):
 
     def add_tasks(self, tasks: Union[Task, List[Task]]):
         if self._job_id is None:
-            raise RuntimeError(f"Job not assigned, pass job_id in __init__ or use create_job() first.")
+            raise RuntimeError("Job not assigned, pass job_id in __init__ or use create_job() first.")
 
         if isinstance(tasks, (Task)):
             tasks = [tasks]
@@ -192,7 +138,7 @@ class Handler(IHandler, Logger):
 
     def add_state_kwargs(self, state_kwargs: Union[StateKWArg, List[StateKWArg]]):
         if self._job_id is None:
-            raise RuntimeError(f"Job not assigned, pass job_id in __init__, set_job_id or use create_job() first.")
+            raise RuntimeError("Job not assigned, pass job_id in __init__, set_job_id or use create_job() first.")
 
         if isinstance(state_kwargs, StateKWArg):
             state_kwargs = [state_kwargs]
@@ -224,32 +170,38 @@ class Handler(IHandler, Logger):
 
 def from_connection_str(conn=None, **kwargs) -> Handler:
     if conn is None:
-        conn = ''
+        conn = ""
 
-    sep = '://'
+    sep = "://"
     sep_index = conn.find(sep)
     if sep_index == -1:
-        raise RuntimeError('connection must be of format <type>://<connection string>')
+        raise RuntimeError("connection must be of format <type>://<connection string>")
     handler_type = conn[:sep_index]
 
     # validate connectino
     if not handler_type:
-        raise RuntimeError('missing handler type, connection must be of format <type>://<connection string>')
+        raise RuntimeError("missing handler type, connection must be of format <type>://<connection string>")
 
     connection_str = conn[sep_index + len(sep):]
     if not connection_str:
-        raise RuntimeError('missing connection string, connection must be of format <type>://<connection string>')
+        raise RuntimeError("missing connection string, connection must be of format <type>://<connection string>")
 
     # get db type handler
-    if handler_type == 'sqlite':
+    if handler_type == "sqlite":
         from .db_handler.sqlite3 import SQLite3DBHandler
+
         handler = SQLite3DBHandler(conn, **kwargs)
-    elif handler_type == 'pg':
+        register_ihandlers("sqlite", handler)
+    elif handler_type == "pg":
         from .db_handler.postgresql import PostgresqlDBHandler
+
         handler = PostgresqlDBHandler(conn, **kwargs)
-    elif handler_type == 'http' or handler_type == 'https':
+        register_ihandlers("pg", handler)
+    elif handler_type == "http" or handler_type == "https":
         from .rest_handler import RESTHandler
+
         handler = RESTHandler(conn, **kwargs)
+        register_ihandlers("http", handler)
     else:
         raise Exception(f"unsupported handler type '{handler_type}', type must be one of ['sqlite', 'pg', 'http']")
 
