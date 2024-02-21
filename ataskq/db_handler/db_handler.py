@@ -6,6 +6,7 @@ from pathlib import Path
 from io import TextIOWrapper
 from abc import abstractmethod
 
+from ..imodel import IModel
 from ..models import __MODELS__, Model, Job, StateKWArg, Task, EStatus
 from ..handler import Handler, EAction
 from .. import __schema_version__
@@ -86,10 +87,17 @@ class DBHandler(Handler):
     def db_path(self):
         raise Exception(f"'{self.__class__.__name__}' db doesn't support db path property'")
 
-    def get_model_dict(self, model_cls) -> List[dict]:
-        rows, col_names = self.select_query(model_cls)
+    def get_all(self, model_cls: IModel) -> List[dict]:
+        rows, col_names, _ = self.select_query(model_cls)
         ret = [dict(zip(col_names, row)) for row in rows]
-        ret = self.i2m(model_cls, ret)
+
+        return ret
+
+    def get(slef, model_cls: IModel, model_id) -> dict:
+        rows, col_names, query_str = self.select_query(model_cls, where=f"{model_cls.id_key()} == {model_id}")
+        assert len(rows) != 0, f"no match found for '{model_cls.__name__}', query: '{query_str}'."
+        assert len(rows) == 1, f"more than 1 row found for '{model_cls.__name__}', query: '{query_str}'."
+        ret = [dict(zip(col_names, row)) for row in rows][0]
 
         return ret
 
@@ -250,8 +258,14 @@ class DBHandler(Handler):
         return self
 
     @transaction_decorator()
-    def select_query(self, c, model_cls: Model, order_by=None):
+    def select_query(self, c, model_cls: Model, where: str = None, order_by=None):
+        if where is None:
+            where = ''
+
         query_str = f'SELECT * FROM {model_cls.table_key()}'
+
+        if where:
+            query_str += f" WHERE {where}"
 
         if order_by:
             order_str = order_query(order_by)
@@ -264,7 +278,7 @@ class DBHandler(Handler):
         rows = c.fetchall()
         col_names = [description[0] for description in c.description]
 
-        return rows, col_names
+        return rows, col_names, query_str
 
     def tasks_status_query(self):
         query = "SELECT level, name," \

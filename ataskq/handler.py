@@ -191,17 +191,17 @@ def from_connection_str(conn=None, **kwargs) -> Handler:
         from .db_handler.sqlite3 import SQLite3DBHandler
 
         handler = SQLite3DBHandler(conn, **kwargs)
-        register_ihandlers("sqlite", handler)
+        # register_ihandlers("sqlite", handler)
     elif handler_type == "pg":
         from .db_handler.postgresql import PostgresqlDBHandler
 
         handler = PostgresqlDBHandler(conn, **kwargs)
-        register_ihandlers("pg", handler)
+        # register_ihandlers("pg", handler)
     elif handler_type == "http" or handler_type == "https":
         from .rest_handler import RESTHandler
 
         handler = RESTHandler(conn, **kwargs)
-        register_ihandlers("http", handler)
+        # register_ihandlers("http", handler)
     else:
         raise Exception(f"unsupported handler type '{handler_type}', type must be one of ['sqlite', 'pg', 'http']")
 

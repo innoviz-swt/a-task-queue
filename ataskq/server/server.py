@@ -102,7 +102,7 @@ async def api():
 # @app.get("/{model}")
 # async def show_model(model: str, dbh: DBHandler = Depends(db_handler)):
 #     model_class = __MODELS__[model]
-#     rows, col_names = dbh.select_query(model_class)
+#     rows, col_names, _ = dbh.select_query(model_class)
 #     ret = dbh.table(col_names, rows)
 
 #     return HTMLResponse(ret)
@@ -115,8 +115,15 @@ async def show_model(model: str, dbh: DBHandler = Depends(db_handler)):
 @app.get("/api/{model}")
 async def get_model(model: str, dbh: DBHandler = Depends(db_handler)):
     model_cls = __MODELS__[model]
-    ret = dbh.get_model_dict(model_cls)
-    iret = rh.m2i(model_cls, ret)
+    ret = model_cls.get_all_dict(dbh)
+
+    return iret
+
+
+@app.get("/api/{model}/{model_id}")
+async def get_model(model: str, dbh: DBHandler = Depends(db_handler)):
+    model_cls = __MODELS__[model]
+    ret = model_cls.get_dict(model_id, dbh)
 
     return iret
 

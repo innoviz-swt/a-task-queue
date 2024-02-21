@@ -7,6 +7,7 @@ from multiprocessing import Process
 from inspect import signature
 import time
 from typing import Dict, List
+from functools import cached_property
 
 from .env import ATASKQ_CONNECTION, ATASKQ_MONITOR_PULSE_INTERVAL, ATASKQ_TASK_PULSE_TIMEOUT, ATASKQ_TASK_PULL_INTERVAL
 from .logger import Logger
@@ -63,7 +64,15 @@ class TaskQ(Logger):
         super().__init__(logger)
 
         # init db handler
+        # todo: hanlder shouldn't get job_id
         self._hanlder: Handler = from_connection_str(conn=conn, job_id=job_id, max_jobs=max_jobs, logger=self._logger)
+
+        # get job
+        if job_id is not None:
+            job = Job.get(self._job_id, self._hanlder)
+        else:
+            job = None
+        self._job = job
 
         self._run_task_raise_exception = run_task_raise_exception
         self._task_pull_interval = task_pull_intervnal
@@ -75,6 +84,10 @@ class TaskQ(Logger):
         self._state_kwargs: Dict[str:object] = dict()
 
         self._running = False
+
+    @property
+    def job(self):
+        return self._job
 
     @property
     def handler(self):
@@ -89,8 +102,9 @@ class TaskQ(Logger):
         return self._monitor_pulse_interval
 
     def create_job(self, name=None, description=None):
-        job_id = Job(name=name, description=description).create(_handler=self._hanlder).job_id
-        self._hanlder.set_job_id(job_id)
+        job = Job(name=name, description=description).create(_handler=self._hanlder)
+        self._job = job
+        self._hanlder.set_job_id(job.job_id)  # todo remove - handler should need job id ...
 
         if self._max_jobs is not None:
             self._hanlder.keep_max_jobs()

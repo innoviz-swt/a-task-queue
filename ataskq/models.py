@@ -1,4 +1,4 @@
-from typing import Union, List
+from typing import Union, List, Dict
 from enum import Enum
 import pickle
 from importlib import import_module
@@ -238,6 +238,26 @@ class Model(IModel):
 
         return ret
 
+    @classmethod
+    def get_all_dict(cls, _handler: IHandler = None):
+        if _handler is None:
+            _handler = get_handlers()
+
+        ret = _handler.get_all(cls)
+        ret = self.i2m(model_cls, ret)
+
+        return ret
+
+    @classmethod
+    def get_dict(cls, model_id: int, _handler: IHandler = None):
+        if _handler is None:
+            _handler = get_handlers()
+
+        ret = _handler.get(model_id, cls)
+        ret = self.i2m(model_cls, ret)
+
+        return ret
+
     def create(self, _handler: IHandler = None, **mkwargs):
         assert (
             self.id_key() not in mkwargs
@@ -327,4 +347,4 @@ class Job(Model):
         super().__init__(**kwargs)
 
 
-__MODELS__ = {m.table_key(): m for m in [Task, StateKWArg, Job]}
+__MODELS__: Dict[str, Model] = {m.table_key(): m for m in [Task, StateKWArg, Job]}

@@ -1,6 +1,5 @@
-from typing import Dict
 from abc import ABC, abstractmethod
-from typing import Union, Callable, List
+from typing import Union, Callable, List, Dict
 from .imodel import IModel
 
 
@@ -35,6 +34,18 @@ class IHandler(ABC):
 
     @abstractmethod
     def _create(self, model_cls: IModel, **ikwargs: dict):
+        pass
+
+    @abstractmethod
+    def delete(self, model_cls: IModel, model_id: int):
+        pass
+
+    @abstractmethod
+    def get(self, model_cls: IModel, model_id: int) -> IModel:
+        pass
+
+    @abstractmethod
+    def get_all(self, model_cls: IModel, model_id: int) -> List[IModel]:
         pass
 
     def create(self, model_cls: IModel, **mkwargs):
