@@ -78,10 +78,12 @@ def register_ihandlers(name, handler: IHandler):
     __HANDLERS__[name] = handler
 
 
-def get_handlers(name=None):
+def get_handler(name=None, assert_registered=False):
     """get registered interface handlers"""
 
     if len(__HANDLERS__) == 0:
+        if assert_registered:
+            raise RuntimeError("No registered interface handlers")
         return None
     elif len(__HANDLERS__) == 1:
         return list(__HANDLERS__.values())[0]

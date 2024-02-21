@@ -7,7 +7,7 @@ from abc import abstractmethod
 from copy import copy
 
 from .imodel import IModel
-from .register import get_handlers, IHandler
+from .register import get_handler, IHandler
 
 
 class EntryPointRuntimeError(RuntimeError):
@@ -241,20 +241,34 @@ class Model(IModel):
     @classmethod
     def get_all_dict(cls, _handler: IHandler = None):
         if _handler is None:
-            _handler = get_handlers()
+            _handler = get_handler(assert_registered=True)
 
         ret = _handler.get_all(cls)
-        ret = self.i2m(model_cls, ret)
+        ret = cls.i2m(ret, _handler.from_interface_hanlders())
+
+        return ret
+
+    @classmethod
+    def get_all(cls, _handler: IHandler = None):
+        ret = cls.get_all_dict(_handler)
+        ret = [cls(**r, _serialize=False) for r in ret]
 
         return ret
 
     @classmethod
     def get_dict(cls, model_id: int, _handler: IHandler = None):
         if _handler is None:
-            _handler = get_handlers()
+            _handler = get_handler(assert_registered=True)
 
-        ret = _handler.get(model_id, cls)
-        ret = self.i2m(model_cls, ret)
+        ikwargs = _handler.get(cls, model_id)
+        mkwargs = cls.i2m(ikwargs, _handler.from_interface_hanlders())
+
+        return mkwargs
+
+    @classmethod
+    def get(cls, model_id: int, _handler: IHandler = None):
+        mkwargs = cls.get_dict(model_id, _handler)
+        ret = cls(**mkwargs, _serialize=False)
 
         return ret
 
@@ -264,7 +278,7 @@ class Model(IModel):
         ), f"id '{self.id_key()}' can't be passed to create '{self.__class__.__name__}({self.table_key()})'"
 
         if _handler is None:
-            _handler = get_handlers()
+            _handler = get_handler(assert_registered=True)
 
         if not mkwargs:
             mkwargs = copy(self.__dict__)
@@ -274,6 +288,19 @@ class Model(IModel):
         model_id = _handler._create(self.__class__, **ikwargs)
 
         setattr(self, self.id_key(), model_id)
+
+        return self
+
+    def delete(self, _handler: IHandler = None, **mkwargs):
+        model_id = getattr(self, self.id_key())
+        assert model_id is not None, \
+            f"id '{self.__class__.__name__}({self.table_key()} -> {self.id_key()}' required for delete"
+
+        if _handler is None:
+            _handler = get_handler(assert_registered=True)
+
+        _handler.delete(self.__class__, model_id)
+        setattr(self, self.id_key(), None)
 
         return self
 
