@@ -6,7 +6,7 @@ from datetime import datetime
 
 from .logger import Logger
 from .models import Job, Task, EStatus, StateKWArg
-from .register import register_ihandlers, IHandler
+from .register import register_handler, IHandler
 
 
 __STRTIME_FORMAT__ = "%Y-%m-%d %H:%M:%S.%f"
@@ -43,10 +43,6 @@ class Handler(IHandler, Logger):
     @property
     def job_id(self):
         return self._job_id
-
-    @abstractmethod
-    def get_jobs(self) -> List[Job]:
-        pass
 
     @abstractmethod
     def keep_max_jobs(self):

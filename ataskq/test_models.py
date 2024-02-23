@@ -2,13 +2,14 @@ import pytest
 
 from .models import __MODELS__
 from .handler import Handler, from_connection_str
-from .register import register_ihandlers
+from .register import register_handler
 
 
 @pytest.fixture
 def handler(conn) -> Handler:
     handler = from_connection_str(conn)
-    register_ihandlers('test_handler', handler)
+    register_handler("test_handler", handler)
+    return handler
 
 
 @pytest.fixture
@@ -19,10 +20,10 @@ def jhandler(handler) -> Handler:
 def create(model_cls, **kwargs):
     # todo: better handle not Null fields (take from schema in future)
     annotations = model_cls.__annotations__.keys()
-    if 'entrypoint' in annotations and 'entrypoint' not in kwargs:
-        kwargs['entrypoint'] = 'dummy entry point'
-    if 'job_id' in annotations and 'job_id' not in kwargs:
-        kwargs['job_id'] = 0
+    if "entrypoint" in annotations and "entrypoint" not in kwargs:
+        kwargs["entrypoint"] = "dummy entry point"
+    if "job_id" in annotations and "job_id" not in kwargs:
+        kwargs["job_id"] = 0
 
     # test that deleting a job deletes all its tasks
     m = model_cls(**kwargs).create()

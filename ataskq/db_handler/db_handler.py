@@ -356,12 +356,6 @@ class DBHandler(Handler):
 
         return ret
 
-    def get_jobs(self):
-        rows, col_names = self.query(query_type=EQueryType.JOBS)
-        jobs = [Job(**dict(zip(col_names, row))) for row in rows]
-
-        return jobs
-
     @staticmethod
     def table(col_names, rows):
         """

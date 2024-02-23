@@ -101,12 +101,6 @@ class RESTHandler(Handler):
     def keep_max_jobs(self):
         raise NotImplementedError(f"{self.__class__.__name__} doesn't implement keep_max_jobs")
 
-    def get_jobs(self) -> List[Job]:
-        ijobs = self.get('jobs')
-        jobs = [self.from_interface(Job, j) for j in ijobs]
-
-        return jobs
-
     # # form based implementation
     # def _add_tasks(self, tasks: List[Task]):
     #     files = []

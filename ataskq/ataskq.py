@@ -101,7 +101,17 @@ class TaskQ(Logger):
     def monitor_pulse_interval(self):
         return self._monitor_pulse_interval
 
+    def clear_job(self):
+        self._job = None
+
+    def set_job(self, job_id):
+        job = Job.get(job_id, self._hanlder)
+        self._hanlder.set_job_id(job.job_id)  # todo remove - handler should need job id ...
+        self._job = job
+
     def create_job(self, name=None, description=None):
+        assert self._job is None, "job already assigned to current taskq, run clear_job to create new job."
+
         job = Job(name=name, description=description).create(_handler=self._hanlder)
         self._job = job
         self._hanlder.set_job_id(job.job_id)  # todo remove - handler should need job id ...
@@ -116,7 +126,7 @@ class TaskQ(Logger):
 
         return self
 
-    def add_tasks(self, tasks: Task or List[Task]):
+    def add_tasks(self, tasks: Union[Task, List[Task]]):
         self._hanlder.add_tasks(tasks)
 
         return self
@@ -134,8 +144,9 @@ class TaskQ(Logger):
     def get_tasks(self, order_by=None):
         return self._hanlder.get_tasks(order_by=order_by)
 
-    def get_jobs(self):
-        return self._hanlder.get_jobs()
+    def get_all_jobs(self):
+        ret = Job.get_all(self._hanlder)
+        return ret
 
     def update_task_start_time(self, task: Task):
         self._hanlder.update_task_start_time(task)

@@ -3,7 +3,8 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from ataskq import TaskQ, StateKWArg, Task, targs, EStatus
+from ataskq import TaskQ, StateKWArg, Job, Task, targs, EStatus
+from ataskq.db_handler import DBHandler
 
 
 def test_create_job(conn):
@@ -19,6 +20,16 @@ def test_create_job(conn):
         pass
     else:
         raise Exception(f"unknown db type in connection string '{conn}'")
+
+
+def test_job_default_name(conn):
+    job = TaskQ(conn=conn).create_job().job
+    assert job.name is None
+
+
+def test_job_custom_name(conn):
+    job = TaskQ(conn=conn).create_job(name='my_job').job
+    assert job.name == 'my_job'
 
 
 def test_run_default(conn, tmp_path: Path):
@@ -167,3 +178,21 @@ def test_run_with_state_kwargs(conn):
              targs=targs(print_counter=True)),])
 
     taskq.run()
+
+
+def test_max_jobs(conn):
+    max_jobs = 10
+    taskq = TaskQ(conn=conn, max_jobs=max_jobs)
+    if not isinstance(taskq.handler, DBHandler):
+        pytest.skip()
+
+    jobs_id = []
+    for i in range(max_jobs * 2):
+        taskq.clear_job()
+        taskq.create_job(name=f'job{i}')
+        jobs_id.append(taskq.job.job_id)
+    jobs = taskq.get_all_jobs()
+    assert len(jobs) == 10
+
+    remaining_jobs = [j.job_id for j in jobs]
+    assert remaining_jobs == jobs_id[-max_jobs:]

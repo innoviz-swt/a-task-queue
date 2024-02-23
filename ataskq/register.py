@@ -49,8 +49,9 @@ class IHandler(ABC):
         pass
 
     def create(self, model_cls: IModel, **mkwargs):
-        assert model_cls.id_key() not in mkwargs, \
-            f"id '{model_cls.id_key()}' can't be passed to create '{model_cls.__name__}({model_cls.table_key()})'"
+        assert (
+            model_cls.id_key() not in mkwargs
+        ), f"id '{model_cls.id_key()}' can't be passed to create '{model_cls.__name__}({model_cls.table_key()})'"
         ikwargs = self.m2i(model_cls, mkwargs)
         model_id = self._create(model_cls, **ikwargs)
 
@@ -73,7 +74,7 @@ class IHandler(ABC):
 __HANDLERS__: Dict[str, object] = dict()
 
 
-def register_ihandlers(name, handler: IHandler):
+def register_handler(name, handler: IHandler):
     """register interface handlers"""
     __HANDLERS__[name] = handler
 
@@ -88,6 +89,10 @@ def get_handler(name=None, assert_registered=False):
     elif len(__HANDLERS__) == 1:
         return list(__HANDLERS__.values())[0]
     else:
-        assert name is not None, f"more than 1 type hander registered, please specify hanlder name. registered handlers: {list(__HANDLERS__.keys())}"
-        assert name in __HANDLERS__, f"no handler named '{name}' is registered. registered handlers: {list(__HANDLERS__.keys())}"
+        assert (
+            name is not None
+        ), f"more than 1 type hander registered, please specify hanlder name. registered handlers: {list(__HANDLERS__.keys())}"
+        assert (
+            name in __HANDLERS__
+        ), f"no handler named '{name}' is registered. registered handlers: {list(__HANDLERS__.keys())}"
         return __HANDLERS__[name]
