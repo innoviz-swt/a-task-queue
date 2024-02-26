@@ -11,3 +11,7 @@ class IModel(ABC):
     @abstractmethod
     def table_key():
         raise NotImplementedError()
+
+    @staticmethod
+    def children():
+        return dict()

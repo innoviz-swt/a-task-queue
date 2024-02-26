@@ -14,7 +14,12 @@ from ataskq.handler import from_connection_str
 from ataskq.db_handler import DBHandler
 from ataskq.rest_handler import RESTHandler as rh
 from ataskq.models import Model, Task, StateKWArg, __MODELS__
-from ataskq.env import ATASKQ_SERVER_CONNECTION, ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL, ATASKQ_TASK_PULSE_TIMEOUT
+from ataskq.env import (
+    ATASKQ_SERVER_CONNECTION,
+    ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL,
+    ATASKQ_TASK_PULSE_TIMEOUT,
+)
+
 # from .form_utils import form_data_array
 
 logger = logging.getLogger("uvicorn")
@@ -33,16 +38,16 @@ def db_handler(job_id: int = None) -> DBHandler:
 async def set_timout_tasks_task():
     dbh = db_handler()
     while True:
-        logger.debug('Set Timeout Tasks')
+        logger.debug("Set Timeout Tasks")
         dbh.fail_pulse_timeout_tasks(ATASKQ_TASK_PULSE_TIMEOUT)
         await asyncio.sleep(ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info('enter lifspan')
+    logger.info("enter lifspan")
 
-    logger.info('init db')
+    logger.info("init db")
     db_handler().init_db()
 
     task = asyncio.create_task(set_timout_tasks_task())
@@ -50,9 +55,10 @@ async def lifespan(app: FastAPI):
     # Load the ML model
     yield
     # Clean up the ML models and release the resources
-    logger.info('cancel task')
+    logger.info("cancel task")
     task.cancel()
-    logger.info('exit lifspan')
+    logger.info("exit lifspan")
+
 
 app = FastAPI(lifespan=lifespan)
 
@@ -99,31 +105,26 @@ async def api():
 #######
 # WWW #
 #######
-# @app.get("/{model}")
-# async def show_model(model: str, dbh: DBHandler = Depends(db_handler)):
-#     model_class = __MODELS__[model]
-#     rows, col_names, _ = dbh.select_query(model_class)
-#     ret = dbh.table(col_names, rows)
-
-#     return HTMLResponse(ret)
-
 @app.get("/{model}")
-async def show_model(model: str, dbh: DBHandler = Depends(db_handler)):
+async def show_model(model: str):
     return FileResponse(Path(__file__).parent / "static" / "index.html")
 
 
+#######
+# API #
+#######
 @app.get("/api/{model}")
-async def get_model(model: str, dbh: DBHandler = Depends(db_handler)):
+async def get_model_all(model: str, dbh: DBHandler = Depends(db_handler)):
     model_cls = __MODELS__[model]
-    ret = model_cls.get_all_dict(dbh)
+    iret = model_cls.get_all_dict(dbh)
 
     return iret
 
 
 @app.get("/api/{model}/{model_id}")
-async def get_model(model: str, dbh: DBHandler = Depends(db_handler)):
+async def get_model(model: str, model_id: int, dbh: DBHandler = Depends(db_handler)):
     model_cls = __MODELS__[model]
-    ret = model_cls.get_dict(model_id, dbh)
+    iret = model_cls.get_dict(model_id, dbh)
 
     return iret
 
@@ -133,7 +134,10 @@ async def create_model(model: str, request: Request, dbh: DBHandler = Depends(db
     model_cls: Model = __MODELS__[model]
     ikwargs = await request.json()
     mkwargs = rh.i2m(model_cls, ikwargs)
-    model_id = dbh.create(model_cls, **mkwargs)
+    if isinstance(mkwargs, list):
+        model_id = dbh.create_bulk(model_cls, mkwargs)
+    else:
+        model_id = dbh.create(model_cls, **mkwargs)
 
     return {model_cls.id_key(): model_id}
 
@@ -156,70 +160,13 @@ async def delete_model(model: str, model_id: int, dbh: DBHandler = Depends(db_ha
     return {model_cls.id_key(): model_id}
 
 
-########
-# JOBS #
-########
-@app.post("/api/jobs")
-async def create_job(data: dict, dbh: DBHandler = Depends(db_handler)):
-    job_id = dbh.create_job(name=data.get('name'), description=data.get('description')).job_id
-
-    return {"job_id": job_id}
-
-
-@app.get("/api/jobs/{job_id}/tasks")
-async def get_job_tasks(job_id: int, dbh: DBHandler = Depends(db_handler)):
-    dbh.set_job_id(job_id)
-
-    tasks = dbh.get_tasks()
-    itasks = [rh.to_interface(t) for t in tasks]
-
-    return itasks
-
-
-@app.post("/api/jobs/{job_id}/tasks")
-async def post_job_tasks(job_id: int, request: Request, dbh: DBHandler = Depends(db_handler)):
-    dbh.set_job_id(job_id)
-
-    # # get form data
-    # data = await request.form()
-    # data = await form_data_array(data)
-
-    # get data
-    itasks = await request.json()
-
-    # from interrface
-    tasks = [rh.from_interface(Task, t) for t in itasks]
-    dbh.add_tasks(tasks)
-
-    return [t.task_id for t in tasks]
-
-
-@app.get("/api/jobs/{job_id}/state_kwargs")
-async def get_job_state_kwargs(job_id: int, dbh: DBHandler = Depends(db_handler)):
-    dbh.set_job_id(job_id)
-
-    state_kwargs = dbh.get_state_kwargs()
-    i_state_kwargs = [rh.to_interface(t) for t in state_kwargs]
-
-    return i_state_kwargs
-
-
-@app.post("/api/jobs/{job_id}/state_kwargs")
-async def post_job_state_kwargs(job_id: int, request: Request, dbh: DBHandler = Depends(db_handler)):
-    dbh.set_job_id(job_id)
-
-    # get data
-    i_state_kwargs = await request.json()
-
-    # from interrface
-    state_kwargs = [rh.from_interface(StateKWArg, t) for t in i_state_kwargs]
-    dbh.add_state_kwargs(state_kwargs)
-
-    return [skw.state_kwargs_id for skw in state_kwargs]
-
-
 @app.get("/api/jobs/{job_id}/next_task")
-async def next_job_task(job_id: int, level_start: Union[int, None] = None, level_stop: Union[int, None] = None, dbh: DBHandler = Depends(db_handler)):
+async def next_job_task(
+    job_id: int,
+    level_start: Union[int, None] = None,
+    level_stop: Union[int, None] = None,
+    dbh: DBHandler = Depends(db_handler),
+):
     dbh.set_job_id(job_id)
 
     # get level range
@@ -244,5 +191,5 @@ async def get_count_pending_tasks_below_level(job_id: int, level: int, dbh: DBHa
     count = dbh.count_pending_tasks_below_level(level)
 
     return {
-        'count': count,
+        "count": count,
     }

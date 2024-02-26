@@ -1,3 +1,4 @@
+from cgitb import handler
 from typing import Union, List, Dict
 from enum import Enum
 import pickle
@@ -273,16 +274,19 @@ class Model(IModel):
         return ret
 
     def create(self, _handler: IHandler = None, **mkwargs):
+        if not mkwargs:
+            assert (
+                getattr(self, self.id_key()) is None
+            ), f"id '{self.id_key()}' can't be assigned when creating '{self.__class__.__name__}({self.table_key()})'"
+            mkwargs = copy(self.__dict__)
+            mkwargs.pop(self.id_key())
+
         assert (
             self.id_key() not in mkwargs
         ), f"id '{self.id_key()}' can't be passed to create '{self.__class__.__name__}({self.table_key()})'"
 
         if _handler is None:
             _handler = get_handler(assert_registered=True)
-
-        if not mkwargs:
-            mkwargs = copy(self.__dict__)
-            mkwargs.pop(self.id_key())
 
         ikwargs = self.m2i(mkwargs, _handler.to_interface_hanlders())
         model_id = _handler._create(self.__class__, **ikwargs)
@@ -291,10 +295,11 @@ class Model(IModel):
 
         return self
 
-    def delete(self, _handler: IHandler = None, **mkwargs):
+    def delete(self, _handler: IHandler = None):
         model_id = getattr(self, self.id_key())
-        assert model_id is not None, \
-            f"id '{self.__class__.__name__}({self.table_key()} -> {self.id_key()}' required for delete"
+        assert (
+            model_id is not None
+        ), f"id '{self.__class__.__name__}({self.table_key()} -> {self.id_key()}' required for delete"
 
         if _handler is None:
             _handler = get_handler(assert_registered=True)
@@ -303,6 +308,63 @@ class Model(IModel):
         setattr(self, self.id_key(), None)
 
         return self
+
+    def add_children(self, child_cls: IModel, children: List[Union[IModel, dict]], _handler: IHandler = None):
+        if not children:
+            return
+
+        assert child_cls in self.children(), f"no children association defined for '{child_cls}'"
+        parent_key = self.children()[child_cls]
+        parent_key_val = getattr(self, self.id_key())
+
+        children_mkwargs = []
+        for i, c in enumerate(children):
+            if isinstance(c, child_cls):
+                assert (
+                    getattr(c, c.id_key()) is None
+                ), f"id '{child_cls.id_key()}' can't be assigned when creating '{child_cls.__name__}({child_cls.table_key()})'"
+                mkwargs = copy(c.__dict__)
+                mkwargs.pop(c.id_key())
+            elif isinstance(c, dict):
+                mkwargs = c
+            else:
+                raise Exception(f"item [{i}]: Unsupported child type '{type(c)}'")
+
+            # assign parent key to child
+            assert (
+                mkwargs.get(parent_key) is None
+            ), f"child '{child_cls.__name__}[{i}]' can't have parent key '{self.__class__.__name__}->{parent_key}' assigned"
+            mkwargs[parent_key] = parent_key_val
+            children_mkwargs.append(mkwargs)
+
+        if _handler is None:
+            _handler = get_handler(assert_registered=True)
+
+        child_ids = _handler.create_bulk(child_cls, children_mkwargs)
+        for cid, c in zip(child_ids, children):
+            setattr(c, parent_key, parent_key_val)
+            setattr(c, child_cls.id_key(), cid)
+
+        return children
+
+    def get_children_dict(self, child_cls: IModel, _handler: IHandler = None):
+        assert child_cls in self.children(), f"no children association defined for '{child_cls}'"
+        parent_key = self.children()[child_cls]
+        primary_key_val = getattr(self, self.id_key())
+
+        if _handler is None:
+            _handler = get_handler(assert_registered=True)
+
+        ikwargs = _handler.get_all(child_cls, where=f"{parent_key} == {primary_key_val}")
+        mkwargs = child_cls.i2m(ikwargs, _handler.from_interface_hanlders())
+
+        return mkwargs
+
+    def get_children(self, child_cls: IModel, _handler: IHandler = None):
+        mkwargs = self.get_children_dict(child_cls, _handler)
+        ret = [child_cls(**kw, _serialize=False) for kw in mkwargs]
+
+        return ret
 
 
 class Task(Model, EntryPoint):
@@ -370,8 +432,27 @@ class Job(Model):
     def table_key():
         return "jobs"
 
+    @staticmethod
+    def children():
+        return {
+            Task: "job_id",
+            StateKWArg: "job_id",
+        }
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+    def get_tasks(self, _handler=None):
+        return self.get_children(Task, _handler=_handler)
+
+    def add_tasks(self, tasks: List[Task], _handler=None):
+        return self.add_children(Task, tasks, _handler=_handler)
+
+    def get_state_kwargs(self, _handler=None):
+        return self.get_children(StateKWArg, _handler=_handler)
+
+    def add_state_kwargs(self, state_kwarg: List[Task], _handler=None):
+        return self.add_children(StateKWArg, state_kwarg, _handler=_handler)
 
 
 __MODELS__: Dict[str, Model] = {m.table_key(): m for m in [Task, StateKWArg, Job]}

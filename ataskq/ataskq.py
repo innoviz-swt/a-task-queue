@@ -122,27 +122,20 @@ class TaskQ(Logger):
         return self
 
     def add_state_kwargs(self, state_kwargs):
-        self._hanlder.add_state_kwargs(state_kwargs)
+        self.job.add_state_kwargs(state_kwargs, _handler=self._hanlder)
 
         return self
 
     def add_tasks(self, tasks: Union[Task, List[Task]]):
-        self._hanlder.add_tasks(tasks)
+        self.job.add_tasks(tasks, _handler=self._hanlder)
 
         return self
 
     def count_pending_tasks_below_level(self, level):
         return self._hanlder.count_pending_tasks_below_level(level)
 
-    def log_tasks(self):
-        rows, _ = self._hanlder.query(query_type=EQueryType.TASKS)
-
-        self.info("# tasks:")
-        for row in rows:
-            self.info(row)
-
-    def get_tasks(self, order_by=None):
-        return self._hanlder.get_tasks(order_by=order_by)
+    def get_tasks(self):
+        return self.job.get_tasks(self._hanlder)
 
     def get_all_jobs(self):
         ret = Job.get_all(self._hanlder)

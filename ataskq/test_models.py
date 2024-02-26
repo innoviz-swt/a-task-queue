@@ -1,15 +1,16 @@
 import pytest
 
-from .models import __MODELS__
+from .models import Model, __MODELS__, Job
 from .handler import Handler, from_connection_str
-from .register import register_handler
+from .register import register_handler, unregister_handler
 
 
-@pytest.fixture
-def handler(conn) -> Handler:
+@pytest.fixture(scope="function")
+def handler(conn):
     handler = from_connection_str(conn)
     register_handler("test_handler", handler)
-    return handler
+    yield handler
+    unregister_handler("test_handler")
 
 
 @pytest.fixture
@@ -17,16 +18,22 @@ def jhandler(handler) -> Handler:
     return handler.create_job()
 
 
-def create(model_cls, **kwargs):
+def init(model_cls, **kwargs):
     # todo: better handle not Null fields (take from schema in future)
     annotations = model_cls.__annotations__.keys()
     if "entrypoint" in annotations and "entrypoint" not in kwargs:
         kwargs["entrypoint"] = "dummy entry point"
-    if "job_id" in annotations and "job_id" not in kwargs:
+    if "job_id" in annotations and "job_id" not in kwargs and not issubclass(model_cls, Job):
         kwargs["job_id"] = 0
 
-    # test that deleting a job deletes all its tasks
-    m = model_cls(**kwargs).create()
+    ret = model_cls(**kwargs)
+
+    return ret
+
+
+def create(model_cls, **kwargs):
+    m = init(model_cls, **kwargs)
+    m = m.create()
 
     return m
 
@@ -89,3 +96,31 @@ def test_delete(handler, model_cls):
 
     count = len(model_cls.get_all())
     assert count == 0
+
+
+MODEL_CHILD = [
+    (model_cls, child_cls, parent_key)
+    for model_cls in __MODELS__.values()
+    for child_cls, parent_key in model_cls.children().items()
+]
+
+
+@pytest.mark.parametrize("model_cls, child_cls, parent_key", [MODEL_CHILD[0]])
+def test_add_get_children(handler, model_cls: Model, child_cls, parent_key):
+    m1 = create(model_cls)
+    children = [init(child_cls, **{parent_key: None}) for i in range(3)]
+    m1.add_children(child_cls, children)
+
+    m2 = create(model_cls)
+    children = [init(child_cls, **{parent_key: None}) for i in range(4)]
+    m2.add_children(child_cls, children)
+
+    assert getattr(m1, model_cls.id_key()) != getattr(m2, model_cls.id_key())
+
+    rec_children = m1.get_children(child_cls)
+    assert len(rec_children) == 3
+    assert all([getattr(c, parent_key) == getattr(m1, model_cls.id_key()) for c in rec_children])
+
+    rec_children = m2.get_children(child_cls)
+    assert len(rec_children) == 4
+    assert all([getattr(c, parent_key) == getattr(m2, model_cls.id_key()) for c in rec_children])

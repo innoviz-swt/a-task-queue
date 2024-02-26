@@ -14,11 +14,11 @@ from ..env import ATASKQ_DB_INIT_ON_HANDLER_INIT
 
 
 class EQueryType(str, Enum):
-    TASKS = 'tasks',
-    TASKS_STATUS = 'tasks_status',
-    STATE_KWARGS = 'state_kwargs',
-    JOBS = 'jobs',
-    JOBS_STATUS = 'jobs_status',
+    TASKS = ("tasks",)
+    TASKS_STATUS = ("tasks_status",)
+    STATE_KWARGS = ("state_kwargs",)
+    JOBS = ("jobs",)
+    JOBS_STATUS = ("jobs_status",)
 
 
 def transaction_decorator(exclusive=False):
@@ -30,7 +30,7 @@ def transaction_decorator(exclusive=False):
                     if exclusive:
                         c.execute(self.begin_exclusive)
                     else:
-                        c.execute('BEGIN')
+                        c.execute("BEGIN")
                     # enable foreign keys for each connection (sqlite default is off)
                     # https://www.sqlite.org/foreignkeys.html
                     # Foreign key constraints are disabled by default (for backwards
@@ -48,6 +48,7 @@ def transaction_decorator(exclusive=False):
             return ret
 
         return wrapper
+
     return decorator
 
 
@@ -79,7 +80,7 @@ class DBHandler(Handler):
         super().__init__(job_id, logger)
 
         self._max_jobs = max_jobs
-        self._templates_dir = Path(__file__).parent.parent / 'templates'
+        self._templates_dir = Path(__file__).parent.parent / "templates"
         if init_db:
             self.init_db()
 
@@ -87,8 +88,8 @@ class DBHandler(Handler):
     def db_path(self):
         raise Exception(f"'{self.__class__.__name__}' db doesn't support db path property'")
 
-    def get_all(self, model_cls: IModel) -> List[dict]:
-        rows, col_names, _ = self.select_query(model_cls)
+    def get_all(self, model_cls: IModel, where=None) -> List[dict]:
+        rows, col_names, _ = self.select_query(model_cls, where=where)
         ret = [dict(zip(col_names, row)) for row in rows]
 
         return ret
@@ -155,11 +156,29 @@ class DBHandler(Handler):
         values = list(d.values())
         c.execute(
             f'INSERT INTO {model_cls.table_key()} ({", ".join(keys)}) VALUES ({", ".join([self.format_symbol] * len(keys))}) RETURNING {model_cls.id_key()}',
-            values)
+            values,
+        )
 
         model_id = c.fetchone()[0]
 
         return model_id
+
+    @transaction_decorator()
+    def _create_bulk(self, c, model_cls: Model, ikwargs: List[dict]) -> Handler:
+        # todo: consolidate all ikwargs with same keys to single insert command
+        model_ids = []
+        for v in ikwargs:
+            d = {k: v for k, v in v.items() if model_cls.id_key() not in k}
+            keys = list(d.keys())
+            values = list(d.values())
+            c.execute(
+                f'INSERT INTO {model_cls.table_key()} ({", ".join(keys)}) VALUES ({", ".join([self.format_symbol] * len(keys))}) RETURNING {model_cls.id_key()}',
+                values,
+            )
+            model_id = c.fetchone()[0]
+            model_ids.append(model_id)
+
+        return model_ids
 
     @transaction_decorator()
     def _update(self, c, model_cls: Model, model_id, **ikwargs):
@@ -168,8 +187,7 @@ class DBHandler(Handler):
 
         insert = ", ".join([f"{k} = {self.format_symbol}" for k in ikwargs.keys()])
         values = list(ikwargs.values())
-        c.execute(
-            f"UPDATE {model_cls.table_key()} SET {insert} WHERE {model_cls.id_key()} = {model_id};", values)
+        c.execute(f"UPDATE {model_cls.table_key()} SET {insert} WHERE {model_cls.id_key()} = {model_id};", values)
 
     @transaction_decorator()
     def delete(self, c, model_cls: Model, model_id: int):
@@ -178,61 +196,68 @@ class DBHandler(Handler):
     @transaction_decorator(exclusive=True)
     def init_db(self, c):
         # Create schema version table if not exists
-        c.execute("CREATE TABLE IF NOT EXISTS schema_version ("
-                  "version INTEGER PRIMARY KEY"
-                  ")")
+        c.execute("CREATE TABLE IF NOT EXISTS schema_version (" "version INTEGER PRIMARY KEY" ")")
         c.execute("SELECT * FROM schema_version")
         current_schema_version = c.fetchone()
         if current_schema_version is None:
             c.execute(f"INSERT INTO schema_version (version) VALUES ({__schema_version__})")
         else:
             current_schema_version = current_schema_version[0]
-            assert current_schema_version == __schema_version__, f"Schema version mismatch, current schema version is {current_schema_version} while code schema version is {__schema_version__}"
+            assert (
+                current_schema_version == __schema_version__
+            ), f"Schema version mismatch, current schema version is {current_schema_version} while code schema version is {__schema_version__}"
 
         # Create jobs table if not exists
-        c.execute("CREATE TABLE IF NOT EXISTS jobs ("
-                  f"job_id {self.primary_key}, "
-                  "name TEXT, "
-                  "description TEXT, "
-                  "priority REAL DEFAULT 0"
-                  #   "summary_cookie_keys JSON"
-                  ")")
+        c.execute(
+            "CREATE TABLE IF NOT EXISTS jobs ("
+            f"job_id {self.primary_key}, "
+            "name TEXT, "
+            "description TEXT, "
+            "priority REAL DEFAULT 0"
+            #   "summary_cookie_keys JSON"
+            ")"
+        )
 
         # Create state arguments table if not exists
-        c.execute("CREATE TABLE IF NOT EXISTS state_kwargs ("
-                  f"state_kwargs_id {self.primary_key}, "
-                  "name TEXT, "
-                  "entrypoint TEXT NOT NULL, "
-                  f"targs {self.bytes_type}, "
-                  "description TEXT, "
-                  "job_id INTEGER NOT NULL, "
-                  "CONSTRAINT uq_name_job_id UNIQUE(name, job_id), "
-                  "CONSTRAINT fk_job_id FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE CASCADE"
-                  ")")
+        c.execute(
+            "CREATE TABLE IF NOT EXISTS state_kwargs ("
+            f"state_kwargs_id {self.primary_key}, "
+            "name TEXT, "
+            "entrypoint TEXT NOT NULL, "
+            f"targs {self.bytes_type}, "
+            "description TEXT, "
+            "job_id INTEGER NOT NULL, "
+            "CONSTRAINT uq_name_job_id UNIQUE(name, job_id), "
+            "CONSTRAINT fk_job_id FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE CASCADE"
+            ")"
+        )
 
         # Create tasks table if not exists
-        statuses = ", ".join([f'\"{a}\"' for a in EStatus])
-        c.execute(f"CREATE TABLE IF NOT EXISTS tasks ("
-                  f"task_id {self.primary_key}, "
-                  "name TEXT, "
-                  "level REAL, "
-                  "entrypoint TEXT NOT NULL, "
-                  f"targs {self.bytes_type}, "
-                  f"status TEXT ,"  # CHECK(status in ({statuses})),
-                  F"take_time {self.timestamp_type}, "
-                  F"start_time {self.timestamp_type}, "
-                  F"done_time {self.timestamp_type}, "
-                  F"pulse_time {self.timestamp_type}, "
-                  "description TEXT, "
-                  #   "summary_cookie JSON, "
-                  "job_id INTEGER NOT NULL, "
-                  "CONSTRAINT fk_job_id FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE CASCADE"
-                  ")")
+        statuses = ", ".join([f'"{a}"' for a in EStatus])
+        c.execute(
+            f"CREATE TABLE IF NOT EXISTS tasks ("
+            f"task_id {self.primary_key}, "
+            "name TEXT, "
+            "level REAL, "
+            "entrypoint TEXT NOT NULL, "
+            f"targs {self.bytes_type}, "
+            f"status TEXT ,"  # CHECK(status in ({statuses})),
+            f"take_time {self.timestamp_type}, "
+            f"start_time {self.timestamp_type}, "
+            f"done_time {self.timestamp_type}, "
+            f"pulse_time {self.timestamp_type}, "
+            "description TEXT, "
+            #   "summary_cookie JSON, "
+            "job_id INTEGER NOT NULL, "
+            "CONSTRAINT fk_job_id FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE CASCADE"
+            ")"
+        )
 
     @transaction_decorator()
     def keep_max_jobs(self, c):
         c.execute(
-            f"DELETE FROM jobs WHERE job_id NOT IN (SELECT job_id FROM jobs ORDER BY job_id DESC limit {self._max_jobs})")
+            f"DELETE FROM jobs WHERE job_id NOT IN (SELECT job_id FROM jobs ORDER BY job_id DESC limit {self._max_jobs})"
+        )
 
     @transaction_decorator()
     def _add_tasks(self, c, tasks: List[dict]):
@@ -241,7 +266,8 @@ class DBHandler(Handler):
             keys = list(d.keys())
             values = list(d.values())
             c.execute(
-                f'INSERT INTO tasks ({", ".join(keys)}) VALUES ({", ".join([self.format_symbol] * len(keys))})', values)
+                f'INSERT INTO tasks ({", ".join(keys)}) VALUES ({", ".join([self.format_symbol] * len(keys))})', values
+            )
 
         return self
 
@@ -253,16 +279,17 @@ class DBHandler(Handler):
             values = list(d.values())
             c.execute(
                 f'INSERT INTO state_kwargs ({", ".join(keys)}) VALUES ({", ".join([self.format_symbol] * len(keys))})',
-                values)
+                values,
+            )
 
         return self
 
     @transaction_decorator()
     def select_query(self, c, model_cls: Model, where: str = None, order_by=None):
         if where is None:
-            where = ''
+            where = ""
 
-        query_str = f'SELECT * FROM {model_cls.table_key()}'
+        query_str = f"SELECT * FROM {model_cls.table_key()}"
 
         if where:
             query_str += f" WHERE {where}"
@@ -281,36 +308,36 @@ class DBHandler(Handler):
         return rows, col_names, query_str
 
     def tasks_status_query(self):
-        query = "SELECT level, name," \
-            "COUNT(*) as total, " + \
-            ",".join(
-                [f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status} " for status in EStatus]
-            ) + \
-            f"FROM tasks WHERE job_id = {self._job_id} " \
+        query = (
+            "SELECT level, name,"
+            "COUNT(*) as total, "
+            + ",".join([f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status} " for status in EStatus])
+            + f"FROM tasks WHERE job_id = {self._job_id} "
             "GROUP BY level, name"
+        )
 
         return query
 
     def task_query(self):
-        query = f'SELECT * FROM tasks WHERE job_id = {self._job_id}'
+        query = f"SELECT * FROM tasks WHERE job_id = {self._job_id}"
         return query
 
     def state_kwargs_query(self):
-        query = f'SELECT * FROM state_kwargs WHERE job_id = {self._job_id}'
+        query = f"SELECT * FROM state_kwargs WHERE job_id = {self._job_id}"
         return query
 
     def jobs_query(self):
-        query = f'SELECT * FROM jobs'
+        query = f"SELECT * FROM jobs"
         return query
 
     def jobs_status_query(self):
-        query = "SELECT jobs.job_id, jobs.name, jobs.description, jobs.priority, " \
-            "COUNT(*) as tasks, " + \
-            ", ".join(
-                [f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status}" for status in EStatus]
-            ) + \
-            f" FROM jobs " \
+        query = (
+            "SELECT jobs.job_id, jobs.name, jobs.description, jobs.priority, "
+            "COUNT(*) as tasks, "
+            + ", ".join([f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status}" for status in EStatus])
+            + f" FROM jobs "
             "LEFT JOIN tasks ON jobs.job_id = tasks.job_id GROUP BY jobs.job_id"
+        )
 
         return query
 
@@ -318,11 +345,11 @@ class DBHandler(Handler):
     def query(self, c, query_type=EQueryType.JOBS_STATUS, order_by=None):
         queries = {
             # query func, default sort by ASC
-            EQueryType.TASKS: (self.task_query, 'task_id ASC'),
-            EQueryType.TASKS_STATUS: (self.tasks_status_query, 'name ASC'),
-            EQueryType.STATE_KWARGS: (self.state_kwargs_query, 'state_kwargs_id ASC'),
-            EQueryType.JOBS: (self.jobs_query, 'job_id ASC'),
-            EQueryType.JOBS_STATUS: (self.jobs_status_query, 'jobs.job_id ASC'),
+            EQueryType.TASKS: (self.task_query, "task_id ASC"),
+            EQueryType.TASKS_STATUS: (self.tasks_status_query, "name ASC"),
+            EQueryType.STATE_KWARGS: (self.state_kwargs_query, "state_kwargs_id ASC"),
+            EQueryType.JOBS: (self.jobs_query, "job_id ASC"),
+            EQueryType.JOBS_STATUS: (self.jobs_status_query, "jobs.job_id ASC"),
         }
         query, default_order_by = queries.get(query_type)
 
@@ -362,28 +389,29 @@ class DBHandler(Handler):
         Return a html table
         """
 
-        pad = '  '
+        pad = "  "
 
         # targs is byte array, so we need to limits its width
-        targsi = col_names.index('targs') if 'targs' in col_names else -1
-        def colstyle(i): return " class=targs-col" if i == targsi else ''
+        targsi = col_names.index("targs") if "targs" in col_names else -1
+
+        def colstyle(i):
+            return " class=targs-col" if i == targsi else ""
+
         ret = [
-            '<table>',
-            pad + '<tr>',
-            *[pad + pad + f'<th{colstyle(i)}> ' + f'{col}' +
-              ' </th>' for i, col in enumerate(col_names)],
-            pad + '</tr>',
+            "<table>",
+            pad + "<tr>",
+            *[pad + pad + f"<th{colstyle(i)}> " + f"{col}" + " </th>" for i, col in enumerate(col_names)],
+            pad + "</tr>",
         ]
 
         for row in rows:
             ret += [
-                pad + '<tr>',
-                *[pad + pad + f"<td{colstyle(i)}> " + f'{col}' +
-                  ' </td>' for i, col in enumerate(row)],
-                pad + '</tr>',
+                pad + "<tr>",
+                *[pad + pad + f"<td{colstyle(i)}> " + f"{col}" + " </td>" for i, col in enumerate(row)],
+                pad + "</tr>",
             ]
 
-        ret += ['</table>']
+        ret += ["</table>"]
 
         table = "\n".join(ret)
 
@@ -402,29 +430,29 @@ class DBHandler(Handler):
         """
         Return a html of the status and write to file if given.
         """
-        with open(self._templates_dir / 'base.html') as f:
+        with open(self._templates_dir / "base.html") as f:
             html = f.read()
 
         table = self.html_table(query_type)
-        html = html.replace(
-            '{{title}}', query_type.name.lower().replace('_', ' '))
-        html = html.replace('{{table}}', table)
+        html = html.replace("{{title}}", query_type.name.lower().replace("_", " "))
+        html = html.replace("{{table}}", table)
 
         if file is not None:
             if isinstance(file, (str, Path)):
-                with open(file, 'w') as f:
+                with open(file, "w") as f:
                     f.write(html)
             elif isinstance(file, TextIOWrapper):
                 file.write(html)
             else:
-                raise RuntimeError('file must by either path of file io')
+                raise RuntimeError("file must by either path of file io")
 
         return html
 
     @transaction_decorator()
     def count_pending_tasks_below_level(self, c, level) -> int:
         c.execute(
-            f"SELECT COUNT(*) FROM tasks WHERE job_id = {self.job_id} AND level < {level} AND status in ('{EStatus.PENDING}')")
+            f"SELECT COUNT(*) FROM tasks WHERE job_id = {self.job_id} AND level < {level} AND status in ('{EStatus.PENDING}')"
+        )
 
         row = c.fetchone()
         return row[0]
@@ -434,16 +462,19 @@ class DBHandler(Handler):
         # set timeout tasks
         last_valid_pulse = datetime.now() - timedelta(seconds=timeout_sec)
         c.execute(
-            f"UPDATE tasks SET status = '{EStatus.FAILURE}' WHERE pulse_time < {self.timestamp(last_valid_pulse)} AND status NOT IN ('{EStatus.SUCCESS}', '{EStatus.FAILURE}');")
+            f"UPDATE tasks SET status = '{EStatus.FAILURE}' WHERE pulse_time < {self.timestamp(last_valid_pulse)} AND status NOT IN ('{EStatus.SUCCESS}', '{EStatus.FAILURE}');"
+        )
 
     @transaction_decorator(exclusive=True)
     def _take_next_task(self, c, level) -> Tuple[EAction, Task]:
         # todo: add FOR UPDATE in the queries postgresql
-        level_query = f' AND level >= {level.start} AND level < {level.stop}' if level is not None else ''
+        level_query = f" AND level >= {level.start} AND level < {level.stop}" if level is not None else ""
         # get pending task with minimum level
-        query = f"SELECT * FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.PENDING}'){level_query} AND level = " \
-            f"(SELECT MIN(level) FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.PENDING}'){level_query})" \
+        query = (
+            f"SELECT * FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.PENDING}'){level_query} AND level = "
+            f"(SELECT MIN(level) FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.PENDING}'){level_query})"
             f" {self.for_update}"
+        )
         query = query.strip()
         c.execute(query)
         row = c.fetchone()
@@ -454,9 +485,11 @@ class DBHandler(Handler):
             ptask = self.from_interface(Task, dict(zip(col_names, row)))
 
         # get running task with minimum level
-        query = f"SELECT * FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.RUNNING}'){level_query} AND level = " \
-            f"(SELECT MIN(level) FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.RUNNING}'){level_query})" \
+        query = (
+            f"SELECT * FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.RUNNING}'){level_query} AND level = "
+            f"(SELECT MIN(level) FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.RUNNING}'){level_query})"
             f" {self.for_update}"
+        )
         query = query.strip()
         c.execute(query)
         row = c.fetchone()
@@ -484,7 +517,8 @@ class DBHandler(Handler):
                 # should never happend
                 # running task with level higher than pending task (warn and take next task)
                 self.warning(
-                    f'Running task with level higher than pending detected, taking pending. running id: {rtask.task_id}, pending id: {ptask.task_id}.')
+                    f"Running task with level higher than pending detected, taking pending. running id: {rtask.task_id}, pending id: {ptask.task_id}."
+                )
                 action = EAction.RUN_TASK
             else:
                 action = EAction.RUN_TASK
@@ -492,7 +526,8 @@ class DBHandler(Handler):
         if action == EAction.RUN_TASK:
             now = datetime.now()
             c.execute(
-                f"UPDATE tasks SET status = '{EStatus.RUNNING}', take_time = {self.timestamp(now)}, pulse_time = {self.timestamp(now)} WHERE task_id = {ptask.task_id};")
+                f"UPDATE tasks SET status = '{EStatus.RUNNING}', take_time = {self.timestamp(now)}, pulse_time = {self.timestamp(now)} WHERE task_id = {ptask.task_id};"
+            )
             ptask.status = EStatus.RUNNING
             ptask.take_time = now
             ptask.pulse_time = now
@@ -504,5 +539,4 @@ class DBHandler(Handler):
         else:
             raise RuntimeError(f"Unsupported action '{EAction}'")
 
-        # self.log_tasks()
         return action, task

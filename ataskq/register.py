@@ -37,6 +37,10 @@ class IHandler(ABC):
         pass
 
     @abstractmethod
+    def _create_bulk(self, model_cls: IModel, **ikwargs: dict):
+        pass
+
+    @abstractmethod
     def delete(self, model_cls: IModel, model_id: int):
         pass
 
@@ -45,10 +49,10 @@ class IHandler(ABC):
         pass
 
     @abstractmethod
-    def get_all(self, model_cls: IModel, model_id: int) -> List[IModel]:
+    def get_all(self, model_cls: IModel, model_id: int, where=None) -> List[IModel]:
         pass
 
-    def create(self, model_cls: IModel, **mkwargs):
+    def create(self, model_cls: IModel, **mkwargs) -> int:
         assert (
             model_cls.id_key() not in mkwargs
         ), f"id '{model_cls.id_key()}' can't be passed to create '{model_cls.__name__}({model_cls.table_key()})'"
@@ -57,9 +61,15 @@ class IHandler(ABC):
 
         return model_id
 
-    @abstractmethod
-    def delete(self, model_cls: IModel, model_id: int):
-        pass
+    def create_bulk(self, model_cls: IModel, mkwargs: List[dict]) -> List[int]:
+        for i, v in enumerate(mkwargs):
+            assert (
+                model_cls.id_key() not in v
+            ), f"item [{i}]: id '{model_cls.id_key()}' can't be passed to create '{model_cls.__name__}({model_cls.table_key()})'"
+        ikwargs = self.m2i(model_cls, mkwargs)
+        model_ids = self._create_bulk(model_cls, ikwargs)
+
+        return model_ids
 
     @abstractmethod
     def _update(self, model_cls: IModel, model_id: int, **ikwargs):
@@ -77,6 +87,11 @@ __HANDLERS__: Dict[str, object] = dict()
 def register_handler(name, handler: IHandler):
     """register interface handlers"""
     __HANDLERS__[name] = handler
+
+
+def unregister_handler(name):
+    """register interface handlers"""
+    return __HANDLERS__.pop(name)
 
 
 def get_handler(name=None, assert_registered=False):
