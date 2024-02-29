@@ -1,24 +1,15 @@
-from enum import Enum
 from datetime import datetime, timedelta
-import pickle
 from typing import List, Tuple
 from pathlib import Path
 from io import TextIOWrapper
 from abc import abstractmethod
+from datetime import datetime
 
 from ..imodel import IModel
-from ..models import __MODELS__, Model, Job, StateKWArg, Task, EStatus
+from ..models import Model, StateKWArg, Task, EStatus
 from ..handler import Handler, EAction
 from .. import __schema_version__
 from ..env import ATASKQ_DB_INIT_ON_HANDLER_INIT
-
-
-class EQueryType(str, Enum):
-    TASKS = ("tasks",)
-    TASKS_STATUS = ("tasks_status",)
-    STATE_KWARGS = ("state_kwargs",)
-    JOBS = ("jobs",)
-    JOBS_STATUS = ("jobs_status",)
 
 
 def transaction_decorator(exclusive=False):
@@ -76,11 +67,9 @@ def order_query(order_by):
 
 
 class DBHandler(Handler):
-    def __init__(self, job_id=None, max_jobs=None, init_db=ATASKQ_DB_INIT_ON_HANDLER_INIT, logger=None) -> None:
-        super().__init__(job_id, logger)
+    def __init__(self, init_db=ATASKQ_DB_INIT_ON_HANDLER_INIT, logger=None) -> None:
+        super().__init__(logger)
 
-        self._max_jobs = max_jobs
-        self._templates_dir = Path(__file__).parent.parent / "templates"
         if init_db:
             self.init_db()
 
@@ -254,9 +243,9 @@ class DBHandler(Handler):
         )
 
     @transaction_decorator()
-    def keep_max_jobs(self, c):
+    def keep_max_jobs(self, c, max_jobs: int):
         c.execute(
-            f"DELETE FROM jobs WHERE job_id NOT IN (SELECT job_id FROM jobs ORDER BY job_id DESC limit {self._max_jobs})"
+            f"DELETE FROM jobs WHERE job_id NOT IN (SELECT job_id FROM jobs ORDER BY job_id DESC limit {max_jobs})"
         )
 
     @transaction_decorator()
@@ -341,117 +330,40 @@ class DBHandler(Handler):
 
         return query
 
-    @transaction_decorator()
-    def query(self, c, query_type=EQueryType.JOBS_STATUS, order_by=None):
-        queries = {
-            # query func, default sort by ASC
-            EQueryType.TASKS: (self.task_query, "task_id ASC"),
-            EQueryType.TASKS_STATUS: (self.tasks_status_query, "name ASC"),
-            EQueryType.STATE_KWARGS: (self.state_kwargs_query, "state_kwargs_id ASC"),
-            EQueryType.JOBS: (self.jobs_query, "job_id ASC"),
-            EQueryType.JOBS_STATUS: (self.jobs_status_query, "jobs.job_id ASC"),
-        }
-        query, default_order_by = queries.get(query_type)
+    # @transaction_decorator()
+    # def query(self, c, query_type=EQueryType.JOBS_STATUS, order_by=None):
+    #     queries = {
+    #         # query func, default sort by ASC
+    #         EQueryType.TASKS: (self.task_query, "task_id ASC"),
+    #         EQueryType.TASKS_STATUS: (self.tasks_status_query, "name ASC"),
+    #         EQueryType.STATE_KWARGS: (self.state_kwargs_query, "state_kwargs_id ASC"),
+    #         EQueryType.JOBS: (self.jobs_query, "job_id ASC"),
+    #         EQueryType.JOBS_STATUS: (self.jobs_status_query, "jobs.job_id ASC"),
+    #     }
+    #     query, default_order_by = queries.get(query_type)
 
-        if query is None:
-            # should never get here
-            raise RuntimeError(f"Unknown status type: {query_type}")
+    #     if query is None:
+    #         # should never get here
+    #         raise RuntimeError(f"Unknown status type: {query_type}")
 
-        query_str = query()
-        if order_by:
-            order_str = order_query(order_by)
-            query_str += f" ORDER BY {order_str}"
-        else:
-            order_str = order_query(default_order_by)
-            query_str += f" ORDER BY {order_str}"
-        c.execute(query_str)
-        rows = c.fetchall()
-        col_names = [description[0] for description in c.description]
-        # col_types = [description[1] for description in c.description]
+    #     query_str = query()
+    #     if order_by:
+    #         order_str = order_query(order_by)
+    #         query_str += f" ORDER BY {order_str}"
+    #     else:
+    #         order_str = order_query(default_order_by)
+    #         query_str += f" ORDER BY {order_str}"
+    #     c.execute(query_str)
+    #     rows = c.fetchall()
+    #     col_names = [description[0] for description in c.description]
+    #     # col_types = [description[1] for description in c.description]
 
-        return rows, col_names
-
-    def get_tasks(self, order_by=None):
-        rows, col_names = self.query(query_type=EQueryType.TASKS, order_by=order_by)
-        tasks = [self.from_interface(Task, dict(zip(col_names, row))) for row in rows]
-
-        return tasks
-
-    def get_state_kwargs(self):
-        rows, col_names = self.query(query_type=EQueryType.STATE_KWARGS)
-        ret = [StateKWArg(**dict(zip(col_names, row))) for row in rows]
-
-        return ret
-
-    @staticmethod
-    def table(col_names, rows):
-        """
-        Return a html table
-        """
-
-        pad = "  "
-
-        # targs is byte array, so we need to limits its width
-        targsi = col_names.index("targs") if "targs" in col_names else -1
-
-        def colstyle(i):
-            return " class=targs-col" if i == targsi else ""
-
-        ret = [
-            "<table>",
-            pad + "<tr>",
-            *[pad + pad + f"<th{colstyle(i)}> " + f"{col}" + " </th>" for i, col in enumerate(col_names)],
-            pad + "</tr>",
-        ]
-
-        for row in rows:
-            ret += [
-                pad + "<tr>",
-                *[pad + pad + f"<td{colstyle(i)}> " + f"{col}" + " </td>" for i, col in enumerate(row)],
-                pad + "</tr>",
-            ]
-
-        ret += ["</table>"]
-
-        table = "\n".join(ret)
-
-        return table
-
-    def html_table(self, query_type=EQueryType.TASKS_STATUS):
-        """
-        Return a html table of the status
-        """
-        rows, col_names = self.query(query_type)
-        table = self.table(col_names, rows)
-
-        return table
-
-    def html(self, query_type, file=None):
-        """
-        Return a html of the status and write to file if given.
-        """
-        with open(self._templates_dir / "base.html") as f:
-            html = f.read()
-
-        table = self.html_table(query_type)
-        html = html.replace("{{title}}", query_type.name.lower().replace("_", " "))
-        html = html.replace("{{table}}", table)
-
-        if file is not None:
-            if isinstance(file, (str, Path)):
-                with open(file, "w") as f:
-                    f.write(html)
-            elif isinstance(file, TextIOWrapper):
-                file.write(html)
-            else:
-                raise RuntimeError("file must by either path of file io")
-
-        return html
+    #     return rows, col_names
 
     @transaction_decorator()
-    def count_pending_tasks_below_level(self, c, level) -> int:
+    def count_pending_tasks_below_level(self, c, job_id, level) -> int:
         c.execute(
-            f"SELECT COUNT(*) FROM tasks WHERE job_id = {self.job_id} AND level < {level} AND status in ('{EStatus.PENDING}')"
+            f"SELECT COUNT(*) FROM tasks WHERE job_id = {job_id} AND level < {level} AND status in ('{EStatus.PENDING}')"
         )
 
         row = c.fetchone()
@@ -466,13 +378,13 @@ class DBHandler(Handler):
         )
 
     @transaction_decorator(exclusive=True)
-    def _take_next_task(self, c, level) -> Tuple[EAction, Task]:
+    def _take_next_task(self, c, job_id, level) -> Tuple[EAction, Task]:
         # todo: add FOR UPDATE in the queries postgresql
         level_query = f" AND level >= {level.start} AND level < {level.stop}" if level is not None else ""
         # get pending task with minimum level
         query = (
-            f"SELECT * FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.PENDING}'){level_query} AND level = "
-            f"(SELECT MIN(level) FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.PENDING}'){level_query})"
+            f"SELECT * FROM tasks WHERE job_id = {job_id} AND status IN ('{EStatus.PENDING}'){level_query} AND level = "
+            f"(SELECT MIN(level) FROM tasks WHERE job_id = {job_id} AND status IN ('{EStatus.PENDING}'){level_query})"
             f" {self.for_update}"
         )
         query = query.strip()
@@ -486,8 +398,8 @@ class DBHandler(Handler):
 
         # get running task with minimum level
         query = (
-            f"SELECT * FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.RUNNING}'){level_query} AND level = "
-            f"(SELECT MIN(level) FROM tasks WHERE job_id = {self.job_id} AND status IN ('{EStatus.RUNNING}'){level_query})"
+            f"SELECT * FROM tasks WHERE job_id = {job_id} AND status IN ('{EStatus.RUNNING}'){level_query} AND level = "
+            f"(SELECT MIN(level) FROM tasks WHERE job_id = {job_id} AND status IN ('{EStatus.RUNNING}'){level_query})"
             f" {self.for_update}"
         )
         query = query.strip()

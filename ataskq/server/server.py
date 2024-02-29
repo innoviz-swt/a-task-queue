@@ -13,7 +13,7 @@ from contextlib import asynccontextmanager
 from ataskq.handler import from_connection_str
 from ataskq.db_handler import DBHandler
 from ataskq.rest_handler import RESTHandler as rh
-from ataskq.models import Model, Task, StateKWArg, __MODELS__
+from ataskq.models import Model, __MODELS__
 from ataskq.env import (
     ATASKQ_SERVER_CONNECTION,
     ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL,
@@ -110,13 +110,13 @@ async def show_model(model: str):
     return FileResponse(Path(__file__).parent / "static" / "index.html")
 
 
-#######
-# API #
-#######
+#############
+# Model API #
+#############
 @app.get("/api/{model}")
-async def get_model_all(model: str, dbh: DBHandler = Depends(db_handler)):
+async def get_model_all(model: str, where: str, dbh: DBHandler = Depends(db_handler)):
     model_cls = __MODELS__[model]
-    iret = model_cls.get_all_dict(dbh)
+    iret = model_cls.get_all_dict(dbh, where=where)
 
     return iret
 
@@ -160,6 +160,9 @@ async def delete_model(model: str, model_id: int, dbh: DBHandler = Depends(db_ha
     return {model_cls.id_key(): model_id}
 
 
+####################
+# Custom Query API #
+####################
 @app.get("/api/jobs/{job_id}/next_task")
 async def next_job_task(
     job_id: int,

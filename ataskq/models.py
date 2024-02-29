@@ -295,6 +295,30 @@ class Model(IModel):
 
         return self
 
+    def update(self, _handler: IHandler = None, **mkwargs):
+        if not mkwargs:
+            assert (
+                getattr(self, self.id_key()) is not None
+            ), f"id '{self.id_key()}' must be assigned when updating '{self.__class__.__name__}({self.table_key()})'"
+            mkwargs = copy(self.__dict__)
+            mkwargs.pop(self.id_key())
+
+        assert (
+            self.id_key() not in mkwargs
+        ), f"id '{self.id_key()}' can't be passed to update '{self.__class__.__name__}({self.table_key()})'"
+
+        if _handler is None:
+            _handler = get_handler(assert_registered=True)
+
+        model_id = getattr(self, self.id_key())
+        ikwargs = self.m2i(mkwargs, _handler.to_interface_hanlders())
+        _handler._update(self.__class__, model_id, **ikwargs)
+
+        for k, v in mkwargs.items():
+            setattr(self, k, v)
+
+        return self
+
     def delete(self, _handler: IHandler = None):
         model_id = getattr(self, self.id_key())
         assert (

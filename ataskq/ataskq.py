@@ -7,13 +7,13 @@ from multiprocessing import Process
 from inspect import signature
 import time
 from typing import Dict, List
-from functools import cached_property
+from datetime import datetime
 
 from .env import ATASKQ_CONNECTION, ATASKQ_MONITOR_PULSE_INTERVAL, ATASKQ_TASK_PULSE_TIMEOUT, ATASKQ_TASK_PULL_INTERVAL
 from .logger import Logger
 from .models import EStatus, Job, StateKWArg, Task, EntryPointRuntimeError
 from .monitor import MonitorThread
-from .db_handler import EQueryType, EAction, DBHandler
+from .db_handler import EAction, DBHandler
 from .handler import Handler
 from .handler import from_connection_str
 
@@ -65,11 +65,11 @@ class TaskQ(Logger):
 
         # init db handler
         # todo: hanlder shouldn't get job_id
-        self._hanlder: Handler = from_connection_str(conn=conn, job_id=job_id, max_jobs=max_jobs, logger=self._logger)
+        self._handler: Handler = from_connection_str(conn=conn, logger=self._logger)
 
         # get job
         if job_id is not None:
-            job = Job.get(self._job_id, self._hanlder)
+            job = Job.get(self._job_id, self._handler)
         else:
             job = None
         self._job = job
@@ -90,8 +90,12 @@ class TaskQ(Logger):
         return self._job
 
     @property
+    def job_id(self):
+        return self._job.job_id
+
+    @property
     def handler(self):
-        return self._hanlder
+        return self._handler
 
     @property
     def task_wait_interval(self):
@@ -105,47 +109,59 @@ class TaskQ(Logger):
         self._job = None
 
     def set_job(self, job_id):
-        job = Job.get(job_id, self._hanlder)
-        self._hanlder.set_job_id(job.job_id)  # todo remove - handler should need job id ...
+        job = Job.get(job_id, self._handler)
+        self._handler.set_job_id(job.job_id)  # todo remove - handler should need job id ...
         self._job = job
 
     def create_job(self, name=None, description=None):
         assert self._job is None, "job already assigned to current taskq, run clear_job to create new job."
 
-        job = Job(name=name, description=description).create(_handler=self._hanlder)
+        job = Job(name=name, description=description).create(_handler=self._handler)
         self._job = job
-        self._hanlder.set_job_id(job.job_id)  # todo remove - handler should need job id ...
 
         if self._max_jobs is not None:
-            self._hanlder.keep_max_jobs()
+            self._handler.keep_max_jobs(self._max_jobs)
 
         return self
 
     def add_state_kwargs(self, state_kwargs):
-        self.job.add_state_kwargs(state_kwargs, _handler=self._hanlder)
+        self.job.add_state_kwargs(state_kwargs, _handler=self._handler)
 
         return self
 
     def add_tasks(self, tasks: Union[Task, List[Task]]):
-        self.job.add_tasks(tasks, _handler=self._hanlder)
+        self.job.add_tasks(tasks, _handler=self._handler)
 
         return self
 
     def count_pending_tasks_below_level(self, level):
-        return self._hanlder.count_pending_tasks_below_level(level)
+        return self._handler.count_pending_tasks_below_level(self.job_id, level)
 
     def get_tasks(self):
-        return self.job.get_tasks(self._hanlder)
+        return self.job.get_tasks(self._handler)
 
     def get_all_jobs(self):
-        ret = Job.get_all(self._hanlder)
+        ret = Job.get_all(self._handler)
         return ret
 
-    def update_task_start_time(self, task: Task):
-        self._hanlder.update_task_start_time(task)
+    def update_task_start_time(self, task: Task, start_time: datetime = None):
+        if start_time is None:
+            start_time = datetime.now()
 
-    def update_task_status(self, task: Task, status: EStatus):
-        self._hanlder.update_task_status(task, status)
+        task.update(start_time=start_time, _handler=self._handler)
+
+    def update_task_status(self, task: Task, status: EStatus, timestamp: datetime = None):
+        if timestamp is None:
+            timestamp = datetime.now()
+
+        if status == EStatus.RUNNING:
+            # for running task update pulse_time
+            task.update(_handler=self._handler, status=status, pulse_time=timestamp)
+        elif status == EStatus.SUCCESS or status == EStatus.FAILURE:
+            # for done task update pulse_time and done_time time as well
+            task.update(_handler=self._handler, status=status, pulse_time=timestamp, done_time=timestamp)
+        else:
+            raise RuntimeError(f"Unsupported status '{status}' for status update")
 
     def _run_task(self, task: Task):
         # get entry point func to execute
@@ -238,9 +254,12 @@ class TaskQ(Logger):
     def init_state_kwarg(self, state_kwarg: StateKWArg):
         return
 
+    def _take_next_task(self, job_id, level):
+        return self._handler._take_next_task(self.job_id, level)
+
     def _run(self, level):
         # make sure all state kwargs for job have key in self._state_kwargs, later to be used in _run_task
-        state_kwargs_db = self._hanlder.get_state_kwargs()
+        state_kwargs_db = self.job.get_state_kwargs(self._handler)
         for skw in state_kwargs_db:
             if skw.name not in self._state_kwargs:
                 self._state_kwargs[skw.name] = skw
@@ -248,10 +267,10 @@ class TaskQ(Logger):
         # check for error code
         while True:
             # if the taskq handler is db handler, the taskq performs background tasks before each run
-            if isinstance(self._hanlder, DBHandler):
-                self._hanlder.fail_pulse_timeout_tasks(self._task_pulse_timeout)
+            if isinstance(self._handler, DBHandler):
+                self._handler.fail_pulse_timeout_tasks(self._task_pulse_timeout)
             # grab tasks and set them in Q
-            action, task = self._hanlder._take_next_task(level)
+            action, task = self._take_next_task(self.job_id, level)
 
             # handle no task available
             if action == EAction.STOP:
