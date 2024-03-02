@@ -254,7 +254,7 @@ class TaskQ(Logger):
     def init_state_kwarg(self, state_kwarg: StateKWArg):
         return
 
-    def _take_next_task(self, job_id, level):
+    def _take_next_task(self, level):
         return self._handler._take_next_task(self.job_id, level)
 
     def _run(self, level):
