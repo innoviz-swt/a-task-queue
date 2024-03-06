@@ -11,13 +11,25 @@ from ..handler import Handler, EAction
 from .. import __schema_version__
 from ..env import ATASKQ_DB_INIT_ON_HANDLER_INIT
 
+CONNECTION_LOG = [None]
+
+
+def set_connection_log(log):
+    CONNECTION_LOG[0] = log
+
 
 def transaction_decorator(exclusive=False):
     def decorator(func):
         def wrapper(self, *args, **kwargs):
             with self.connect() as conn:
+                if CONNECTION_LOG[0] is not None:
+                    conn.set_trace_callback(CONNECTION_LOG[0])
+
                 c = conn.cursor()
                 try:
+                    if self.pragma_foreign_keys_on:
+                        c.execute(self.pragma_foreign_keys_on)
+
                     if exclusive:
                         c.execute(self.begin_exclusive)
                     else:
@@ -27,8 +39,6 @@ def transaction_decorator(exclusive=False):
                     # Foreign key constraints are disabled by default (for backwards
                     # compatibility), so must be enabled separately for each database
                     # connection
-                    if self.pragma_foreign_keys_on:
-                        c.execute(self.pragma_foreign_keys_on)
                     ret = func(self, c, *args, **kwargs)
                     conn.commit()
                 except Exception as e:

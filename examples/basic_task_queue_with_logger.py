@@ -1,6 +1,5 @@
 import context
 from ataskq import TaskQ, Task, targs
-import sys
 import os
 import logging
 

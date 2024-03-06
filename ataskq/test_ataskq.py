@@ -20,12 +20,12 @@ def test_create_job(conn):
     taskq = TaskQ(conn=conn).create_job()
     assert isinstance(taskq, TaskQ)
 
-    if 'sqlite' in conn:
+    if "sqlite" in conn:
         assert Path(taskq.handler.db_path).exists()
         assert Path(taskq.handler.db_path).is_file()
-    elif 'pg' in conn:
+    elif "pg" in conn:
         pass
-    elif 'http' in conn:
+    elif "http" in conn:
         pass
     else:
         raise Exception(f"unknown db type in connection string '{conn}'")
@@ -37,42 +37,45 @@ def test_job_default_name(conn):
 
 
 def test_job_custom_name(conn):
-    job = TaskQ(conn=conn).create_job(name='my_job').job
-    assert job.name == 'my_job'
-
+    job = TaskQ(conn=conn).create_job(name="my_job").job
+    assert job.name == "my_job"
 
 
 def test_task_job_delete_cascade(conn):
     # test that deleting a job deletes all its tasks
-    handler1: Handler = from_connection_str(conn=conn).create_job(name="job1")
-    handler1.add_tasks(
+    handler = from_connection_str(conn=conn)
+    taskq1: TaskQ = TaskQ(conn=handler).create_job(name="job1")
+    taskq2: TaskQ = TaskQ(conn=handler).create_job(name="job2")
+    assert len(Job.get_all(_handler=handler)) == 2
+
+    taskq1.add_tasks(
         [
-            Task(),
-            Task(),
-            Task(),
+            Task(entrypoint=""),
+            Task(entrypoint=""),
+            Task(entrypoint=""),
         ]
     )
-    tasks = handler1.get_tasks()
-    assert len(tasks) == 3
+    assert len(Task.get_all(_handler=handler)) == 3
+    assert len(taskq1.get_tasks()) == 3
 
-    handler2: Handler = from_connection_str(conn=conn).create_job(name="job2")
-    handler2.add_tasks(
+    taskq2.add_tasks(
         [
-            Task(),
-            Task(),
+            Task(entrypoint=""),
+            Task(entrypoint=""),
         ]
     )
-    tasks = handler2.get_tasks()
-    assert len(tasks) == 2
+    assert len(Task.get_all(_handler=handler)) == 5
+    assert len(taskq1.get_tasks()) == 3
+    assert len(taskq2.get_tasks()) == 2
 
-    handler1.delete_job()
+    taskq2.delete_job()
+    assert len(Job.get_all(_handler=handler)) == 1
 
-    # add get_tasks from global handler (not job handler)
-    # tasks = db_handler.get_tasks()
-    # assert len(tasks) == 2
+    assert len(Task.get_all(_handler=handler)) == 3
+    assert len(taskq1.get_tasks()) == 3
 
-    tasks = handler2.get_tasks()
-    assert len(tasks) == 2
+    taskq1.delete_job()
+    assert len(Task.get_all(_handler=handler)) == 0
 
 
 def test_state_kwargs_job_delete_cascade(conn):
@@ -81,7 +84,6 @@ def test_state_kwargs_job_delete_cascade(conn):
     taskq1: TaskQ = TaskQ(conn=handler).create_job(name="job1")
     taskq2: TaskQ = TaskQ(conn=handler).create_job(name="job2")
     assert len(Job.get_all(_handler=handler)) == 2
-
 
     taskq1.add_state_kwargs(
         [
@@ -105,12 +107,12 @@ def test_state_kwargs_job_delete_cascade(conn):
 
     taskq2.delete_job()
     assert len(Job.get_all(_handler=handler)) == 1
+
     assert len(StateKWArg.get_all(_handler=handler)) == 3
     assert len(taskq1.get_state_kwargs()) == 3
 
     taskq1.delete_job()
     assert len(StateKWArg.get_all(_handler=handler)) == 0
-
 
 
 def test_update_task_start_time(jtaskq):
@@ -179,7 +181,6 @@ def test_update_task_status(jtaskq):
     assert task.status == EStatus.SUCCESS
     assert task.pulse_time == now
     assert task.done_time == now
-
 
 
 def _compare_task_taken(task1: Task, task2: Task, job_id=None):
@@ -332,64 +333,70 @@ def test_get_tasks(jtaskq):
 
 
 def test_run_default(conn, tmp_path: Path):
-    filepath = tmp_path / 'file.txt'
+    filepath = tmp_path / "file.txt"
 
     taskq = TaskQ(conn=conn).create_job()
 
-    taskq.add_tasks([
-        Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file",
-             targs=targs(filepath, 'task 0\n')),
-        Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file",
-             targs=targs(filepath, 'task 1\n')),
-        Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file",
-             targs=targs(filepath, 'task 2\n')),
-    ])
+    taskq.add_tasks(
+        [
+            Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file", targs=targs(filepath, "task 0\n")),
+            Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file", targs=targs(filepath, "task 1\n")),
+            Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file", targs=targs(filepath, "task 2\n")),
+        ]
+    )
 
     taskq.run()
 
     assert filepath.exists()
-    assert filepath.read_text() == \
-        "task 0\n" \
-        "task 1\n" \
-        "task 2\n"
+    assert filepath.read_text() == "task 0\n" "task 1\n" "task 2\n"
 
 
 def test_run_task_raise_exception(conn):
     # no exception raised
     try:
         taskq: TaskQ = TaskQ(conn=conn, run_task_raise_exception=False).create_job()
-        taskq.add_tasks([
-            Task(entrypoint="ataskq.tasks_utils.exception_task",
-                 targs=targs(message="task failed")),
-        ])
+        taskq.add_tasks(
+            [
+                Task(entrypoint="ataskq.tasks_utils.exception_task", targs=targs(message="task failed")),
+            ]
+        )
         taskq.run()
     except Exception:
         assert False, f"exception_task raises exception with run_task_raise_exception=False"
 
     # exception raised
     taskq: TaskQ = TaskQ(conn=conn, run_task_raise_exception=True).create_job()
-    taskq.add_tasks([
-        Task(entrypoint="ataskq.tasks_utils.exception_task",
-             targs=targs(message="task failed")),
-    ])
+    taskq.add_tasks(
+        [
+            Task(entrypoint="ataskq.tasks_utils.exception_task", targs=targs(message="task failed")),
+        ]
+    )
     with pytest.raises(Exception) as excinfo:
         taskq.run()
     assert excinfo.value.args[0] == "task failed"
 
 
 def test_run_2_processes(conn, tmp_path: Path):
-    filepath = tmp_path / 'file.txt'
+    filepath = tmp_path / "file.txt"
 
     taskq = TaskQ(conn=conn).create_job()
 
-    taskq.add_tasks([
-        Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
-             targs=targs(filepath, 'task 0\n')),
-        Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
-             targs=targs(filepath, 'task 1\n')),
-        Task(entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
-             targs=targs(filepath, 'task 2\n')),
-    ])
+    taskq.add_tasks(
+        [
+            Task(
+                entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
+                targs=targs(filepath, "task 0\n"),
+            ),
+            Task(
+                entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
+                targs=targs(filepath, "task 1\n"),
+            ),
+            Task(
+                entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
+                targs=targs(filepath, "task 2\n"),
+            ),
+        ]
+    )
 
     taskq.run(num_processes=2)
 
@@ -402,20 +409,34 @@ def test_run_2_processes(conn, tmp_path: Path):
 
 @pytest.mark.parametrize("num_processes", [None, 2])
 def test_run_by_level(conn, tmp_path: Path, num_processes: int):
-    filepath = tmp_path / 'file.txt'
+    filepath = tmp_path / "file.txt"
 
     taskq = TaskQ(conn=conn).create_job()
 
-    taskq.add_tasks([
-        Task(level=0, entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
-             targs=targs(filepath, 'task 0\n')),
-        Task(level=1, entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
-             targs=targs(filepath, 'task 1\n')),
-        Task(level=1, entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
-             targs=targs(filepath, 'task 2\n')),
-        Task(level=2, entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
-             targs=targs(filepath, 'task 3\n')),
-    ])
+    taskq.add_tasks(
+        [
+            Task(
+                level=0,
+                entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
+                targs=targs(filepath, "task 0\n"),
+            ),
+            Task(
+                level=1,
+                entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
+                targs=targs(filepath, "task 1\n"),
+            ),
+            Task(
+                level=1,
+                entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
+                targs=targs(filepath, "task 2\n"),
+            ),
+            Task(
+                level=2,
+                entrypoint="ataskq.tasks_utils.write_to_file_tasks.write_to_file_mp_lock",
+                targs=targs(filepath, "task 3\n"),
+            ),
+        ]
+    )
 
     assert taskq.count_pending_tasks_below_level(3) == 4
 
@@ -446,13 +467,14 @@ def test_run_by_level(conn, tmp_path: Path, num_processes: int):
 
 def test_monitor_pulse_failure(conn):
     # set monitor pulse longer than timeout
-    taskq = TaskQ(conn=conn, monitor_pulse_interval=10,
-                  task_pulse_timeout=1.5).create_job()
-    taskq.add_tasks([
-        # reserved keyward for ignored task for testing
-        Task(entrypoint='ataskq.skip_run_task', targs=targs('task will fail')),
-        Task(entrypoint='ataskq.tasks_utils.dummy_args_task', targs=targs('task will success')),
-    ])
+    taskq = TaskQ(conn=conn, monitor_pulse_interval=10, task_pulse_timeout=1.5).create_job()
+    taskq.add_tasks(
+        [
+            # reserved keyward for ignored task for testing
+            Task(entrypoint="ataskq.skip_run_task", targs=targs("task will fail")),
+            Task(entrypoint="ataskq.tasks_utils.dummy_args_task", targs=targs("task will success")),
+        ]
+    )
     start = datetime.now()
     taskq.run()
     stop = datetime.now()
@@ -466,15 +488,20 @@ def test_monitor_pulse_failure(conn):
 
 def test_run_with_state_kwargs(conn):
     from ataskq.tasks_utils.counter_task import counter_kwarg, counter_task
+
     taskq = TaskQ(conn=conn, run_task_raise_exception=True).create_job()
 
-    taskq.add_state_kwargs([
-        StateKWArg(entrypoint=counter_kwarg, name='counter'),
-    ])
+    taskq.add_state_kwargs(
+        [
+            StateKWArg(entrypoint=counter_kwarg, name="counter"),
+        ]
+    )
 
-    taskq.add_tasks([
-        Task(entrypoint=counter_task,
-             targs=targs(print_counter=True)),])
+    taskq.add_tasks(
+        [
+            Task(entrypoint=counter_task, targs=targs(print_counter=True)),
+        ]
+    )
 
     taskq.run()
 
@@ -488,7 +515,7 @@ def test_max_jobs(conn):
     jobs_id = []
     for i in range(max_jobs * 2):
         taskq.clear_job()
-        taskq.create_job(name=f'job{i}')
+        taskq.create_job(name=f"job{i}")
         jobs_id.append(taskq.job.job_id)
     jobs = Job.get_all(taskq.handler)
     assert len(jobs) == 10

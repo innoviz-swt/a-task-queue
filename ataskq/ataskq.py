@@ -65,7 +65,9 @@ class TaskQ(Logger):
 
         # init db handler
         # todo: hanlder shouldn't get job_id
-        self._handler: Handler = conn if isinstance(conn, Handler) else from_connection_str(conn=conn, logger=self._logger)
+        self._handler: Handler = (
+            conn if isinstance(conn, Handler) else from_connection_str(conn=conn, logger=self._logger)
+        )
 
         # get job
         if job_id is not None:
@@ -263,6 +265,7 @@ class TaskQ(Logger):
         return
 
     def _take_next_task(self, level):
+        assert self._job is not None, "job must be assigned to taskq before taking next task."
         return self._handler._take_next_task(self.job_id, level)
 
     def _run(self, level):
@@ -278,7 +281,7 @@ class TaskQ(Logger):
             if isinstance(self._handler, DBHandler):
                 self._handler.fail_pulse_timeout_tasks(self._task_pulse_timeout)
             # grab tasks and set them in Q
-            action, task = self._take_next_task(self.job_id, level)
+            action, task = self._take_next_task(level)
 
             # handle no task available
             if action == EAction.STOP:
