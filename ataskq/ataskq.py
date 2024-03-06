@@ -65,7 +65,7 @@ class TaskQ(Logger):
 
         # init db handler
         # todo: hanlder shouldn't get job_id
-        self._handler: Handler = from_connection_str(conn=conn, logger=self._logger)
+        self._handler: Handler = conn if isinstance(conn, Handler) else from_connection_str(conn=conn, logger=self._logger)
 
         # get job
         if job_id is not None:
@@ -124,25 +124,22 @@ class TaskQ(Logger):
 
         return self
 
+    def delete_job(self):
+        self.job.delete(_handler=self.handler)
+        self._job = None
+
     def add_state_kwargs(self, state_kwargs):
         self.job.add_state_kwargs(state_kwargs, _handler=self._handler)
 
         return self
 
-    def add_tasks(self, tasks: Union[Task, List[Task]]):
+    def get_tasks(self) -> List[Task]:
+        return self.job.get_tasks(self._handler)
+
+    def add_tasks(self, tasks):
         self.job.add_tasks(tasks, _handler=self._handler)
 
         return self
-
-    def count_pending_tasks_below_level(self, level):
-        return self._handler.count_pending_tasks_below_level(self.job_id, level)
-
-    def get_tasks(self):
-        return self.job.get_tasks(self._handler)
-
-    def get_all_jobs(self):
-        ret = Job.get_all(self._handler)
-        return ret
 
     def update_task_start_time(self, task: Task, start_time: datetime = None):
         if start_time is None:
@@ -162,6 +159,17 @@ class TaskQ(Logger):
             task.update(_handler=self._handler, status=status, pulse_time=timestamp, done_time=timestamp)
         else:
             raise RuntimeError(f"Unsupported status '{status}' for status update")
+
+    def count_pending_tasks_below_level(self, level):
+        return self._handler.count_pending_tasks_below_level(self.job_id, level)
+
+    def get_state_kwargs(self) -> List[StateKWArg]:
+        return self.job.get_state_kwargs(self._handler)
+
+    def add_state_kwargs(self, state_kwargs):
+        self.job.add_state_kwargs(state_kwargs, _handler=self._handler)
+
+        return self
 
     def _run_task(self, task: Task):
         # get entry point func to execute

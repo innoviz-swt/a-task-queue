@@ -6,7 +6,7 @@ import pytest
 
 from ataskq import TaskQ, StateKWArg, Job, Task, targs, EStatus
 from ataskq.db_handler import DBHandler
-from ataskq.handler import EAction
+from ataskq.handler import EAction, from_connection_str
 
 from .tasks_utils import dummy_args_task
 
@@ -39,6 +39,78 @@ def test_job_default_name(conn):
 def test_job_custom_name(conn):
     job = TaskQ(conn=conn).create_job(name='my_job').job
     assert job.name == 'my_job'
+
+
+
+def test_task_job_delete_cascade(conn):
+    # test that deleting a job deletes all its tasks
+    handler1: Handler = from_connection_str(conn=conn).create_job(name="job1")
+    handler1.add_tasks(
+        [
+            Task(),
+            Task(),
+            Task(),
+        ]
+    )
+    tasks = handler1.get_tasks()
+    assert len(tasks) == 3
+
+    handler2: Handler = from_connection_str(conn=conn).create_job(name="job2")
+    handler2.add_tasks(
+        [
+            Task(),
+            Task(),
+        ]
+    )
+    tasks = handler2.get_tasks()
+    assert len(tasks) == 2
+
+    handler1.delete_job()
+
+    # add get_tasks from global handler (not job handler)
+    # tasks = db_handler.get_tasks()
+    # assert len(tasks) == 2
+
+    tasks = handler2.get_tasks()
+    assert len(tasks) == 2
+
+
+def test_state_kwargs_job_delete_cascade(conn):
+    # todo: test should ne under ataskq
+    handler = from_connection_str(conn=conn)
+    taskq1: TaskQ = TaskQ(conn=handler).create_job(name="job1")
+    taskq2: TaskQ = TaskQ(conn=handler).create_job(name="job2")
+    assert len(Job.get_all(_handler=handler)) == 2
+
+
+    taskq1.add_state_kwargs(
+        [
+            StateKWArg(entrypoint=""),
+            StateKWArg(entrypoint=""),
+            StateKWArg(entrypoint=""),
+        ]
+    )
+    assert len(StateKWArg.get_all(_handler=handler)) == 3
+    assert len(taskq1.get_state_kwargs()) == 3
+
+    taskq2.add_state_kwargs(
+        [
+            StateKWArg(entrypoint=""),
+            StateKWArg(entrypoint=""),
+        ]
+    )
+    assert len(StateKWArg.get_all(_handler=handler)) == 5
+    assert len(taskq1.get_state_kwargs()) == 3
+    assert len(taskq2.get_state_kwargs()) == 2
+
+    taskq2.delete_job()
+    assert len(Job.get_all(_handler=handler)) == 1
+    assert len(StateKWArg.get_all(_handler=handler)) == 3
+    assert len(taskq1.get_state_kwargs()) == 3
+
+    taskq1.delete_job()
+    assert len(StateKWArg.get_all(_handler=handler)) == 0
+
 
 
 def test_update_task_start_time(jtaskq):
@@ -109,6 +181,18 @@ def test_update_task_status(jtaskq):
     assert task.done_time == now
 
 
+
+def _compare_task_taken(task1: Task, task2: Task, job_id=None):
+    if job_id:
+        assert task1.job_id == job_id
+    assert task1.job_id == task2.job_id
+    assert task1.name == task2.name
+    assert task1.description == task2.description
+    assert task1.level == task2.level
+    assert task1.entrypoint == task2.entrypoint
+    assert task1.targs == task2.targs
+
+
 def test_take_next_task_sanity(jtaskq):
     in_task1 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="task1")
 
@@ -121,17 +205,6 @@ def test_take_next_task_sanity(jtaskq):
     action, task = jtaskq._take_next_task(level=None)
     assert action == EAction.RUN_TASK
     _compare_task_taken(in_task1, task)
-
-
-def _compare_task_taken(task1: Task, task2: Task, job_id=None):
-    if job_id:
-        assert task1.job_id == job_id
-    assert task1.job_id == task2.job_id
-    assert task1.name == task2.name
-    assert task1.description == task2.description
-    assert task1.level == task2.level
-    assert task1.entrypoint == task2.entrypoint
-    assert task1.targs == task2.targs
 
 
 def test_take_next_task(jtaskq):
@@ -168,8 +241,9 @@ def test_take_next_task(jtaskq):
 
 def test_take_next_task_2_jobs(conn):
     # todo: test should ne under ataskq
-    taskq1: TaskQ = TaskQ(conn=conn).create_job(name="job1")
-    taskq2: TaskQ = TaskQ(conn=conn).create_job(name="job2")
+    handler = from_connection_str(conn=conn)
+    taskq1: TaskQ = TaskQ(conn=handler).create_job(name="job1")
+    taskq2: TaskQ = TaskQ(conn=handler).create_job(name="job2")
 
     in_task1 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=2, name="taska")
     in_task2 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="taskb")
@@ -197,9 +271,9 @@ def test_take_next_task_2_jobs(conn):
     tids = []
 
     # sanity check
-    assert len(Job.get_all(_handler=taskq1.handler)) == 2
+    assert len(Job.get_all(_handler=handler)) == 2
     assert len(taskq1.get_tasks()) == 3
-    assert len(Job.get_all(_handler=taskq1.handler)) == 2
+    assert len(Job.get_all(_handler=handler)) == 2
     assert len(taskq2.get_tasks()) == 2
 
     # db handler 1
@@ -416,7 +490,7 @@ def test_max_jobs(conn):
         taskq.clear_job()
         taskq.create_job(name=f'job{i}')
         jobs_id.append(taskq.job.job_id)
-    jobs = taskq.get_all_jobs()
+    jobs = Job.get_all(taskq.handler)
     assert len(jobs) == 10
 
     remaining_jobs = [j.job_id for j in jobs]

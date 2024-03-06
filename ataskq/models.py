@@ -1,10 +1,8 @@
-from cgitb import handler
 from typing import Union, List, Dict
 from enum import Enum
 import pickle
 from importlib import import_module
 from datetime import datetime
-from abc import abstractmethod
 from copy import copy
 
 from .imodel import IModel
@@ -323,7 +321,7 @@ class Model(IModel):
         model_id = getattr(self, self.id_key())
         assert (
             model_id is not None
-        ), f"id '{self.__class__.__name__}({self.table_key()} -> {self.id_key()}' required for delete"
+        ), f"id '{self.__class__.__name__}({self.table_key()} -> {self.id_key()})' required for delete"
 
         if _handler is None:
             _handler = get_handler(assert_registered=True)
@@ -333,9 +331,14 @@ class Model(IModel):
 
         return self
 
-    def add_children(self, child_cls: IModel, children: List[Union[IModel, dict]], _handler: IHandler = None):
+    def add_children(self, child_cls: IModel, 
+        children: Union[Union[IModel, dict], List[Union[IModel, dict]]], 
+        _handler: IHandler = None):
         if not children:
             return
+
+        if not isinstance(children, list):
+            children = [children]
 
         assert child_cls in self.children(), f"no children association defined for '{child_cls}'"
         parent_key = self.children()[child_cls]
@@ -466,16 +469,16 @@ class Job(Model):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def get_tasks(self, _handler=None):
+    def get_tasks(self, _handler=None) -> List[Task]:
         return self.get_children(Task, _handler=_handler)
 
     def add_tasks(self, tasks: List[Task], _handler=None):
         return self.add_children(Task, tasks, _handler=_handler)
 
-    def get_state_kwargs(self, _handler=None):
+    def get_state_kwargs(self, _handler=None) -> List[StateKWArg]:
         return self.get_children(StateKWArg, _handler=_handler)
 
-    def add_state_kwargs(self, state_kwarg: List[Task], _handler=None):
+    def add_state_kwargs(self, state_kwarg: List[StateKWArg], _handler=None):
         return self.add_children(StateKWArg, state_kwarg, _handler=_handler)
 
 
