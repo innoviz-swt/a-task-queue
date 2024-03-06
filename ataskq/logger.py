@@ -3,7 +3,7 @@ import logging
 
 class Logger:
     def __init__(self, logger: logging.Logger or None):
-        self._logger = logger or logging.getLogger('ataskq')
+        self._logger = logger or logging.getLogger("ataskq")
 
     def exception(self, *args, **kwargs):
         self._logger.exception(*args, **kwargs)

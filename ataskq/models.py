@@ -331,9 +331,12 @@ class Model(IModel):
 
         return self
 
-    def add_children(self, child_cls: IModel, 
-        children: Union[Union[IModel, dict], List[Union[IModel, dict]]], 
-        _handler: IHandler = None):
+    def add_children(
+        self,
+        child_cls: IModel,
+        children: Union[Union[IModel, dict], List[Union[IModel, dict]]],
+        _handler: IHandler = None,
+    ):
         if not children:
             return
 
