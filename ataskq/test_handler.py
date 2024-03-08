@@ -22,7 +22,6 @@ def handler(conn) -> Handler:
 
 
 class ForTestDBHandler:
-
     def __init__(self, handler):
         self._handler = handler
         self.error_msg = []
@@ -44,12 +43,12 @@ def test_conn_type_check(conn_type, conn):
         pytest.skip()
 
 
-def test_invalid_transaction(jhandler):
-    if not isinstance(jhandler, DBHandler):
+def test_invalid_transaction(handler):
+    if not isinstance(handler, DBHandler):
         pytest.skip()
         return
 
-    handler = ForTestDBHandler(jhandler)
+    handler = ForTestDBHandler(handler)
     with pytest.raises(Exception) as excinfo:
         handler.invalid()
     assert "syntax error" in str(excinfo.value)

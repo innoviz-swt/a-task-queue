@@ -24,7 +24,8 @@ def init(model_cls, **kwargs):
     if "entrypoint" in annotations and "entrypoint" not in kwargs:
         kwargs["entrypoint"] = "dummy entry point"
     if "job_id" in annotations and "job_id" not in kwargs and not issubclass(model_cls, Job):
-        kwargs["job_id"] = 0
+        job = create(Job)
+        kwargs["job_id"] = job.job_id
 
     ret = model_cls(**kwargs)
 

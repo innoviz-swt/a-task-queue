@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import context
-from ataskq.test_ataskq import *
+from ataskq.test_ataskq import test_state_kwargs_job_delete_cascade as t
 from ataskq.db_handler.db_handler import set_connection_log
 
 if __name__ == "__main__":
@@ -13,4 +13,4 @@ if __name__ == "__main__":
 
     # set_connection_log(myprint)
 
-    test_state_kwargs_job_delete_cascade(f"sqlite://{db_path}")
+    t(f"sqlite://{db_path}")
