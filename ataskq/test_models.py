@@ -58,14 +58,15 @@ def test_get_all(handler, model_cls):
     m_all = model_cls.get_all()
     assert len(m_all) == 3
 
+    first_id = getattr(m1, m1.id_key())
     for i in range(len(data)):
         m = data[i]
         m_rec = m_all[i]
         assert isinstance(m_rec, model_cls), f"index: '{i}'"
         assert m.name == m_rec.name == f"test {i+1}", f"index: '{i}'"
         assert m.__dict__ == m_rec.__dict__, f"index: '{i}'"
-        assert getattr(m, m.id_key()) == i + 1, f"index: '{i}'"
-        assert getattr(m_rec, m_rec.id_key()) == i + 1, f"index: '{i}'"
+        assert getattr(m, m.id_key()) == i + first_id, f"index: '{i}'"
+        assert getattr(m_rec, m_rec.id_key()) == i + first_id, f"index: '{i}'"
 
 
 @pytest.mark.parametrize("model_cls", __MODELS__.values(), ids=__MODELS__.keys())
@@ -74,16 +75,17 @@ def test_get(handler, model_cls):
     m2 = create(model_cls, name="test 2")
     m3 = create(model_cls, name="test 3")
     data = [m1, m2, m3]
-    m_all = [model_cls.get(i + 1) for i in range(len(data))]
 
+    first_id = getattr(m1, m1.id_key())
+    m_all = [model_cls.get(i + first_id) for i in range(len(data))]
     for i in range(len(data)):
         m = data[i]
         m_rec = m_all[i]
         assert isinstance(m_rec, model_cls), f"index: '{i}'"
         assert m.name == m_rec.name == f"test {i+1}", f"index: '{i}'"
         assert m.__dict__ == m_rec.__dict__, f"index: '{i}'"
-        assert getattr(m, m.id_key()) == i + 1, f"index: '{i}'"
-        assert getattr(m_rec, m_rec.id_key()) == i + 1, f"index: '{i}'"
+        assert getattr(m, m.id_key()) == i + first_id, f"index: '{i}'"
+        assert getattr(m_rec, m_rec.id_key()) == i + first_id, f"index: '{i}'"
 
 
 @pytest.mark.parametrize("model_cls", __MODELS__.values(), ids=__MODELS__.keys())

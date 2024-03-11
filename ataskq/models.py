@@ -385,7 +385,7 @@ class Model(IModel):
         if _handler is None:
             _handler = get_handler(assert_registered=True)
 
-        ikwargs = _handler.get_all(child_cls, where=f"{parent_key} == {primary_key_val}")
+        ikwargs = _handler.get_all(child_cls, where=f"{parent_key} = {primary_key_val}")
         mkwargs = child_cls.i2m(ikwargs, _handler.from_interface_hanlders())
 
         return mkwargs

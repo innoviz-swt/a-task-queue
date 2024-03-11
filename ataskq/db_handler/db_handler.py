@@ -94,7 +94,7 @@ class DBHandler(Handler):
         return ret
 
     def get(self, model_cls: IModel, model_id) -> dict:
-        rows, col_names, query_str = self.select_query(model_cls, where=f"{model_cls.id_key()} == {model_id}")
+        rows, col_names, query_str = self.select_query(model_cls, where=f"{model_cls.id_key()} = {model_id}")
         assert len(rows) != 0, f"no match found for '{model_cls.__name__}', query: '{query_str}'."
         assert len(rows) == 1, f"more than 1 row found for '{model_cls.__name__}', query: '{query_str}'."
         ret = [dict(zip(col_names, row)) for row in rows][0]

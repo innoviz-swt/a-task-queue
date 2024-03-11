@@ -46,7 +46,6 @@ def test_conn_type_check(conn_type, conn):
 def test_invalid_transaction(handler):
     if not isinstance(handler, DBHandler):
         pytest.skip()
-        return
 
     handler = ForTestDBHandler(handler)
     with pytest.raises(Exception) as excinfo:
