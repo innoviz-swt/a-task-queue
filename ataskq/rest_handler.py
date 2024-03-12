@@ -30,11 +30,9 @@ def from_connection_str(conn):
 
 class RESTHandler(Handler):
     # todo: remove max jobs
-    def __init__(self, conn=None, max_jobs=None, job_id=None, logger=None) -> None:
+    def __init__(self, conn=None, logger=None) -> None:
         assert max_jobs is None, "RESTHandler doesn't support max jobs handling."
-        self._max_jobs = max_jobs
         self._connection = from_connection_str(conn)
-        self._job_id = job_id
         super().__init__(job_id, logger)
 
     @staticmethod
@@ -78,7 +76,7 @@ class RESTHandler(Handler):
 
         return res.json()
 
-    def rdelete(self, url, *args, **kwargs):
+    def rest_delete(self, url, *args, **kwargs):
         url = f"{self.api_url}/{url}"
         res = requests.delete(url, *args, **kwargs)
         assert res.ok, f"delete url '{url}' failed. message: {res.text}"
@@ -90,46 +88,10 @@ class RESTHandler(Handler):
         return res[model_cls.id_key()]
 
     def delete(self, model_cls: Model, model_id: int):
-        self.rdelete(f"{model_cls.table_key()}/{model_id}")
+        self.rest_delete(f"{model_cls.table_key()}/{model_id}")
 
     def _update(self, model_cls: Model, model_id, **ikwargs):
         self.put(f"{model_cls.table_key()}/{model_id}", json=ikwargs)
-
-    def keep_max_jobs(self, max_jobs: int):
-        raise NotImplementedError(f"{self.__class__.__name__} doesn't implement keep_max_jobs")
-
-    # # form based implementation
-    # def _add_tasks(self, tasks: List[Task]):
-    #     files = []
-    #     data = []
-    #     for i, t in enumerate(tasks):
-    #         for k, v in t.items():
-    #             if k == Task.id_key():
-    #                 continue
-    #             if isinstance(v, bytes):
-    #                 files.append((f'{i}.{k}', BytesIO(v)))
-    #             else:
-    #                 data.append((f'{i}.{k}', v))
-
-    #     self.post(f'jobs/{self._job_id}/tasks', files=files, data=data)
-
-    def _add_tasks(self, itasks: List[Task]):
-        self.post(f"jobs/{self._job_id}/tasks", json=itasks)
-
-    def _add_state_kwargs(self, i_state_kwargs: List[dict]):
-        self.post(f"jobs/{self._job_id}/state_kwargs", json=i_state_kwargs)
-
-    def get_state_kwargs(self):
-        res = self.get(f"jobs/{self._job_id}/state_kwargs")
-        ret = [self.from_interface(StateKWArg, skw) for skw in res]
-
-        return ret
-
-    def get_tasks(self, order_by=None):
-        res = self.get(f"jobs/{self._job_id}/tasks")
-        ret = [self.from_interface(Task, t) for t in res]
-
-        return ret
 
     def _take_next_task(self, job_id, level) -> Tuple[EAction, Task]:
         level_start = level.start if level is not None else None
@@ -140,7 +102,3 @@ class RESTHandler(Handler):
         task = self.from_interface(Task, res["task"]) if res["task"] is not None else None
 
         return (action, task)
-
-    def count_pending_tasks_below_level(self, job_id, level: int):
-        res = self.get(f"jobs/{job_id}/count_pending_tasks_below_level", params=dict(level=level))
-        return res["count"]

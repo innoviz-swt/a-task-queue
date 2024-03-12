@@ -122,7 +122,11 @@ class TaskQ(Logger):
         self._job = job
 
         if self._max_jobs is not None:
-            self._handler.keep_max_jobs(self._max_jobs)
+            # keep max jbos
+            Job.delete_all(
+                where=f"job_id NOT IN (SELECT job_id FROM jobs ORDER BY job_id DESC limit {self._max_jobs})",
+                _handler=self.handler,
+            )
 
         return self
 
@@ -163,7 +167,11 @@ class TaskQ(Logger):
             raise RuntimeError(f"Unsupported status '{status}' for status update")
 
     def count_pending_tasks_below_level(self, level):
-        return self._handler.count_pending_tasks_below_level(self.job_id, level)
+        ret = Task.count_all(
+            where=f"job_id = {self.job_id} AND level < {level} AND status in ('{EStatus.PENDING}')",
+            _handler=self._handler,
+        )
+        return ret
 
     def get_state_kwargs(self) -> List[StateKWArg]:
         return self.job.get_state_kwargs(self._handler)

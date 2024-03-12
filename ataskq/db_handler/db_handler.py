@@ -87,6 +87,11 @@ class DBHandler(Handler):
     def db_path(self):
         raise Exception(f"'{self.__class__.__name__}' db doesn't support db path property'")
 
+    def count_all(self, model_cls: IModel, where=None):
+        count = self.count_query(model_cls, where=where)
+
+        return count
+
     def get_all(self, model_cls: IModel, where=None) -> List[dict]:
         rows, col_names, _ = self.select_query(model_cls, where=where)
         ret = [dict(zip(col_names, row)) for row in rows]
@@ -188,6 +193,19 @@ class DBHandler(Handler):
         values = list(ikwargs.values())
         c.execute(f"UPDATE {model_cls.table_key()} SET {insert} WHERE {model_cls.id_key()} = {model_id};", values)
 
+    @abstractmethod
+    def delete(self, model_cls: IModel, model_id: int):
+        pass
+
+    @transaction_decorator()
+    def delete_all(self, c, model_cls: Model, where: str):
+        query_str = f"DELETE FROM {model_cls.table_key()}"
+
+        if where:
+            query_str += f" WHERE {where}"
+
+        c.execute(query_str)
+
     @transaction_decorator()
     def delete(self, c, model_cls: Model, model_id: int):
         c.execute(f"DELETE FROM {model_cls.table_key()} WHERE {model_cls.id_key()} = {model_id}")
@@ -253,35 +271,16 @@ class DBHandler(Handler):
         )
 
     @transaction_decorator()
-    def keep_max_jobs(self, c, max_jobs: int):
-        c.execute(
-            f"DELETE FROM jobs WHERE job_id NOT IN (SELECT job_id FROM jobs ORDER BY job_id DESC limit {max_jobs})"
-        )
+    def count_query(self, c, model_cls: IModel, where: str = None):
+        query_str = f"SELECT COUNT(*) FROM {model_cls.table_key()}"
 
-    @transaction_decorator()
-    def _add_tasks(self, c, tasks: List[dict]):
-        for t in tasks:
-            d = {k: v for k, v in t.items() if Task.id_key() not in k}
-            keys = list(d.keys())
-            values = list(d.values())
-            c.execute(
-                f'INSERT INTO tasks ({", ".join(keys)}) VALUES ({", ".join([self.format_symbol] * len(keys))})', values
-            )
+        if where:
+            query_str += f" WHERE {where}"
 
-        return self
+        c.execute(query_str)
 
-    @transaction_decorator()
-    def _add_state_kwargs(self, c, i_state_kwargs: List[dict]):
-        for t in i_state_kwargs:
-            d = {k: v for k, v in t.items() if StateKWArg.id_key() not in k}
-            keys = list(d.keys())
-            values = list(d.values())
-            c.execute(
-                f'INSERT INTO state_kwargs ({", ".join(keys)}) VALUES ({", ".join([self.format_symbol] * len(keys))})',
-                values,
-            )
-
-        return self
+        row = c.fetchone()
+        return row[0]
 
     @transaction_decorator()
     def select_query(self, c, model_cls: Model, where: str = None, order_by=None):
@@ -369,15 +368,6 @@ class DBHandler(Handler):
     #     # col_types = [description[1] for description in c.description]
 
     #     return rows, col_names
-
-    @transaction_decorator()
-    def count_pending_tasks_below_level(self, c, job_id, level) -> int:
-        c.execute(
-            f"SELECT COUNT(*) FROM tasks WHERE job_id = {job_id} AND level < {level} AND status in ('{EStatus.PENDING}')"
-        )
-
-        row = c.fetchone()
-        return row[0]
 
     @transaction_decorator()
     def fail_pulse_timeout_tasks(self, c, timeout_sec):

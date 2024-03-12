@@ -38,14 +38,6 @@ class Handler(IHandler, Logger):
     def _take_next_task(self, job_id, level: Union[int, None]) -> Tuple[EAction, Task]:
         pass
 
-    @abstractmethod
-    def count_pending_tasks_below_level(self, job_id: int, level: int) -> int:
-        pass
-
-    @abstractmethod
-    def keep_max_jobs(max_jobs: int):
-        pass
-
 
 def from_connection_str(conn=None, **kwargs) -> Handler:
     if conn is None:

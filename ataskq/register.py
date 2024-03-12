@@ -4,6 +4,10 @@ from .imodel import IModel
 
 
 class IHandler(ABC):
+    ######################
+    # interface handlers #
+    ######################
+
     @staticmethod
     @abstractmethod
     def from_interface_hanlders() -> Dict[type, Callable]:
@@ -32,6 +36,10 @@ class IHandler(ABC):
     def to_interface(cls, model: IModel) -> IModel:
         return model.to_interface(cls.to_interface_hanlders())
 
+    ########
+    # CRUD #
+    ########
+
     @abstractmethod
     def _create(self, model_cls: IModel, **ikwargs: dict):
         pass
@@ -41,15 +49,23 @@ class IHandler(ABC):
         pass
 
     @abstractmethod
+    def delete_all(self, model_cls: IModel, where: str):
+        pass
+
+    @abstractmethod
     def delete(self, model_cls: IModel, model_id: int):
         pass
 
     @abstractmethod
-    def get(self, model_cls: IModel, model_id: int) -> IModel:
+    def count_all(self, model_cls: IModel, where=None) -> List[IModel]:
         pass
 
     @abstractmethod
-    def get_all(self, model_cls: IModel, model_id: int, where=None) -> List[IModel]:
+    def get_all(self, model_cls: IModel, where=None) -> List[IModel]:
+        pass
+
+    @abstractmethod
+    def get(self, model_cls: IModel, model_id: int) -> IModel:
         pass
 
     def create(self, model_cls: IModel, **mkwargs) -> int:

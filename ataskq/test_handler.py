@@ -37,12 +37,6 @@ class ForTestDBHandler:
         c.execute("SOME INVALID TRANSACTION")
 
 
-@pytest.mark.parametrize("conn_type", ["sqlite", "pg", "http"])
-def test_conn_type_check(conn_type, conn):
-    if f"{conn_type}://" not in conn:
-        pytest.skip()
-
-
 def test_invalid_transaction(handler):
     if not isinstance(handler, DBHandler):
         pytest.skip()

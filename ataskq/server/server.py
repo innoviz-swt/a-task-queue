@@ -121,6 +121,14 @@ async def get_model_all(model: str, where: str, dbh: DBHandler = Depends(db_hand
     return iret
 
 
+@app.get("/api/{model}/count")
+async def count_model_all(model: str, where: str, dbh: DBHandler = Depends(db_handler)):
+    model_cls = __MODELS__[model]
+    count = model_cls.count_all(dbh, where=where)
+
+    return count
+
+
 @app.get("/api/{model}/{model_id}")
 async def get_model(model: str, model_id: int, dbh: DBHandler = Depends(db_handler)):
     model_cls = __MODELS__[model]
@@ -185,14 +193,3 @@ async def next_job_task(
     task = rh.to_interface(task) if task is not None else None
 
     return dict(action=action, task=task)
-
-
-@app.get("/api/jobs/{job_id}/count_pending_tasks_below_level")
-async def get_count_pending_tasks_below_level(job_id: int, level: int, dbh: DBHandler = Depends(db_handler)):
-    dbh.set_job_id(job_id)
-
-    count = dbh.count_pending_tasks_below_level(level)
-
-    return {
-        "count": count,
-    }

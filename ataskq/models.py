@@ -238,6 +238,14 @@ class Model(IModel):
         return ret
 
     @classmethod
+    def count_all(cls, where: str = None, _handler: IHandler = None):
+        if _handler is None:
+            _handler = get_handler(assert_registered=True)
+
+        ret = _handler.count_all(cls, where=where)
+        return ret
+
+    @classmethod
     def get_all_dict(cls, _handler: IHandler = None):
         if _handler is None:
             _handler = get_handler(assert_registered=True)
@@ -316,6 +324,14 @@ class Model(IModel):
             setattr(self, k, v)
 
         return self
+
+    @classmethod
+    def delete_all(cls, where: str = None, _handler: IHandler = None):
+        if _handler is None:
+            _handler = get_handler(assert_registered=True)
+
+        ret = _handler.delete_all(cls, where=where)
+        return ret
 
     def delete(self, _handler: IHandler = None):
         model_id = getattr(self, self.id_key())
