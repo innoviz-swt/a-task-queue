@@ -2,7 +2,7 @@ import pytest
 
 from .models import Model, __MODELS__, Job
 from .handler import Handler, from_connection_str
-from .register import register_handler, unregister_handler
+from .ihandler import register_handler, unregister_handler
 
 
 @pytest.fixture(scope="function")

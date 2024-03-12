@@ -5,7 +5,7 @@ from datetime import datetime
 
 from .logger import Logger
 from .models import Task
-from .register import IHandler
+from .ihandler import IHandler
 
 
 __STRTIME_FORMAT__ = "%Y-%m-%d %H:%M:%S.%f"

@@ -11,7 +11,7 @@ from .handler import Handler
 from .db_handler import DBHandler
 from .db_handler.db_handler import transaction_decorator
 from .models import Task, StateKWArg, Job, EStatus
-from .register import register_handler
+from .ihandler import register_handler
 
 
 @pytest.fixture
