@@ -13,9 +13,7 @@ from .env import ATASKQ_CONNECTION, ATASKQ_MONITOR_PULSE_INTERVAL, ATASKQ_TASK_P
 from .logger import Logger
 from .models import EStatus, Job, StateKWArg, Task, EntryPointRuntimeError
 from .monitor import MonitorThread
-from .db_handler import EAction, DBHandler
-from .handler import Handler
-from .handler import from_connection_str
+from .ihandler import Handler, DBHandler, from_connection_str, EAction
 
 
 def targs(*args, **kwargs):

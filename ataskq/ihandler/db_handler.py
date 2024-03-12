@@ -5,11 +5,10 @@ from io import TextIOWrapper
 from abc import abstractmethod
 from datetime import datetime
 
+from .handler import Handler
 from ..imodel import IModel
-from ..models import Model, StateKWArg, Task, EStatus
-from ..handler import Handler, EAction
-from .. import __schema_version__
 from ..env import ATASKQ_DB_INIT_ON_HANDLER_INIT
+from .. import __schema_version__
 
 CONNECTION_LOG = [None]
 
@@ -154,7 +153,7 @@ class DBHandler(Handler):
         pass
 
     @transaction_decorator()
-    def _create(self, c, model_cls: Model, **ikwargs) -> Handler:
+    def _create(self, c, model_cls: IModel, **ikwargs) -> int:
         d = {k: v for k, v in ikwargs.items() if model_cls.id_key() not in k}
         keys = list(d.keys())
         values = list(d.values())
@@ -168,7 +167,7 @@ class DBHandler(Handler):
         return model_id
 
     @transaction_decorator()
-    def _create_bulk(self, c, model_cls: Model, ikwargs: List[dict]) -> Handler:
+    def _create_bulk(self, c, model_cls: IModel, ikwargs: List[dict]) -> List[int]:
         # todo: consolidate all ikwargs with same keys to single insert command
         model_ids = []
         for v in ikwargs:
@@ -185,7 +184,7 @@ class DBHandler(Handler):
         return model_ids
 
     @transaction_decorator()
-    def _update(self, c, model_cls: Model, model_id, **ikwargs):
+    def _update(self, c, model_cls: IModel, model_id, **ikwargs):
         if len(ikwargs) == 0:
             return
 
@@ -198,7 +197,7 @@ class DBHandler(Handler):
         pass
 
     @transaction_decorator()
-    def delete_all(self, c, model_cls: Model, where: str):
+    def delete_all(self, c, model_cls: IModel, where: str):
         query_str = f"DELETE FROM {model_cls.table_key()}"
 
         if where:
@@ -207,11 +206,13 @@ class DBHandler(Handler):
         c.execute(query_str)
 
     @transaction_decorator()
-    def delete(self, c, model_cls: Model, model_id: int):
+    def delete(self, c, model_cls: IModel, model_id: int):
         c.execute(f"DELETE FROM {model_cls.table_key()} WHERE {model_cls.id_key()} = {model_id}")
 
     @transaction_decorator(exclusive=True)
     def init_db(self, c):
+        from ..models import EStatus
+
         # Create schema version table if not exists
         c.execute("CREATE TABLE IF NOT EXISTS schema_version (" "version INTEGER PRIMARY KEY" ")")
         c.execute("SELECT * FROM schema_version")
@@ -283,7 +284,7 @@ class DBHandler(Handler):
         return row[0]
 
     @transaction_decorator()
-    def select_query(self, c, model_cls: Model, where: str = None, order_by=None):
+    def select_query(self, c, model_cls: IModel, where: str = None, order_by=None):
         if where is None:
             where = ""
 
@@ -371,6 +372,8 @@ class DBHandler(Handler):
 
     @transaction_decorator()
     def fail_pulse_timeout_tasks(self, c, timeout_sec):
+        from ..models import EStatus
+
         # set timeout tasks
         last_valid_pulse = datetime.now() - timedelta(seconds=timeout_sec)
         c.execute(
@@ -378,7 +381,11 @@ class DBHandler(Handler):
         )
 
     @transaction_decorator(exclusive=True)
-    def _take_next_task(self, c, job_id, level) -> Tuple[EAction, Task]:
+    def _take_next_task(self, c, job_id, level):
+        # imported here to avoid circular dependency
+        from ..models import Task, EStatus
+        from .handler import Handler, EAction
+
         # todo: add FOR UPDATE in the queries postgresql
         level_query = f" AND level >= {level.start} AND level < {level.stop}" if level is not None else ""
         # get pending task with minimum level

@@ -26,7 +26,7 @@ END $$;
 def drop_pg_tables(conn):
     assert "pg" in conn
     import psycopg2
-    from ataskq.db_handler.postgresql import from_connection_str
+    from ataskq.ihandler.postgresql import from_connection_str
 
     handler = from_connection_str(conn)
     db_conn = psycopg2.connect(

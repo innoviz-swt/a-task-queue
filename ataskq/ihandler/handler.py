@@ -1,9 +1,37 @@
 from abc import ABC, abstractmethod
 from typing import Union, Callable, List, Dict
-from .imodel import IModel
+from datetime import datetime
+from enum import Enum
+
+from ..logger import Logger
+from ..imodel import IModel
+
+__STRTIME_FORMAT__ = "%Y-%m-%d %H:%M:%S.%f"
 
 
-class IHandler(ABC):
+def to_datetime(string: Union[str, datetime, None]):
+    if string is None:
+        return None
+    elif isinstance(string, datetime):
+        return string
+
+    return datetime.strptime(string, __STRTIME_FORMAT__)
+
+
+def from_datetime(time: datetime):
+    return time.strftime(__STRTIME_FORMAT__)
+
+
+class EAction(str, Enum):
+    RUN_TASK = "run_task"
+    WAIT = "wait"
+    STOP = "stop"
+
+
+class Handler(ABC, Logger):
+    def __init__(self, logger: Logger = None):
+        Logger.__init__(self, logger)
+
     ######################
     # interface handlers #
     ######################
@@ -96,11 +124,18 @@ class IHandler(ABC):
         ikwargs = self.m2i(model_cls, mkwargs)
         self._update(model_cls, model_id, **ikwargs)
 
+    ##########
+    # Custom #
+    ##########
+    @abstractmethod
+    def _take_next_task(self, job_id, level: Union[int, None]) -> tuple:
+        pass
+
 
 __HANDLERS__: Dict[str, object] = dict()
 
 
-def register_handler(name, handler: IHandler):
+def register_handler(name, handler: Handler):
     """register interface handlers"""
     __HANDLERS__[name] = handler
 
@@ -127,3 +162,40 @@ def get_handler(name=None, assert_registered=False):
             name in __HANDLERS__
         ), f"no handler named '{name}' is registered. registered handlers: {list(__HANDLERS__.keys())}"
         return __HANDLERS__[name]
+
+
+def from_connection_str(conn=None, **kwargs) -> Handler:
+    if conn is None:
+        conn = ""
+
+    sep = "://"
+    sep_index = conn.find(sep)
+    if sep_index == -1:
+        raise RuntimeError("connection must be of format <type>://<connection string>")
+    handler_type = conn[:sep_index]
+
+    # validate connectino
+    if not handler_type:
+        raise RuntimeError("missing handler type, connection must be of format <type>://<connection string>")
+
+    connection_str = conn[sep_index + len(sep) :]
+    if not connection_str:
+        raise RuntimeError("missing connection string, connection must be of format <type>://<connection string>")
+
+    # get db type handler
+    if handler_type == "sqlite":
+        from .sqlite3 import SQLite3DBHandler
+
+        handler = SQLite3DBHandler(conn, **kwargs)
+    elif handler_type == "pg":
+        from .postgresql import PostgresqlDBHandler
+
+        handler = PostgresqlDBHandler(conn, **kwargs)
+    elif handler_type == "http" or handler_type == "https":
+        from .rest_handler import RESTHandler
+
+        handler = RESTHandler(conn, **kwargs)
+    else:
+        raise Exception(f"unsupported handler type '{handler_type}', type must be one of ['sqlite', 'pg', 'http']")
+
+    return handler

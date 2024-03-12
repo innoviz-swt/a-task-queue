@@ -6,7 +6,7 @@ from datetime import datetime
 from copy import copy
 
 from .imodel import IModel
-from .ihandler import get_handler, IHandler
+from .ihandler import get_handler, Handler
 
 
 class EntryPointRuntimeError(RuntimeError):
@@ -238,7 +238,7 @@ class Model(IModel):
         return ret
 
     @classmethod
-    def count_all(cls, where: str = None, _handler: IHandler = None):
+    def count_all(cls, where: str = None, _handler: Handler = None):
         if _handler is None:
             _handler = get_handler(assert_registered=True)
 
@@ -246,7 +246,7 @@ class Model(IModel):
         return ret
 
     @classmethod
-    def get_all_dict(cls, _handler: IHandler = None):
+    def get_all_dict(cls, _handler: Handler = None):
         if _handler is None:
             _handler = get_handler(assert_registered=True)
 
@@ -256,14 +256,14 @@ class Model(IModel):
         return ret
 
     @classmethod
-    def get_all(cls, _handler: IHandler = None):
+    def get_all(cls, _handler: Handler = None):
         ret = cls.get_all_dict(_handler)
         ret = [cls(**r, _serialize=False) for r in ret]
 
         return ret
 
     @classmethod
-    def get_dict(cls, model_id: int, _handler: IHandler = None):
+    def get_dict(cls, model_id: int, _handler: Handler = None):
         if _handler is None:
             _handler = get_handler(assert_registered=True)
 
@@ -273,13 +273,13 @@ class Model(IModel):
         return mkwargs
 
     @classmethod
-    def get(cls, model_id: int, _handler: IHandler = None):
+    def get(cls, model_id: int, _handler: Handler = None):
         mkwargs = cls.get_dict(model_id, _handler)
         ret = cls(**mkwargs, _serialize=False)
 
         return ret
 
-    def create(self, _handler: IHandler = None, **mkwargs):
+    def create(self, _handler: Handler = None, **mkwargs):
         if not mkwargs:
             assert (
                 getattr(self, self.id_key()) is None
@@ -301,7 +301,7 @@ class Model(IModel):
 
         return self
 
-    def update(self, _handler: IHandler = None, **mkwargs):
+    def update(self, _handler: Handler = None, **mkwargs):
         if not mkwargs:
             assert (
                 getattr(self, self.id_key()) is not None
@@ -326,14 +326,14 @@ class Model(IModel):
         return self
 
     @classmethod
-    def delete_all(cls, where: str = None, _handler: IHandler = None):
+    def delete_all(cls, where: str = None, _handler: Handler = None):
         if _handler is None:
             _handler = get_handler(assert_registered=True)
 
         ret = _handler.delete_all(cls, where=where)
         return ret
 
-    def delete(self, _handler: IHandler = None):
+    def delete(self, _handler: Handler = None):
         model_id = getattr(self, self.id_key())
         assert (
             model_id is not None
@@ -351,7 +351,7 @@ class Model(IModel):
         self,
         child_cls: IModel,
         children: Union[Union[IModel, dict], List[Union[IModel, dict]]],
-        _handler: IHandler = None,
+        _handler: Handler = None,
     ):
         if not children:
             return
@@ -393,7 +393,7 @@ class Model(IModel):
 
         return children
 
-    def get_children_dict(self, child_cls: IModel, _handler: IHandler = None):
+    def get_children_dict(self, child_cls: IModel, _handler: Handler = None):
         assert child_cls in self.children(), f"no children association defined for '{child_cls}'"
         parent_key = self.children()[child_cls]
         primary_key_val = getattr(self, self.id_key())
@@ -406,7 +406,7 @@ class Model(IModel):
 
         return mkwargs
 
-    def get_children(self, child_cls: IModel, _handler: IHandler = None):
+    def get_children(self, child_cls: IModel, _handler: Handler = None):
         mkwargs = self.get_children_dict(child_cls, _handler)
         ret = [child_cls(**kw, _serialize=False) for kw in mkwargs]
 

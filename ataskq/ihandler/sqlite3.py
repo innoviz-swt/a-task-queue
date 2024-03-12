@@ -4,7 +4,7 @@ import sqlite3
 from datetime import datetime
 
 from ..models import Model
-from ..handler import to_datetime, from_datetime
+from .handler import to_datetime, from_datetime
 from .db_handler import DBHandler
 
 

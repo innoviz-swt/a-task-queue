@@ -5,8 +5,8 @@ from copy import copy
 import pytest
 
 from ataskq import TaskQ, StateKWArg, Job, Task, targs, EStatus
-from ataskq.db_handler import DBHandler
-from ataskq.handler import EAction, from_connection_str
+from ataskq.ihandler import DBHandler
+from ataskq.ihandler import EAction, from_connection_str
 
 from .tasks_utils import dummy_args_task
 
