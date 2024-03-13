@@ -8,7 +8,7 @@ except ModuleNotFoundError:
     raise Exception("'psycopg2' is reuiqred for using atasgq postgresql adapter.")
 
 from .db_handler import DBHandler
-from ..handler import to_datetime, from_datetime
+from .handler import to_datetime, from_datetime
 
 
 class PostgresConnection(NamedTuple):

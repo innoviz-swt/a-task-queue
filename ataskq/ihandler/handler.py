@@ -73,11 +73,11 @@ class Handler(ABC, Logger):
         pass
 
     @abstractmethod
-    def _create_bulk(self, model_cls: IModel, **ikwargs: dict):
+    def _create_bulk(self, model_cls: IModel, ikwargs: List[dict]):
         pass
 
     @abstractmethod
-    def delete_all(self, model_cls: IModel, where: str):
+    def delete_all(self, model_cls: IModel, where: str = None):
         pass
 
     @abstractmethod
@@ -85,15 +85,15 @@ class Handler(ABC, Logger):
         pass
 
     @abstractmethod
-    def count_all(self, model_cls: IModel, where=None) -> List[IModel]:
+    def count_all(self, model_cls: IModel, where=None) -> int:
         pass
 
     @abstractmethod
-    def get_all(self, model_cls: IModel, where=None) -> List[IModel]:
+    def get_all(self, model_cls: IModel, where=None) -> List[dict]:
         pass
 
     @abstractmethod
-    def get(self, model_cls: IModel, model_id: int) -> IModel:
+    def get(self, model_cls: IModel, model_id: int) -> dict:
         pass
 
     def create(self, model_cls: IModel, **mkwargs) -> int:
@@ -117,6 +117,10 @@ class Handler(ABC, Logger):
 
     @abstractmethod
     def _update(self, model_cls: IModel, model_id: int, **ikwargs):
+        pass
+
+    @abstractmethod
+    def update_all(self, model_cls: IModel, where: str = None, **ikwargs):
         pass
 
     def update(self, model_cls: IModel, model_id: int, **mkwargs):

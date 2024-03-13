@@ -425,7 +425,8 @@ class DBHandler(Handler):
         rows = c.fetchall()
         col_names = [description[0] for description in c.description]
 
-        return rows, col_names, query_str
+        ret = [dict(zip(col_names, row)) for row in rows]
+        return ret
 
     @transaction_decorator()
     def jobs_status(self, c):
@@ -441,7 +442,8 @@ class DBHandler(Handler):
         rows = c.fetchall()
         col_names = [description[0] for description in c.description]
 
-        return rows, col_names, query_str
+        ret = [dict(zip(col_names, row)) for row in rows]
+        return ret
 
     @transaction_decorator()
     def fail_pulse_timeout_tasks(self, c, timeout_sec=None):

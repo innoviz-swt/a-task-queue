@@ -3,16 +3,15 @@ from enum import Enum
 from datetime import datetime
 import base64
 
-from ataskq.models import Job, Model
+from ataskq.imodel import IModel
 
 try:
     import requests
 except ImportError:
     raise Exception("'requests' is required to use ataskq REST handler.")
 
-from .models import StateKWArg, Task
 from .handler import Handler, EAction, from_datetime, to_datetime
-from . import __schema_version__
+from ..models import StateKWArg, Task
 
 
 class RESTConnection(NamedTuple):
@@ -31,9 +30,8 @@ def from_connection_str(conn):
 class RESTHandler(Handler):
     # todo: remove max jobs
     def __init__(self, conn=None, logger=None) -> None:
-        assert max_jobs is None, "RESTHandler doesn't support max jobs handling."
         self._connection = from_connection_str(conn)
-        super().__init__(job_id, logger)
+        super().__init__(logger)
 
     @staticmethod
     def to_interface_hanlders():
@@ -55,21 +53,21 @@ class RESTHandler(Handler):
     def api_url(self):
         return f"{self._connection.url}/api"
 
-    def get(self, url, *args, **kwargs):
+    def rest_get(self, url, *args, **kwargs):
         url = f"{self.api_url}/{url}"
         res = requests.get(url, *args, **kwargs)
         assert res.ok, f"get url '{url}' failed. message: {res.text}"
 
         return res.json()
 
-    def post(self, url, *args, **kwargs):
+    def rest_post(self, url, *args, **kwargs):
         url = f"{self.api_url}/{url}"
         res = requests.post(url, *args, **kwargs)
         assert res.ok, f"post url '{url}' failed. message: {res.text}"
 
         return res.json()
 
-    def put(self, url, *args, **kwargs):
+    def rest_put(self, url, *args, **kwargs):
         url = f"{self.api_url}/{url}"
         res = requests.put(url, *args, **kwargs)
         assert res.ok, f"put url '{url}' failed. message: {res.text}"
@@ -83,23 +81,50 @@ class RESTHandler(Handler):
 
         return res.json()
 
-    def _create(self, model_cls: Model, **ikwargs: dict):
-        res = self.post(model_cls.table_key(), json=ikwargs)
-        return res[model_cls.id_key()]
+    #########
+    # Model #
+    #########
+    def get_all(self, model_cls: IModel, where: str = None) -> List[dict]:
+        res = self.rest_get(model_cls.table_key(), params=dict(where=where))
+        return res
 
-    def delete(self, model_cls: Model, model_id: int):
+    def get(self, model_cls: IModel, model_id: int) -> dict:
+        res = self.rest_get(f"{model_cls.table_key()}/{model_id}")
+        return res
+
+    def count_all(self, model_cls: IModel, where=None) -> List[dict]:
+        res = self.rest_get(f"{model_cls.table_key()}/count")
+        return res
+
+    def _create(self, model_cls: IModel, **ikwargs: dict) -> int:
+        res = self.rest_post(model_cls.table_key(), json=ikwargs)
+
+        return res
+
+    def _create_bulk(self, model_cls: IModel, ikwargs: List[dict]) -> List[int]:
+        res = self.rest_post(f"{model_cls.table_key()}/bulk", json=ikwargs)
+
+        return res
+
+    def delete_all(self, model_cls: IModel, where: str = None):
+        self.rest_delete(f"{model_cls.table_key()}", json=dict(where=where))
+
+    def delete(self, model_cls: IModel, model_id: int):
         self.rest_delete(f"{model_cls.table_key()}/{model_id}")
 
-    def _update(self, model_cls: Model, model_id, **ikwargs):
-        self.put(f"{model_cls.table_key()}/{model_id}", json=ikwargs)
+    def _update(self, model_cls: IModel, model_id, **ikwargs):
+        self.rest_put(f"{model_cls.table_key()}/{model_id}", json=ikwargs)
+
+    def update_all(self, model_cls: IModel, **ikwargs):
+        self.rest_put(f"{model_cls.table_key()}", json=ikwargs)
 
     ##################
     # Custom Queries #
     ##################
 
     def take_next_task(self, job_id, level_start, level_stop) -> Tuple[EAction, Task]:
-        res = self.get(
-            f"custom_query/take_next_task", params=dict(job_id=job_id, level_start=level_start, level_stop=level_stop)
+        res = self.rest_get(
+            "custom_query/take_next_task", params=dict(job_id=job_id, level_start=level_start, level_stop=level_stop)
         )
 
         action = EAction(res["action"])
@@ -108,11 +133,11 @@ class RESTHandler(Handler):
         return (action, task)
 
     def tasks_status(self, job_id):
-        res = self.get(f"custom_query/tasks_status", params=dict(job_id=job_id))
+        res = self.rest_get(f"custom_query/tasks_status", params=dict(job_id=job_id))
 
         return res
 
     def jobs_status(self, c):
-        res = self.get(f"custom_query/jobs_status", params=dict(job_id=job_id))
+        res = self.rest_get(f"custom_query/jobs_status", params=dict(job_id=job_id))
 
         return res

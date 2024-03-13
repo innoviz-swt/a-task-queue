@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 
 from ataskq.ihandler import from_connection_str
 from ataskq.ihandler import DBHandler
-from ataskq.rest_handler import RESTHandler as rh
+from ataskq.ihandler.rest_handler import RESTHandler as rh
 from ataskq.models import Model, __MODELS__
 from ataskq.env import (
     ATASKQ_SERVER_CONNECTION,
@@ -31,8 +31,8 @@ logger.info(f"ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL: {ATASKQ_SERVER_
 # DB Handler
 
 
-def db_handler(job_id: int = None) -> DBHandler:
-    return from_connection_str(ATASKQ_SERVER_CONNECTION, job_id=job_id)
+def db_handler() -> DBHandler:
+    return from_connection_str(ATASKQ_SERVER_CONNECTION)
 
 
 async def set_timout_tasks_task():
@@ -110,21 +110,53 @@ async def show_model(model: str):
     return FileResponse(Path(__file__).parent / "static" / "index.html")
 
 
+####################
+# Custom Query API #
+####################
+@app.get("/api/custom_query/take_next_task")
+async def take_next_task(
+    job_id: int,
+    level_start: int = None,
+    level_stop: int = None,
+    dbh: DBHandler = Depends(db_handler),
+):
+    # take next task
+    action, task = dbh.take_next_task(job_id, level_start, level_stop)
+    task = rh.to_interface(task) if task is not None else None
+
+    return dict(action=action, task=task)
+
+
+@app.get("/api/custom_query/jobs_status")
+async def jobs_status(job_id: int, dbh: DBHandler = Depends(db_handler)):
+    ret = dbh.jobs_status(job_id)
+
+    return ret
+
+
+@app.get("/api/custom_query/tasks_status")
+async def tasks_status(job_id: int, dbh: DBHandler = Depends(db_handler)):
+    ret = dbh.tasks_status(job_id)
+
+    return ret
+
+
 #############
 # Model API #
 #############
 @app.get("/api/{model}")
-async def get_model_all(model: str, where: str, dbh: DBHandler = Depends(db_handler)):
+async def get_model_all(model: str, where: str = None, dbh: DBHandler = Depends(db_handler)):
     model_cls = __MODELS__[model]
-    iret = model_cls.get_all_dict(dbh, where=where)
+    mkwargs = model_cls.get_all_dict(where=where, _handler=dbh)
+    ikwargs = rh.m2i(model_cls, mkwargs)
 
-    return iret
+    return ikwargs
 
 
 @app.get("/api/{model}/count")
-async def count_model_all(model: str, where: str, dbh: DBHandler = Depends(db_handler)):
+async def count_model_all(model: str, where: str = None, dbh: DBHandler = Depends(db_handler)):
     model_cls = __MODELS__[model]
-    count = model_cls.count_all(dbh, where=where)
+    count = model_cls.count_all(where=where, _handler=dbh)
 
     return count
 
@@ -132,9 +164,10 @@ async def count_model_all(model: str, where: str, dbh: DBHandler = Depends(db_ha
 @app.get("/api/{model}/{model_id}")
 async def get_model(model: str, model_id: int, dbh: DBHandler = Depends(db_handler)):
     model_cls = __MODELS__[model]
-    iret = model_cls.get_dict(model_id, dbh)
+    mkwargs = model_cls.get_dict(model_id, _handler=dbh)
+    ikwargs = rh.m2i(model_cls, mkwargs)
 
-    return iret
+    return ikwargs
 
 
 @app.post("/api/{model}")
@@ -142,10 +175,27 @@ async def create_model(model: str, request: Request, dbh: DBHandler = Depends(db
     model_cls: Model = __MODELS__[model]
     ikwargs = await request.json()
     mkwargs = rh.i2m(model_cls, ikwargs)
-    if isinstance(mkwargs, list):
-        model_id = dbh.create_bulk(model_cls, mkwargs)
-    else:
-        model_id = dbh.create(model_cls, **mkwargs)
+    model_id = dbh.create(model_cls, **mkwargs)
+
+    return model_id
+
+
+@app.post("/api/{model}/bulk")
+async def create_model(model: str, request: Request, dbh: DBHandler = Depends(db_handler)):
+    model_cls: Model = __MODELS__[model]
+    ikwargs = await request.json()
+    mkwargs = rh.i2m(model_cls, ikwargs)
+    model_ids = dbh.create_bulk(model_cls, mkwargs)
+
+    return model_ids
+
+
+@app.put("/api/{model}")
+async def update_model(model: str, where: Union[str, None] = None, dbh: DBHandler = Depends(db_handler)):
+    model_cls: Model = __MODELS__[model]
+    ikwargs = await request.json()
+    mkwargs = rh.i2m(model_cls, ikwargs)
+    dbh.update(model_cls, model_id, **mkwargs)
 
     return {model_cls.id_key(): model_id}
 
@@ -166,30 +216,3 @@ async def delete_model(model: str, model_id: int, dbh: DBHandler = Depends(db_ha
     dbh.delete(model_cls, model_id)
 
     return {model_cls.id_key(): model_id}
-
-
-####################
-# Custom Query API #
-####################
-@app.get("/api/jobs/{job_id}/next_task")
-async def next_job_task(
-    job_id: int,
-    level_start: Union[int, None] = None,
-    level_stop: Union[int, None] = None,
-    dbh: DBHandler = Depends(db_handler),
-):
-    dbh.set_job_id(job_id)
-
-    # get level range
-    if level_start is not None and level_stop is not None:
-        level = range(level_start, level_stop)
-    elif level_start is not None:
-        level = range(level_start, level_start + 1)
-    else:
-        level = None
-
-    # take next task
-    action, task = dbh.take_next_task(level)
-    task = rh.to_interface(task) if task is not None else None
-
-    return dict(action=action, task=task)

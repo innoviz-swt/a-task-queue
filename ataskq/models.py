@@ -246,11 +246,11 @@ class Model(IModel):
         return ret
 
     @classmethod
-    def get_all_dict(cls, _handler: Handler = None):
+    def get_all_dict(cls, where: str = None, _handler: Handler = None):
         if _handler is None:
             _handler = get_handler(assert_registered=True)
 
-        ret = _handler.get_all(cls)
+        ret = _handler.get_all(cls, where=where)
         ret = cls.i2m(ret, _handler.from_interface_hanlders())
 
         return ret
