@@ -93,12 +93,26 @@ class RESTHandler(Handler):
     def _update(self, model_cls: Model, model_id, **ikwargs):
         self.put(f"{model_cls.table_key()}/{model_id}", json=ikwargs)
 
-    def _take_next_task(self, job_id, level) -> Tuple[EAction, Task]:
-        level_start = level.start if level is not None else None
-        level_stop = level.stop if level is not None else None
-        res = self.get(f"jobs/{self._job_id}/next_task", params=dict(level_start=level_start, level_stop=level_stop))
+    ##################
+    # Custom Queries #
+    ##################
+
+    def take_next_task(self, job_id, level_start, level_stop) -> Tuple[EAction, Task]:
+        res = self.get(
+            f"custom_query/take_next_task", params=dict(job_id=job_id, level_start=level_start, level_stop=level_stop)
+        )
 
         action = EAction(res["action"])
         task = self.from_interface(Task, res["task"]) if res["task"] is not None else None
 
         return (action, task)
+
+    def tasks_status(self, job_id):
+        res = self.get(f"custom_query/tasks_status", params=dict(job_id=job_id))
+
+        return res
+
+    def jobs_status(self, c):
+        res = self.get(f"custom_query/jobs_status", params=dict(job_id=job_id))
+
+        return res

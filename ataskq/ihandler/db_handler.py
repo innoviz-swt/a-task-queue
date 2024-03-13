@@ -192,6 +192,21 @@ class DBHandler(Handler):
         values = list(ikwargs.values())
         c.execute(f"UPDATE {model_cls.table_key()} SET {insert} WHERE {model_cls.id_key()} = {model_id};", values)
 
+    @transaction_decorator()
+    def update_all(self, c, model_cls: IModel, where: str = None, **ikwargs):
+        if len(ikwargs) == 0:
+            return
+
+        insert = ", ".join([f"{k} = {self.format_symbol}" for k in ikwargs.keys()])
+        values = list(ikwargs.values())
+
+        query_str = f"UPDATE {model_cls.table_key()} SET {insert}"
+
+        if where:
+            query_str += f" WHERE {where}"
+
+        c.execute(query_str, values)
+
     @abstractmethod
     def delete(self, model_cls: IModel, model_id: int):
         pass
@@ -306,88 +321,23 @@ class DBHandler(Handler):
 
         return rows, col_names, query_str
 
-    def tasks_status_query(self):
-        query = (
-            "SELECT level, name,"
-            "COUNT(*) as total, "
-            + ",".join([f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status} " for status in EStatus])
-            + f"FROM tasks WHERE job_id = {self._job_id} "
-            "GROUP BY level, name"
-        )
-
-        return query
-
-    def task_query(self):
-        query = f"SELECT * FROM tasks WHERE job_id = {self._job_id}"
-        return query
-
-    def state_kwargs_query(self):
-        query = f"SELECT * FROM state_kwargs WHERE job_id = {self._job_id}"
-        return query
-
-    def jobs_query(self):
-        query = f"SELECT * FROM jobs"
-        return query
-
-    def jobs_status_query(self):
-        query = (
-            "SELECT jobs.job_id, jobs.name, jobs.description, jobs.priority, "
-            "COUNT(*) as tasks, "
-            + ", ".join([f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status}" for status in EStatus])
-            + f" FROM jobs "
-            "LEFT JOIN tasks ON jobs.job_id = tasks.job_id GROUP BY jobs.job_id"
-        )
-
-        return query
-
-    # @transaction_decorator()
-    # def query(self, c, query_type=EQueryType.JOBS_STATUS, order_by=None):
-    #     queries = {
-    #         # query func, default sort by ASC
-    #         EQueryType.TASKS: (self.task_query, "task_id ASC"),
-    #         EQueryType.TASKS_STATUS: (self.tasks_status_query, "name ASC"),
-    #         EQueryType.STATE_KWARGS: (self.state_kwargs_query, "state_kwargs_id ASC"),
-    #         EQueryType.JOBS: (self.jobs_query, "job_id ASC"),
-    #         EQueryType.JOBS_STATUS: (self.jobs_status_query, "jobs.job_id ASC"),
-    #     }
-    #     query, default_order_by = queries.get(query_type)
-
-    #     if query is None:
-    #         # should never get here
-    #         raise RuntimeError(f"Unknown status type: {query_type}")
-
-    #     query_str = query()
-    #     if order_by:
-    #         order_str = order_query(order_by)
-    #         query_str += f" ORDER BY {order_str}"
-    #     else:
-    #         order_str = order_query(default_order_by)
-    #         query_str += f" ORDER BY {order_str}"
-    #     c.execute(query_str)
-    #     rows = c.fetchall()
-    #     col_names = [description[0] for description in c.description]
-    #     # col_types = [description[1] for description in c.description]
-
-    #     return rows, col_names
-
-    @transaction_decorator()
-    def fail_pulse_timeout_tasks(self, c, timeout_sec):
-        from ..models import EStatus
-
-        # set timeout tasks
-        last_valid_pulse = datetime.now() - timedelta(seconds=timeout_sec)
-        c.execute(
-            f"UPDATE tasks SET status = '{EStatus.FAILURE}' WHERE pulse_time < {self.timestamp(last_valid_pulse)} AND status NOT IN ('{EStatus.SUCCESS}', '{EStatus.FAILURE}');"
-        )
+    ##################
+    # Custom Queries #
+    ##################
 
     @transaction_decorator(exclusive=True)
-    def _take_next_task(self, c, job_id, level):
+    def take_next_task(self, c, job_id, level_start, level_stop):
         # imported here to avoid circular dependency
         from ..models import Task, EStatus
         from .handler import Handler, EAction
 
         # todo: add FOR UPDATE in the queries postgresql
-        level_query = f" AND level >= {level.start} AND level < {level.stop}" if level is not None else ""
+        level_query = ""
+        if level_start:
+            level_query += f" AND level >= {level_start}"
+        if level_stop:
+            level_query += f" AND level < {level_stop}"
+
         # get pending task with minimum level
         query = (
             f"SELECT * FROM tasks WHERE job_id = {job_id} AND status IN ('{EStatus.PENDING}'){level_query} AND level = "
@@ -395,6 +345,7 @@ class DBHandler(Handler):
             f" {self.for_update}"
         )
         query = query.strip()
+
         c.execute(query)
         row = c.fetchone()
         if row is None:
@@ -459,3 +410,48 @@ class DBHandler(Handler):
             raise RuntimeError(f"Unsupported action '{EAction}'")
 
         return action, task
+
+    @transaction_decorator()
+    def tasks_status(self, c, job_id):
+        query = (
+            "SELECT level, name,"
+            "COUNT(*) as total, "
+            + ",".join([f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status} " for status in EStatus])
+            + f"FROM tasks WHERE job_id = {job_id} "
+            "GROUP BY level, name ORDER BY name ASC"
+        )
+
+        c.execute(query)
+        rows = c.fetchall()
+        col_names = [description[0] for description in c.description]
+
+        return rows, col_names, query_str
+
+    @transaction_decorator()
+    def jobs_status(self, c):
+        query = (
+            "SELECT jobs.job_id, jobs.name, jobs.description, jobs.priority, "
+            "COUNT(*) as tasks, "
+            + ", ".join([f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status}" for status in EStatus])
+            + f" FROM jobs "
+            "LEFT JOIN tasks ON jobs.job_id = tasks.job_id GROUP BY jobs.job_id OREDER_BY jobs.job_id ASC"
+        )
+
+        c.execute(query)
+        rows = c.fetchall()
+        col_names = [description[0] for description in c.description]
+
+        return rows, col_names, query_str
+
+    @transaction_decorator()
+    def fail_pulse_timeout_tasks(self, c, timeout_sec=None):
+        if timeout_sec is None:
+            return
+
+        from ..models import EStatus
+
+        # set timeout tasks
+        last_valid_pulse = datetime.now() - timedelta(seconds=timeout_sec)
+        c.execute(
+            f"UPDATE tasks SET status = '{EStatus.FAILURE}' WHERE pulse_time < {self.timestamp(last_valid_pulse)} AND status NOT IN ('{EStatus.SUCCESS}', '{EStatus.FAILURE}');"
+        )

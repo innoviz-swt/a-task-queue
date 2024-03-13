@@ -272,7 +272,10 @@ class TaskQ(Logger):
 
     def _take_next_task(self, level):
         assert self._job is not None, "job must be assigned to taskq before taking next task."
-        return self._handler._take_next_task(self.job_id, level)
+        level_start = level.start if level is not None else None
+        level_stop = level.stop if level is not None else None
+
+        return self._handler.take_next_task(self.job_id, level_start, level_stop)
 
     def _run(self, level):
         # make sure all state kwargs for job have key in self._state_kwargs, later to be used in _run_task

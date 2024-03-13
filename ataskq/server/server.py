@@ -189,7 +189,7 @@ async def next_job_task(
         level = None
 
     # take next task
-    action, task = dbh._take_next_task(level)
+    action, task = dbh.take_next_task(level)
     task = rh.to_interface(task) if task is not None else None
 
     return dict(action=action, task=task)

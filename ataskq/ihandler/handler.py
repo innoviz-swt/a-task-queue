@@ -128,7 +128,7 @@ class Handler(ABC, Logger):
     # Custom #
     ##########
     @abstractmethod
-    def _take_next_task(self, job_id, level: Union[int, None]) -> tuple:
+    def take_next_task(self, job_id, level: Union[int, None]) -> tuple:
         pass
 
 
