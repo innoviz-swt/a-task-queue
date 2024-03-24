@@ -413,6 +413,8 @@ class DBHandler(Handler):
 
     @transaction_decorator()
     def tasks_status(self, c, job_id):
+        from ..models import EStatus
+
         query = (
             "SELECT level, name,"
             "COUNT(*) as total, "
@@ -430,12 +432,15 @@ class DBHandler(Handler):
 
     @transaction_decorator()
     def jobs_status(self, c):
+        from ..models import EStatus
+
         query = (
             "SELECT jobs.job_id, jobs.name, jobs.description, jobs.priority, "
             "COUNT(*) as tasks, "
             + ", ".join([f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status}" for status in EStatus])
             + f" FROM jobs "
-            "LEFT JOIN tasks ON jobs.job_id = tasks.job_id GROUP BY jobs.job_id OREDER_BY jobs.job_id ASC"
+            "LEFT JOIN tasks ON jobs.job_id = tasks.job_id "
+            "GROUP BY jobs.job_id ORDER BY jobs.job_id ASC"
         )
 
         c.execute(query)
@@ -447,10 +452,10 @@ class DBHandler(Handler):
 
     @transaction_decorator()
     def fail_pulse_timeout_tasks(self, c, timeout_sec=None):
+        from ..models import EStatus
+
         if timeout_sec is None:
             return
-
-        from ..models import EStatus
 
         # set timeout tasks
         last_valid_pulse = datetime.now() - timedelta(seconds=timeout_sec)

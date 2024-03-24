@@ -1,4 +1,4 @@
-from typing import List, NamedTuple, Tuple
+from typing import List, NamedTuple, Tuple, Union
 from enum import Enum
 from datetime import datetime
 import base64
@@ -15,7 +15,7 @@ from ..models import StateKWArg, Task
 
 
 class RESTConnection(NamedTuple):
-    url: None or str
+    url: Union[None, str]
 
     def __str__(self):
         return {self.url}
@@ -137,7 +137,7 @@ class RESTHandler(Handler):
 
         return res
 
-    def jobs_status(self, c):
-        res = self.rest_get(f"custom_query/jobs_status", params=dict(job_id=job_id))
+    def jobs_status(self):
+        res = self.rest_get(f"custom_query/jobs_status")
 
         return res

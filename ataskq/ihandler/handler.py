@@ -135,6 +135,14 @@ class Handler(ABC, Logger):
     def take_next_task(self, job_id, level: Union[int, None]) -> tuple:
         pass
 
+    @abstractmethod
+    def tasks_status(self, job_id) -> List[dict]:
+        pass
+
+    @abstractmethod
+    def jobs_status(self) -> List[dict]:
+        pass
+
 
 __HANDLERS__: Dict[str, object] = dict()
 

@@ -128,8 +128,8 @@ async def take_next_task(
 
 
 @app.get("/api/custom_query/jobs_status")
-async def jobs_status(job_id: int, dbh: DBHandler = Depends(db_handler)):
-    ret = dbh.jobs_status(job_id)
+async def jobs_status(dbh: DBHandler = Depends(db_handler)):
+    ret = dbh.jobs_status()
 
     return ret
 
@@ -188,16 +188,6 @@ async def create_model(model: str, request: Request, dbh: DBHandler = Depends(db
     model_ids = dbh.create_bulk(model_cls, mkwargs)
 
     return model_ids
-
-
-@app.put("/api/{model}")
-async def update_model(model: str, where: Union[str, None] = None, dbh: DBHandler = Depends(db_handler)):
-    model_cls: Model = __MODELS__[model]
-    ikwargs = await request.json()
-    mkwargs = rh.i2m(model_cls, ikwargs)
-    dbh.update(model_cls, model_id, **mkwargs)
-
-    return {model_cls.id_key(): model_id}
 
 
 @app.put("/api/{model}/{model_id}")

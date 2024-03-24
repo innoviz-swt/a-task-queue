@@ -6,9 +6,8 @@ from datetime import datetime
 
 import pytest
 
-from .ihandler import Handler, from_connection_str, EAction
+from .ihandler import Handler, from_connection_str
 from .ihandler.db_handler import DBHandler, transaction_decorator
-from .models import Task, StateKWArg, Job, EStatus
 from .ihandler import register_handler
 
 
@@ -81,15 +80,3 @@ def test_db_invalid_format_no_connectino():
     with pytest.raises(RuntimeError) as excinfo:
         from_connection_str(conn=f"sqlite://")
     assert "missing connection string, connection must be of format <type>://<connection string>" == str(excinfo.value)
-
-
-# def test_query(conn, jhandler):
-#     if not isinstance(jhandler, DBHandler):
-#         pytest.skip()
-
-#     db_handler: Handler = from_connection_str(conn=conn).create_job()
-#     for q in EQueryType.__members__.values():
-#         try:
-#             db_handler.query(q)
-#         except Exception as ex:
-#             pytest.fail(f"query '{q}' failed, exception: {ex}")
