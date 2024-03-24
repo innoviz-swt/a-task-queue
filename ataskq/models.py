@@ -257,7 +257,7 @@ class Model(IModel):
 
     @classmethod
     def get_all(cls, _handler: Handler = None):
-        ret = cls.get_all_dict(_handler)
+        ret = cls.get_all_dict(_handler=_handler)
         ret = [cls(**r, _serialize=False) for r in ret]
 
         return ret

@@ -93,7 +93,7 @@ class RESTHandler(Handler):
         return res
 
     def count_all(self, model_cls: IModel, where=None) -> List[dict]:
-        res = self.rest_get(f"{model_cls.table_key()}/count")
+        res = self.rest_get(f"{model_cls.table_key()}/count", params=dict(where=where))
         return res
 
     def _create(self, model_cls: IModel, **ikwargs: dict) -> int:

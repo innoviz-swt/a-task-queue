@@ -28,9 +28,9 @@ def drop_pg_tables(conn):
     import psycopg2
     from ataskq.ihandler.postgresql import from_connection_str
 
-    handler = from_connection_str(conn)
+    connection = from_connection_str(conn)
     db_conn = psycopg2.connect(
-        host=handler.host, database=handler.database, user=handler.user, password=handler.password
+        host=connection.host, database=connection.database, user=connection.user, password=connection.password
     )
     c = db_conn.cursor()
     c.execute(truncate_query("tasks"))
