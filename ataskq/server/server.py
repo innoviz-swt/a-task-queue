@@ -139,6 +139,7 @@ async def tasks_status(job_id: int, dbh: DBHandler = Depends(db_handler)):
 #############
 @app.get("/api/{model}")
 async def get_model_all(model: str, where: str = None, dbh: DBHandler = Depends(db_handler)):
+    logger.info(f"where: {where}")
     model_cls = __MODELS__[model]
     mkwargs = model_cls.get_all_dict(where=where, _handler=dbh)
     ikwargs = rh.m2i(model_cls, mkwargs)
@@ -204,7 +205,7 @@ async def delete_model(model: str, model_id: int, dbh: DBHandler = Depends(db_ha
 #######
 # WWW #
 #######
-@app.get("/{model}")
+@app.get("/db/{model}")
 async def show(model: str):
     return FileResponse(Path(__file__).parent / "static" / "index.html")
 

@@ -20,6 +20,13 @@
             font-weight: normal;
             text-shadow: 1px 0px 0px cadetblue;
         }
+
+        .targs-cell {
+            width: 50px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
     </style>
 </head>
 
@@ -35,9 +42,9 @@
                 </button>
                 <div class="collapse navbar-collapse" id="navbarScroll">
                     <ul class="navbar-nav me-auto my-2 my-lg-0 navbar-nav-scroll" style="--bs-scroll-height: 100px;">
-                        <!-- <li class="nav-item">
-                            <a class="nav-link active" aria-current="page" href="#">Home</a>
-                        </li> -->
+                        <li class="nav-item">
+                            <a class="nav-link active add-job-id" aria-current="page" href="/db/tasks">Tasks</a>
+                        </li>
                         <!-- <li class="nav-item">
                             <a class="nav-link" href="#">Link</a>
                         </li> -->
@@ -104,8 +111,35 @@
                         }
                     });
                 }
+
+                // edit targs
+                const targs = getColumn(table, "targs");
+                if (targs) {
+                    targs.updateDefinition({ // Update the column definition
+                        formatter: (cell, formatterParams, onRendered) => {
+                            cell.getElement().classList.add("targs-cell");
+                            return cell.getValue();
+                        }
+                    });
+                }
+
             });
         };
+
+        const myfetch = async (pathname, search) => {
+            // handle /db/ prefix
+            let url = pathname.replace('/db', '');
+            url = '/api' + url;
+            const response = await fetch(url + search);
+            if (!response.ok) {
+                const err = await response.json();
+                throw err;
+            }
+
+            const data = await response.json();
+            console.log('fetch', data);
+            init_table(data);
+        }
 
         (function () {
             const { pathname, search, hash } = window.location;
@@ -123,9 +157,31 @@
             });
 
             // update job id
-            if (pathname.startsWith("/custom_query/tasks_status/")){
+            let job_id;
+            if (pathname.startsWith("/custom_query/tasks_status/")) {
                 const val = pathname.split("/custom_query/tasks_status/")[1];
-                document.getElementById("tasks-status-go-input").value = val;
+                job_id = val;
+            }
+            console.log('tasks_status job id', job_id);
+
+            const s_job_id = new URLSearchParams(search).get('job_id');
+            if (s_job_id){
+                job_id = s_job_id;
+            }
+            console.log('search job id', job_id)
+
+
+            if (job_id){
+                // update nav bar go
+                document.getElementById("tasks-status-go-input").value = job_id;
+
+                // update 'add job id elements'
+                for (const dom of document.getElementsByClassName('add-job-id')){
+                    const searchParams = new URLSearchParams();
+                    searchParams.append("job_id", job_id);
+                    searchParams.append("where", "job_id==" + job_id);
+                    dom.href += '?' + searchParams;
+                };
             }
 
             // update title
@@ -133,25 +189,14 @@
             document.getElementsByClassName('nv-title')[0].innerHTML = title
 
             // fetch table from api
-            fetch('/api' + pathname)
-                .then(response => {
-                    // Check if the response status is ok (status code 200-299)
-                    if (!response.ok) {
-                        // todo: replace with notification popup
-                        alert('Network response was not ok');
-                    }
-                    // Parse the JSON in the response
-                    return response.json();
-                })
-                .then(data => {
-                    console.log(data);
-                    init_table(data);
-                })
-                .catch(error => {
-                    // todo: replace with notification popup
-                    alert('There was a problem with the fetch operation:', error);
-                });
-
+            myfetch(pathname, search).catch(error => {
+                if (Array.isArray(error) && error.length == 1) {
+                    error = error[0];
+                }
+                error = JSON.stringify(error, null, 2);
+                // todo: replace with notification popup
+                alert(`Fetch failed. Error: ${error}`);
+            });
         }());
     </script>
 </body>
