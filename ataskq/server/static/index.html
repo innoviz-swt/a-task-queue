@@ -18,7 +18,8 @@
     <div>
         <nav class="navbar navbar-expand-lg bg-body-tertiary">
             <div class="container-fluid">
-                <a class="navbar-brand" href="/jobs">JOBS</a>
+                <a class="navbar-brand" href="/custom_query/jobs_status">JOBS</a>
+                <div class="navbar-brand nv-title">Title</div>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarScroll"
                     aria-controls="navbarScroll" aria-expanded="false" aria-label="Toggle navigation">
                     <span class="navbar-toggler-icon"></span>
@@ -49,8 +50,8 @@
                             <a class="nav-link disabled" aria-disabled="true">Link</a>
                         </li> -->
                     </ul>
-                    <form class="d-flex" role="search">
-                        <input class="form-control me-2" type="text" placeholder="JOB ID" aria-label="JOB ID">
+                    <form id="tasks-status-go" class="d-flex" action="/custom_query/tasks_status/1" method="GET">
+                        <input id="tasks-status-go-input", class="form-control me-2" type="text" placeholder="JOB ID" aria-label="JOB ID">
                         <button class="btn btn-outline-success" type="submit">Go</button>
                     </form>
                 </div>
@@ -74,10 +75,28 @@
                 autoColumns: true, //create columns from data field names
             });
         }
+
         (function () {
             const { pathname, search, hash } = window.location;
             console.table({ pathname, search })
-            fetch('/api1' + pathname)
+            // update submit action
+            const form=document.getElementById("tasks-status-go");
+            form.addEventListener("submit", function(event) {
+                // Prevent the default form submission behavior
+                event.preventDefault();
+                var inputValue = document.getElementById("tasks-status-go-input").value;
+                var redirectUrl = form.getAttribute("action") + "?inputValue=" + encodeURIComponent(inputValue);
+
+                // Perform the redirect
+                window.location.href = redirectUrl;
+            });
+
+            // update title
+            const title = pathname.replace('/custom_query/', '').replace('/', ' ')
+            document.getElementsByClassName('nv-title')[0].innerHTML = title
+
+            // fetch table from api
+            fetch('/api' + pathname)
                 .then(response => {
                     // Check if the response status is ok (status code 200-299)
                     if (!response.ok) {

@@ -102,14 +102,6 @@ async def api():
     return {"message": "Welcome to A-TASK-Q Server API"}
 
 
-#######
-# WWW #
-#######
-@app.get("/{model}")
-async def show_model(model: str):
-    return FileResponse(Path(__file__).parent / "static" / "index.html")
-
-
 ####################
 # Custom Query API #
 ####################
@@ -134,7 +126,7 @@ async def jobs_status(dbh: DBHandler = Depends(db_handler)):
     return ret
 
 
-@app.get("/api/custom_query/tasks_status")
+@app.get("/api/custom_query/tasks_status/{job_id}")
 async def tasks_status(job_id: int, dbh: DBHandler = Depends(db_handler)):
     ret = dbh.tasks_status(job_id)
 
@@ -206,3 +198,21 @@ async def delete_model(model: str, model_id: int, dbh: DBHandler = Depends(db_ha
     dbh.delete(model_cls, model_id)
 
     return {model_cls.id_key(): model_id}
+
+
+#######
+# WWW #
+#######
+@app.get("/{model}")
+async def show(model: str):
+    return FileResponse(Path(__file__).parent / "static" / "index.html")
+
+
+@app.get("/custom_query/{query}")
+async def show(query: str):
+    return FileResponse(Path(__file__).parent / "static" / "index.html")
+
+
+@app.get("/custom_query/{query}/{job_id}")
+async def show(query: str, job_id: int):
+    return FileResponse(Path(__file__).parent / "static" / "index.html")
