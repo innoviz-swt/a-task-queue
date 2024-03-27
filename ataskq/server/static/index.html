@@ -6,11 +6,20 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"
         integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
     <!-- tabular  https://tabulator.info/ -->
-    <link href="https://unpkg.com/tabulator-tables@5.6.0/dist/css/tabulator.min.css" rel="stylesheet">
-    <link href="https://unpkg.com/tabulator-tables@5.6.0/dist/css/tabulator_bootstrap5.min.css" rel="stylesheet">
-    <!-- <link href="https://unpkg.com/tabulator-tables@5.6.0/dist/css/tabulator_materialize.min.css" rel="stylesheet"> -->
+    <link href="https://unpkg.com/tabulator-tables@6.1/dist/css/tabulator.min.css" rel="stylesheet">
+    <link href="https://unpkg.com/tabulator-tables@6.1/dist/css/tabulator_bootstrap5.min.css" rel="stylesheet">
 
     <style>
+        .tabulator-cell>a {
+            color: cadetblue;
+            text-decoration: none;
+            font-weight: normal;
+        }
+
+        .tabulator-cell>a:hover {
+            font-weight: normal;
+            text-shadow: 1px 0px 0px cadetblue;
+        }
     </style>
 </head>
 
@@ -50,8 +59,9 @@
                             <a class="nav-link disabled" aria-disabled="true">Link</a>
                         </li> -->
                     </ul>
-                    <form id="tasks-status-go" class="d-flex" action="/custom_query/tasks_status/1" method="GET">
-                        <input id="tasks-status-go-input", class="form-control me-2" type="text" placeholder="JOB ID" aria-label="JOB ID">
+                    <form id="tasks-status-go" class="d-flex" action="/custom_query/tasks_status" method="GET">
+                        <input id="tasks-status-go-input" , class="form-control me-2" type="text" placeholder="JOB ID"
+                            aria-label="JOB ID">
                         <button class="btn btn-outline-success" type="submit">Go</button>
                     </form>
                 </div>
@@ -65,31 +75,58 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL"
         crossorigin="anonymous"></script>
-    <script type="text/javascript" src="https://unpkg.com/tabulator-tables@5.6.0/dist/js/tabulator.min.js"></script>
+    <script type="text/javascript" src="https://unpkg.com/tabulator-tables@6.1/dist/js/tabulator.min.js"></script>
     <!-- internal scripts -->
     <script>
+        const getColumn = (table, field) => {
+            try {
+                return table.getColumn(field);
+            } catch (e) {
+                return undefined;
+            }
+        }
+
         const init_table = (tabledata) => {
             //initialize table
             var table = new Tabulator("#table", {
                 data: tabledata, //assign data to table
                 autoColumns: true, //create columns from data field names
             });
-        }
+
+            table.on("tableBuilt", () => {
+                // edit job_id
+                const job_id = getColumn(table, "job_id");
+                if (job_id) {
+                    job_id.updateDefinition({ // Update the column definition
+                        formatter: "link",
+                        formatterParams: {
+                            urlPrefix: "/custom_query/tasks_status/",
+                        }
+                    });
+                }
+            });
+        };
 
         (function () {
             const { pathname, search, hash } = window.location;
             console.table({ pathname, search })
             // update submit action
-            const form=document.getElementById("tasks-status-go");
-            form.addEventListener("submit", function(event) {
+            const form = document.getElementById("tasks-status-go");
+            form.addEventListener("submit", function (event) {
                 // Prevent the default form submission behavior
                 event.preventDefault();
-                var inputValue = document.getElementById("tasks-status-go-input").value;
-                var redirectUrl = form.getAttribute("action") + "?inputValue=" + encodeURIComponent(inputValue);
+                const inputValue = document.getElementById("tasks-status-go-input").value;
+                const redirectUrl = form.getAttribute("action") + "/" + encodeURIComponent(inputValue);
 
                 // Perform the redirect
                 window.location.href = redirectUrl;
             });
+
+            // update job id
+            if (pathname.startsWith("/custom_query/tasks_status/")){
+                const val = pathname.split("/custom_query/tasks_status/")[1];
+                document.getElementById("tasks-status-go-input").value = val;
+            }
 
             // update title
             const title = pathname.replace('/custom_query/', '').replace('/', ' ')

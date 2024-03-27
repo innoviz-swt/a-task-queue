@@ -4,7 +4,7 @@ from typing import Union
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Depends
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
@@ -89,7 +89,8 @@ app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), na
 
 @app.get("/")
 async def root():
-    return "Welcome to A-TASK-Q Server"
+    # return "Welcome to A-TASK-Q Server"
+    return RedirectResponse("/custom_query/jobs_status")
 
 
 @app.get("/favicon.ico")
