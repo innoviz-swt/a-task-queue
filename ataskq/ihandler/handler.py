@@ -9,6 +9,33 @@ from ..imodel import IModel
 __STRTIME_FORMAT__ = "%Y-%m-%d %H:%M:%S.%f"
 
 
+def get_query_kwargs(kwargs):
+    _where = ""
+    _order_by = ""
+    if "_where" in kwargs:
+        _where += kwargs["_where"]
+
+    if "_order_by" in kwargs:
+        _order_by += kwargs["_order_by"]
+
+    # todo: the k=v for the kwargs should be interface dependent similar to insert
+    for k, v in kwargs.items():
+        if k in ["_where", "_order_by"]:
+            continue
+        _where += f"{_where and ' AND '}{k}={v}"
+
+    _where = _where or None
+    _order_by = _order_by or None
+
+    ret = dict()
+    if _where:
+        ret["_where"] = _where
+    if _order_by:
+        ret["_order_by"] = _order_by
+
+    return ret
+
+
 def to_datetime(string: Union[str, datetime, None]):
     if string is None:
         return None
@@ -77,7 +104,7 @@ class Handler(ABC, Logger):
         pass
 
     @abstractmethod
-    def delete_all(self, model_cls: IModel, where: str = None):
+    def delete_all(self, model_cls: IModel, **kwargs):
         pass
 
     @abstractmethod
@@ -85,11 +112,11 @@ class Handler(ABC, Logger):
         pass
 
     @abstractmethod
-    def count_all(self, model_cls: IModel, where=None) -> int:
+    def count_all(self, model_cls: IModel, **kwargs) -> int:
         pass
 
     @abstractmethod
-    def get_all(self, model_cls: IModel, where=None) -> List[dict]:
+    def get_all(self, model_cls: IModel, **kwargs) -> List[dict]:
         pass
 
     @abstractmethod

@@ -3,7 +3,7 @@ import asyncio
 from typing import Union
 from pathlib import Path
 
-from fastapi import FastAPI, Request, Depends
+from fastapi import FastAPI, Query, Request, Depends
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -129,7 +129,7 @@ async def jobs_status(dbh: DBHandler = Depends(db_handler)):
 
 @app.get("/api/custom_query/tasks_status/{job_id}")
 async def tasks_status(job_id: int, dbh: DBHandler = Depends(db_handler)):
-    ret = dbh.tasks_status(job_id)
+    ret = dbh.tasks_status(job_id=job_id)
 
     return ret
 
@@ -138,19 +138,19 @@ async def tasks_status(job_id: int, dbh: DBHandler = Depends(db_handler)):
 # Model API #
 #############
 @app.get("/api/{model}")
-async def get_model_all(model: str, where: str = None, dbh: DBHandler = Depends(db_handler)):
-    logger.info(f"where: {where}")
+async def get_model_all(model: str, request: Request, dbh: DBHandler = Depends(db_handler)):
+    logger.info(f"query_params: {request.query_params}")
     model_cls = __MODELS__[model]
-    mkwargs = model_cls.get_all_dict(where=where, _handler=dbh)
+    mkwargs = model_cls.get_all_dict(_handler=dbh, **request.query_params)
     ikwargs = rh.m2i(model_cls, mkwargs)
 
     return ikwargs
 
 
 @app.get("/api/{model}/count")
-async def count_model_all(model: str, where: str = None, dbh: DBHandler = Depends(db_handler)):
+async def count_model_all(model: str, request: Request, dbh: DBHandler = Depends(db_handler)):
     model_cls = __MODELS__[model]
-    count = model_cls.count_all(where=where, _handler=dbh)
+    count = model_cls.count_all(_handler=dbh, **request.query_params)
 
     return count
 

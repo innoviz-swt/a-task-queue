@@ -122,7 +122,7 @@ class TaskQ(Logger):
         if self._max_jobs is not None:
             # keep max jbos
             Job.delete_all(
-                where=f"job_id NOT IN (SELECT job_id FROM jobs ORDER BY job_id DESC limit {self._max_jobs})",
+                _where=f"job_id NOT IN (SELECT job_id FROM jobs ORDER BY job_id DESC limit {self._max_jobs})",
                 _handler=self.handler,
             )
 
@@ -166,7 +166,7 @@ class TaskQ(Logger):
 
     def count_pending_tasks_below_level(self, level):
         ret = Task.count_all(
-            where=f"job_id = {self.job_id} AND level < {level} AND status in ('{EStatus.PENDING}')",
+            _where=f"job_id = {self.job_id} AND level < {level} AND status in ('{EStatus.PENDING}')",
             _handler=self._handler,
         )
         return ret

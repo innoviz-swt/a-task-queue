@@ -238,26 +238,26 @@ class Model(IModel):
         return ret
 
     @classmethod
-    def count_all(cls, where: str = None, _handler: Handler = None):
+    def count_all(cls, _handler: Handler = None, **kwargs):
         if _handler is None:
             _handler = get_handler(assert_registered=True)
 
-        ret = _handler.count_all(cls, where=where)
+        ret = _handler.count_all(cls, **kwargs)
         return ret
 
     @classmethod
-    def get_all_dict(cls, where: str = None, _handler: Handler = None):
+    def get_all_dict(cls, _handler: Handler = None, **kwargs):
         if _handler is None:
             _handler = get_handler(assert_registered=True)
 
-        ret = _handler.get_all(cls, where=where)
+        ret = _handler.get_all(cls, **kwargs)
         ret = cls.i2m(ret, _handler.from_interface_hanlders())
 
         return ret
 
     @classmethod
-    def get_all(cls, _handler: Handler = None):
-        ret = cls.get_all_dict(_handler=_handler)
+    def get_all(cls, _handler: Handler = None, **kwargs):
+        ret = cls.get_all_dict(_handler=_handler, **kwargs)
         ret = [cls(**r, _serialize=False) for r in ret]
 
         return ret
@@ -326,11 +326,11 @@ class Model(IModel):
         return self
 
     @classmethod
-    def delete_all(cls, where: str = None, _handler: Handler = None):
+    def delete_all(cls, _handler: Handler = None, **kwargs):
         if _handler is None:
             _handler = get_handler(assert_registered=True)
 
-        ret = _handler.delete_all(cls, where=where)
+        ret = _handler.delete_all(cls, **kwargs)
         return ret
 
     def delete(self, _handler: Handler = None):
@@ -401,7 +401,7 @@ class Model(IModel):
         if _handler is None:
             _handler = get_handler(assert_registered=True)
 
-        ikwargs = _handler.get_all(child_cls, where=f"{parent_key} = {primary_key_val}")
+        ikwargs = _handler.get_all(child_cls, **{f"{parent_key}": primary_key_val})
         mkwargs = child_cls.i2m(ikwargs, _handler.from_interface_hanlders())
 
         return mkwargs

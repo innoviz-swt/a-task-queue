@@ -5,7 +5,7 @@ from io import TextIOWrapper
 from abc import abstractmethod
 from datetime import datetime
 
-from .handler import Handler
+from .handler import Handler, get_query_kwargs
 from ..imodel import IModel
 from ..env import ATASKQ_DB_INIT_ON_HANDLER_INIT
 from .. import __schema_version__
@@ -86,19 +86,21 @@ class DBHandler(Handler):
     def db_path(self):
         raise Exception(f"'{self.__class__.__name__}' db doesn't support db path property'")
 
-    def count_all(self, model_cls: IModel, where=None):
-        count = self.count_query(model_cls, where=where)
+    def count_all(self, model_cls: IModel, **kwargs):
+        query_kwargs = get_query_kwargs(kwargs)
+        count = self.count_query(model_cls, **query_kwargs)
 
         return count
 
-    def get_all(self, model_cls: IModel, where=None) -> List[dict]:
-        rows, col_names, _ = self.select_query(model_cls, where=where)
+    def get_all(self, model_cls: IModel, **kwargs) -> List[dict]:
+        query_kwargs = get_query_kwargs(kwargs)
+        rows, col_names, _ = self.select_query(model_cls, **query_kwargs)
         ret = [dict(zip(col_names, row)) for row in rows]
 
         return ret
 
     def get(self, model_cls: IModel, model_id) -> dict:
-        rows, col_names, query_str = self.select_query(model_cls, where=f"{model_cls.id_key()} = {model_id}")
+        rows, col_names, query_str = self.select_query(model_cls, _where=f"{model_cls.id_key()} = {model_id}")
         assert len(rows) != 0, f"no match found for '{model_cls.__name__}', query: '{query_str}'."
         assert len(rows) == 1, f"more than 1 row found for '{model_cls.__name__}', query: '{query_str}'."
         ret = [dict(zip(col_names, row)) for row in rows][0]
@@ -212,11 +214,12 @@ class DBHandler(Handler):
         pass
 
     @transaction_decorator()
-    def delete_all(self, c, model_cls: IModel, where: str):
+    def delete_all(self, c, model_cls: IModel, **kwargs):
+        query_kwargs = get_query_kwargs(kwargs)
         query_str = f"DELETE FROM {model_cls.table_key()}"
 
-        if where:
-            query_str += f" WHERE {where}"
+        if "_where" in query_kwargs:
+            query_str += f" WHERE {query_kwargs['_where']}"
 
         c.execute(query_str)
 
@@ -287,11 +290,11 @@ class DBHandler(Handler):
         )
 
     @transaction_decorator()
-    def count_query(self, c, model_cls: IModel, where: str = None):
+    def count_query(self, c, model_cls: IModel, _where: str = None):
         query_str = f"SELECT COUNT(*) FROM {model_cls.table_key()}"
 
-        if where:
-            query_str += f" WHERE {where}"
+        if _where:
+            query_str += f" WHERE {_where}"
 
         c.execute(query_str)
 
@@ -299,17 +302,17 @@ class DBHandler(Handler):
         return row[0]
 
     @transaction_decorator()
-    def select_query(self, c, model_cls: IModel, where: str = None, order_by=None):
-        if where is None:
-            where = ""
+    def select_query(self, c, model_cls: IModel, _where: str = None, _order_by=None):
+        if _where is None:
+            _where = ""
 
         query_str = f"SELECT * FROM {model_cls.table_key()}"
 
-        if where:
-            query_str += f" WHERE {where}"
+        if _where:
+            query_str += f" WHERE {_where}"
 
-        if order_by:
-            order_str = order_query(order_by)
+        if _order_by:
+            order_str = order_query(_order_by)
         else:
             default_order_by = f"{model_cls.table_key()}.{model_cls.id_key()} ASC"
             order_str = order_query(default_order_by)

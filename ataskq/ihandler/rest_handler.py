@@ -10,8 +10,7 @@ try:
 except ImportError:
     raise Exception("'requests' is required to use ataskq REST handler.")
 
-from .handler import Handler, EAction, from_datetime, to_datetime
-from ..models import StateKWArg, Task
+from .handler import Handler, EAction, from_datetime, get_query_kwargs, to_datetime
 
 
 class RESTConnection(NamedTuple):
@@ -84,16 +83,18 @@ class RESTHandler(Handler):
     #########
     # Model #
     #########
-    def get_all(self, model_cls: IModel, where: str = None) -> List[dict]:
-        res = self.rest_get(model_cls.table_key(), params=dict(where=where))
+    def get_all(self, model_cls: IModel, **kwargs) -> List[dict]:
+        query_kwargs = get_query_kwargs(kwargs)
+        res = self.rest_get(model_cls.table_key(), params=query_kwargs)
         return res
 
     def get(self, model_cls: IModel, model_id: int) -> dict:
         res = self.rest_get(f"{model_cls.table_key()}/{model_id}")
         return res
 
-    def count_all(self, model_cls: IModel, where=None) -> List[dict]:
-        res = self.rest_get(f"{model_cls.table_key()}/count", params=dict(where=where))
+    def count_all(self, model_cls: IModel, **kwargs) -> int:
+        query_kwargs = get_query_kwargs(kwargs)
+        res = self.rest_get(f"{model_cls.table_key()}/count", params=query_kwargs)
         return res
 
     def _create(self, model_cls: IModel, **ikwargs: dict) -> int:
@@ -106,8 +107,9 @@ class RESTHandler(Handler):
 
         return res
 
-    def delete_all(self, model_cls: IModel, where: str = None):
-        self.rest_delete(f"{model_cls.table_key()}", json=dict(where=where))
+    def delete_all(self, model_cls: IModel, **kwargs):
+        query_kwargs = get_query_kwargs(kwargs)
+        self.rest_delete(f"{model_cls.table_key()}", json=query_kwargs)
 
     def delete(self, model_cls: IModel, model_id: int):
         self.rest_delete(f"{model_cls.table_key()}/{model_id}")
@@ -122,7 +124,9 @@ class RESTHandler(Handler):
     # Custom Queries #
     ##################
 
-    def take_next_task(self, job_id, level_start, level_stop) -> Tuple[EAction, Task]:
+    def take_next_task(self, job_id, level_start, level_stop) -> Tuple:
+        from ..models import Task
+
         res = self.rest_get(
             "custom_query/take_next_task", params=dict(job_id=job_id, level_start=level_start, level_stop=level_stop)
         )
@@ -133,7 +137,7 @@ class RESTHandler(Handler):
         return (action, task)
 
     def tasks_status(self, job_id):
-        res = self.rest_get(f"custom_query/tasks_status", params=dict(job_id=job_id))
+        res = self.rest_get(f"custom_query/tasks_status/{job_id}")
 
         return res
 
