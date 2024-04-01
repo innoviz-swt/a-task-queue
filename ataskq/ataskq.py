@@ -9,7 +9,13 @@ import time
 from typing import Dict, List
 from datetime import datetime
 
-from .env import ATASKQ_CONNECTION, ATASKQ_MONITOR_PULSE_INTERVAL, ATASKQ_TASK_PULSE_TIMEOUT, ATASKQ_TASK_PULL_INTERVAL
+from .env import (
+    ATASKQ_CONNECTION,
+    ATASKQ_MONITOR_PULSE_INTERVAL,
+    ATASKQ_TASK_PULSE_TIMEOUT,
+    ATASKQ_TASK_PULL_INTERVAL,
+    ATASKQ_TASK_WAIT_TIMEOUT,
+)
 from .logger import Logger
 from .models import EStatus, Job, StateKWArg, Task, EntryPointRuntimeError
 from .monitor import MonitorThread
@@ -20,32 +26,13 @@ def targs(*args, **kwargs):
     return (args, kwargs)
 
 
-def keyval_store_retry(retries=1000, polling_delta=0.1):
-    def decorator(func):
-        def wrapper(self, *args, **kwargs):
-            for i in range(retries):
-                try:
-                    ret = func(self, *args, **kwargs)
-                    # self.info(f' success in {i} iteration.')
-                    return ret
-                except Exception:
-                    if i != 0 and i % 100 == 0:
-                        self.warning(f"keyval store retry {i} iteration.")
-                    time.sleep(polling_delta)
-                    continue
-            raise RuntimeError(f"Failed keyval store retry retry. retries: {retries}, polling_delta: {polling_delta}.")
-
-        return wrapper
-
-    return decorator
-
-
 class TaskQ(Logger):
     def __init__(
         self,
         job_id=None,
         conn=ATASKQ_CONNECTION,
         run_task_raise_exception=False,
+        task_wait_timeout=ATASKQ_TASK_WAIT_TIMEOUT,
         task_pull_intervnal=ATASKQ_TASK_PULL_INTERVAL,
         monitor_pulse_interval=ATASKQ_MONITOR_PULSE_INTERVAL,
         task_pulse_timeout=ATASKQ_TASK_PULSE_TIMEOUT,
@@ -75,6 +62,7 @@ class TaskQ(Logger):
         self._job = job
 
         self._run_task_raise_exception = run_task_raise_exception
+        self._task_wait_timeout = task_wait_timeout
         self._task_pull_interval = task_pull_intervnal
         self._monitor_pulse_interval = monitor_pulse_interval
         self._task_pulse_timeout = task_pulse_timeout
@@ -132,6 +120,9 @@ class TaskQ(Logger):
         self.job.delete(_handler=self.handler)
         self._job = None
 
+    def get_state_kwargs(self) -> List[StateKWArg]:
+        return self.job.get_state_kwargs(self._handler)
+
     def add_state_kwargs(self, state_kwargs):
         self.job.add_state_kwargs(state_kwargs, _handler=self._handler)
 
@@ -170,14 +161,6 @@ class TaskQ(Logger):
             _handler=self._handler,
         )
         return ret
-
-    def get_state_kwargs(self) -> List[StateKWArg]:
-        return self.job.get_state_kwargs(self._handler)
-
-    def add_state_kwargs(self, state_kwargs):
-        self.job.add_state_kwargs(state_kwargs, _handler=self._handler)
-
-        return self
 
     def _run_task(self, task: Task):
         # get entry point func to execute
@@ -285,6 +268,7 @@ class TaskQ(Logger):
                 self._state_kwargs[skw.name] = skw
 
         # check for error code
+        task_pull_start = time.time()
         while True:
             # if the taskq handler is db handler, the taskq performs background tasks before each run
             if isinstance(self._handler, DBHandler):
@@ -298,6 +282,9 @@ class TaskQ(Logger):
             if action == EAction.RUN_TASK:
                 self._run_task(task)
             elif action == EAction.WAIT:
+                if self._task_wait_timeout is not None and time.time() - task_pull_start > self._task_wait_timeout:
+                    raise Exception(f"task pull timeout of '{self._task_wait_timeout}' sec reached.")
+
                 self.debug(f"waiting for {self._task_pull_interval} sec before taking next task")
                 time.sleep(self._task_pull_interval)
 
@@ -346,10 +333,15 @@ class TaskQ(Logger):
         [p.join() for p in processes]
 
         # log failed processes
+        fail = False
         for p in processes:
             if p.exitcode != 0:
+                fail = True
                 self.error(f"Process '{p.pid}' failed with exitcode '{p.exitcode}'")
 
         self._running = False
+
+        if self._run_task_raise_exception and fail:
+            raise Exception("Some processes failed, see logs for details")
 
         return self

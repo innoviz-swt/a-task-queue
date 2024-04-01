@@ -362,7 +362,7 @@ def test_run_task_raise_exception(conn):
         )
         taskq.run()
     except Exception:
-        assert False, f"exception_task raises exception with run_task_raise_exception=False"
+        assert False, "exception_task raises exception with run_task_raise_exception=False"
 
     # exception raised
     taskq: TaskQ = TaskQ(conn=conn, run_task_raise_exception=True).create_job()
@@ -484,6 +484,21 @@ def test_monitor_pulse_failure(conn):
     assert tasks[0].status == EStatus.FAILURE
     assert tasks[1].status == EStatus.SUCCESS
     assert stop - start > timedelta(seconds=1.5)
+
+
+def test_task_wait_timeout(conn):
+    # set monitor pulse longer than timeout
+    taskq = TaskQ(conn=conn, run_task_raise_exception=True, task_wait_timeout=0).create_job()
+    taskq.add_tasks(
+        [
+            Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, targs=targs("task will success", sleep=0.2)),
+            Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=2, targs=targs("task will success")),
+        ]
+    )
+
+    with pytest.raises(Exception) as excinfo:
+        taskq.run(num_processes=2)
+    assert excinfo.value.args[0] == "Some processes failed, see logs for details"
 
 
 def test_run_with_state_kwargs(conn):
