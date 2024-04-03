@@ -2,23 +2,20 @@ import logging
 
 import context
 from ataskq import TaskQ, Task, targs
+from utils import get_logger
 
-# init logger
-log_level = logging.INFO
-logger = logging.getLogger("ataskq")
-handler = logging.StreamHandler()
-handler.setFormatter(logging.Formatter(logging.BASIC_FORMAT))
-logger.addHandler(handler)
-handler.setLevel(log_level)
-logger.setLevel(log_level)
 
 # create  job
-tr = TaskQ(logger=logger).create_job()
+logger = None
+# logger = get_logger() uncomment for internal logs
+tr = TaskQ(logger=logger).create_job(name="run_in_parallel")
 
-# create following flow
+# create following flow.
+#  level 1   level 2             level 3
 #          / 'run in parallel' \
 #  'start' - 'run in parallel' - 'end'
 #          \  ...              /
+# Note: in general each level can contain multiple tasks, and the next level start only after all tasks in previous finishes
 tr.add_tasks(
     [
         Task(level=1, entrypoint="ataskq.tasks_utils.dummy_args_task", targs=targs("1:start", level=1)),
@@ -76,5 +73,4 @@ tr.add_tasks(
     ]
 )
 
-logger.info("running tasks...")
 tr.run(1.0)

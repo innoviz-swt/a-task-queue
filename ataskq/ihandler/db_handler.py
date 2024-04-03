@@ -443,7 +443,7 @@ class DBHandler(Handler):
             + ", ".join([f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status}" for status in EStatus])
             + f" FROM jobs "
             "LEFT JOIN tasks ON jobs.job_id = tasks.job_id "
-            "GROUP BY jobs.job_id ORDER BY jobs.job_id ASC"
+            "GROUP BY jobs.job_id ORDER BY jobs.job_id DESC"
         )
 
         c.execute(query)

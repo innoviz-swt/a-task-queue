@@ -70,12 +70,13 @@ def test_jobs_status(handler, job_ids):
 
     assert len(status) == 2
 
-    assert status[0]["job_id"] == job_ids[0]
-    assert status[0]["name"] == "job1"
-    assert status[0]["tasks"] == 3
-    assert status[0]["pending"] == 3
-
-    assert status[1]["job_id"] == job_ids[1]
-    assert status[1]["name"] == "job2"
+    # order desc
+    assert status[1]["job_id"] == job_ids[0]
+    assert status[1]["name"] == "job1"
     assert status[1]["tasks"] == 3
     assert status[1]["pending"] == 3
+
+    assert status[0]["job_id"] == job_ids[1]
+    assert status[0]["name"] == "job2"
+    assert status[0]["tasks"] == 3
+    assert status[0]["pending"] == 3

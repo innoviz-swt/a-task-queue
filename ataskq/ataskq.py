@@ -326,7 +326,7 @@ class TaskQ(Logger):
             nprocesses = num_processes
 
         # set processes and Q
-        processes = [Process(target=self._run, args=(level,), daemon=True) for i in range(nprocesses)]
+        processes = [Process(target=self._run, args=(level,)) for i in range(nprocesses)]
         [p.start() for p in processes]
 
         # join all processes
