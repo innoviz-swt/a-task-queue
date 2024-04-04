@@ -1,0 +1,53 @@
+html, body{
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    overflow: hidden;
+}
+
+body{
+    display: flex;
+    flex-direction: column;
+}
+
+.navbar {
+    /* height: 75px; */
+    padding: 10px; /* scrollbar reserved pace */
+}
+
+.content{
+    width: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-grow: 1;
+    margin: 0;
+    padding: 0;
+}
+
+.table{
+    margin: 0;
+    padding: 0;
+}
+
+.tabulator-row {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+.tabulator-cell>a {
+    color: cadetblue;
+    text-decoration: none;
+    font-weight: normal;
+}
+
+.tabulator-cell>a:hover {
+    font-weight: normal;
+    text-shadow: 1px 0px 0px cadetblue;
+}
+
+.targs-cell {
+    width: 50px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

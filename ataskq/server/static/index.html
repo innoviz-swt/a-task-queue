@@ -8,53 +8,8 @@
     <!-- tabular  https://tabulator.info/ -->
     <link href="https://unpkg.com/tabulator-tables@6.1/dist/css/tabulator.min.css" rel="stylesheet">
     <link href="https://unpkg.com/tabulator-tables@6.1/dist/css/tabulator_bootstrap5.min.css" rel="stylesheet">
-
-    <style>
-        html, body{
-            margin: 0;
-            padding: 0;
-            max-height: 100vh;
-            overflow: hidden;
-        }
-
-        body{
-            display: flex;
-            flex-direction: column;
-        }
-
-        .navbar {
-            /* height: 75px; */
-            padding: 10px; /* scrollbar reserved pace */
-        }
-
-        .content{
-            overflow: hidden;
-            display: flex;
-        }
-
-        .content table {
-            overflow: scroll;
-        }
-
-        .tabulator-cell>a {
-            color: cadetblue;
-            text-decoration: none;
-            font-weight: normal;
-        }
-
-        .tabulator-cell>a:hover {
-            font-weight: normal;
-            text-shadow: 1px 0px 0px cadetblue;
-        }
-
-        .targs-cell {
-            width: 50px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-    </style>
+    <!-- internal style -->
+    <link href="/static/style.css" rel="stylesheet">
 </head>
 
 <body>
@@ -95,7 +50,7 @@
                         <a class="nav-link disabled" aria-disabled="true">Link</a>
                     </li> -->
                 </ul>
-                <form id="tasks-status-go" class="d-flex" action="/custom_query/tasks_status" method="GET">
+                <form id="tasks-status-go" class="navbar-nav nav-form d-flex" action="/custom_query/tasks_status" method="GET">
                     <input id="tasks-status-go-input" , class="form-control me-2" type="text" placeholder="JOB ID"
                         aria-label="JOB ID">
                     <button class="btn btn-outline-success" type="submit">Go</button>
@@ -112,121 +67,7 @@
         crossorigin="anonymous"></script>
     <script type="text/javascript" src="https://unpkg.com/tabulator-tables@6.1/dist/js/tabulator.min.js"></script>
     <!-- internal scripts -->
-    <script>
-        const getColumn = (table, field) => {
-            try {
-                return table.getColumn(field);
-            } catch (e) {
-                return undefined;
-            }
-        }
-
-        const init_table = (tabledata) => {
-            //initialize table
-            var table = new Tabulator("#table", {
-                layout: "fitDataStretch",
-                data: tabledata, //assign data to table
-                autoColumns: true, //create columns from data field names
-            });
-
-            table.on("tableBuilt", () => {
-                // edit job_id
-                const job_id = getColumn(table, "job_id");
-                if (job_id) {
-                    job_id.updateDefinition({ // Update the column definition
-                        formatter: "link",
-                        formatterParams: {
-                            urlPrefix: "/custom_query/tasks_status/",
-                        }
-                    });
-                }
-
-                // edit targs
-                const targs = getColumn(table, "targs");
-                if (targs) {
-                    targs.updateDefinition({ // Update the column definition
-                        formatter: (cell, formatterParams, onRendered) => {
-                            cell.getElement().classList.add("targs-cell");
-                            return cell.getValue();
-                        }
-                    });
-                }
-
-            });
-        };
-
-        const myfetch = async (pathname, search) => {
-            // handle /db/ prefix
-            let url = pathname.replace('/db', '');
-            url = '/api' + url;
-            const response = await fetch(url + search);
-            if (!response.ok) {
-                const err = await response.json();
-                throw err;
-            }
-
-            const data = await response.json();
-            console.log('fetch', data);
-            init_table(data);
-        }
-
-        (function () {
-            const { pathname, search, hash } = window.location;
-            console.table({ pathname, search })
-            // update submit action
-            const form = document.getElementById("tasks-status-go");
-            form.addEventListener("submit", function (event) {
-                // Prevent the default form submission behavior
-                event.preventDefault();
-                const inputValue = document.getElementById("tasks-status-go-input").value;
-                const redirectUrl = form.getAttribute("action") + "/" + encodeURIComponent(inputValue);
-
-                // Perform the redirect
-                window.location.href = redirectUrl;
-            });
-
-            // update job id
-            let job_id;
-            if (pathname.startsWith("/custom_query/tasks_status/")) {
-                const val = pathname.split("/custom_query/tasks_status/")[1];
-                job_id = val;
-            }
-            console.log('tasks_status job id', job_id);
-
-            const s_job_id = new URLSearchParams(search).get('job_id');
-            if (s_job_id){
-                job_id = s_job_id;
-            }
-            console.log('search job id', job_id)
-
-
-            if (job_id){
-                // update nav bar go
-                document.getElementById("tasks-status-go-input").value = job_id;
-
-                // update 'add job id elements'
-                for (const dom of document.getElementsByClassName('add-job-id')){
-                    const searchParams = new URLSearchParams();
-                    searchParams.append("job_id", job_id);
-                    dom.href += '?' + searchParams;
-                };
-            }
-
-            // update title
-            const title = pathname.replace('/custom_query/', '').replace('/', ' ')
-            document.getElementsByClassName('nv-title')[0].innerHTML = title
-
-            // fetch table from api
-            myfetch(pathname, search).catch(error => {
-                if (Array.isArray(error) && error.length == 1) {
-                    error = error[0];
-                }
-                error = JSON.stringify(error, null, 2);
-                // todo: replace with notification popup
-                alert(`Fetch failed. Error: ${error}`);
-            });
-        }());
-    </script>
+    <script type="text/javascript" src="/static/index.js"></script>
 </body>
 
 </html>
