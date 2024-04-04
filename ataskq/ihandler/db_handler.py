@@ -7,7 +7,7 @@ from datetime import datetime
 
 from .handler import Handler, get_query_kwargs
 from ..imodel import IModel
-from ..env import ATASKQ_DB_INIT_ON_HANDLER_INIT
+from ..env import ATASKQ_DB_INIT_ON_HANDLER_INIT, ATASKQ_DB_LIMIT_DEFAULT
 from .. import __schema_version__
 
 CONNECTION_LOG = [None]
@@ -73,6 +73,22 @@ def order_query(order_by):
     order_by = ", ".join(order_by)
 
     return order_by
+
+
+def expand_query_str(query_str, _where=None, _order_by=None, _limit=None, _offset=None):
+    if _where is not None:
+        query_str += f" WHERE {_where}"
+
+    if _order_by is not None:
+        query_str += f" ORDER BY {order_query(_order_by)}"
+
+    if _limit is not None:
+        query_str += f" LIMIT {_limit}"
+
+    if _offset is not None:
+        query_str += f" OFFSET {_offset}"
+
+    return query_str
 
 
 class DBHandler(Handler):
@@ -290,11 +306,11 @@ class DBHandler(Handler):
         )
 
     @transaction_decorator()
-    def count_query(self, c, model_cls: IModel, _where: str = None):
+    def count_query(
+        self, c, model_cls: IModel, _where: str = None, _limit: int = ATASKQ_DB_LIMIT_DEFAULT, _offset: int = 0
+    ):
         query_str = f"SELECT COUNT(*) FROM {model_cls.table_key()}"
-
-        if _where:
-            query_str += f" WHERE {_where}"
+        query_str = expand_query_str(query_str, _where=_where, _limit=_limit, _offset=_offset)
 
         c.execute(query_str)
 
@@ -302,21 +318,19 @@ class DBHandler(Handler):
         return row[0]
 
     @transaction_decorator()
-    def select_query(self, c, model_cls: IModel, _where: str = None, _order_by=None):
-        if _where is None:
-            _where = ""
-
+    def select_query(
+        self,
+        c,
+        model_cls: IModel,
+        _where: str = None,
+        _order_by=None,
+        _limit: int = ATASKQ_DB_LIMIT_DEFAULT,
+        _offset: int = 0,
+    ):
         query_str = f"SELECT * FROM {model_cls.table_key()}"
-
-        if _where:
-            query_str += f" WHERE {_where}"
-
-        if _order_by:
-            order_str = order_query(_order_by)
-        else:
-            default_order_by = f"{model_cls.table_key()}.{model_cls.id_key()} ASC"
-            order_str = order_query(default_order_by)
-        query_str += f" ORDER BY {order_str}"
+        if _order_by is None:
+            _order_by = f"{model_cls.table_key()}.{model_cls.id_key()} ASC"
+        query_str = expand_query_str(query_str, _where=_where, _order_by=_order_by, _limit=_limit, _offset=_offset)
 
         c.execute(query_str)
         rows = c.fetchall()
@@ -415,18 +429,31 @@ class DBHandler(Handler):
         return action, task
 
     @transaction_decorator()
-    def tasks_status(self, c, job_id):
+    def tasks_status(
+        self,
+        c,
+        job_id,
+        _where: str = None,
+        _order_by: str = None,
+        _limit: int = ATASKQ_DB_LIMIT_DEFAULT,
+        _offset: int = 0,
+    ):
         from ..models import EStatus
 
-        query = (
+        query_str = (
             "SELECT level, name,"
             "COUNT(*) as total, "
             + ",".join([f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status} " for status in EStatus])
             + f"FROM tasks WHERE job_id = {job_id} "
-            "GROUP BY level, name ORDER BY name ASC"
+            "GROUP BY level, name"
         )
 
-        c.execute(query)
+        if _order_by is None:
+            _order_by = "name ASC"
+
+        query_str = expand_query_str(query_str, _order_by=_order_by, _limit=_limit, _offset=_offset)
+
+        c.execute(query_str)
         rows = c.fetchall()
         col_names = [description[0] for description in c.description]
 
@@ -434,19 +461,26 @@ class DBHandler(Handler):
         return ret
 
     @transaction_decorator()
-    def jobs_status(self, c):
+    def jobs_status(
+        self, c, _where: str = None, _order_by: str = None, _limit: int = ATASKQ_DB_LIMIT_DEFAULT, _offset: int = 0
+    ):
         from ..models import EStatus
 
-        query = (
+        query_str = (
             "SELECT jobs.job_id, jobs.name, jobs.description, jobs.priority, "
             "COUNT(*) as tasks, "
             + ", ".join([f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status}" for status in EStatus])
             + f" FROM jobs "
             "LEFT JOIN tasks ON jobs.job_id = tasks.job_id "
-            "GROUP BY jobs.job_id ORDER BY jobs.job_id DESC"
+            "GROUP BY jobs.job_id"
         )
 
-        c.execute(query)
+        if _order_by is None:
+            _order_by = "jobs.job_id DESC"
+
+        query_str = expand_query_str(query_str, _order_by=_order_by, _limit=_limit, _offset=_offset)
+
+        c.execute(query_str)
         rows = c.fetchall()
         col_names = [description[0] for description in c.description]
 

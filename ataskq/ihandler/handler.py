@@ -33,6 +33,9 @@ def get_query_kwargs(kwargs):
     if _order_by:
         ret["_order_by"] = _order_by
 
+    ret["_offset"] = kwargs.get("_offset")
+    ret["_limit"] = kwargs.get("_limit")
+
     return ret
 
 
