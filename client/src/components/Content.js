@@ -1,4 +1,3 @@
-import { html } from 'htm/preact';
 import { useEffect } from 'preact/hooks';
 
 const Content = () => {
@@ -61,11 +60,11 @@ const Content = () => {
 
     })
 
-    return (html`
+    return (
         <div class="content">
             <div id="table" class="table"></div>
         </div>
-    `)
+    )
 }
 
 export default Content

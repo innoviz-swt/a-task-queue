@@ -85,6 +85,7 @@ app.add_middleware(
 
 # static folder
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
+app.mount("/www", StaticFiles(directory=Path(__file__).parent / "www"), name="www")
 
 
 @app.get("/")
@@ -207,14 +208,14 @@ async def delete_model(model: str, model_id: int, dbh: DBHandler = Depends(db_ha
 #######
 @app.get("/db/{model}")
 async def show(model: str):
-    return FileResponse(Path(__file__).parent / "static" / "index.html")
+    return FileResponse(Path(__file__).parent / "www" / "index.html")
 
 
 @app.get("/custom_query/{query}")
 async def show(query: str):
-    return FileResponse(Path(__file__).parent / "static" / "index.html")
+    return FileResponse(Path(__file__).parent / "www" / "index.html")
 
 
 @app.get("/custom_query/{query}/{job_id}")
 async def show(query: str, job_id: int):
-    return FileResponse(Path(__file__).parent / "static" / "index.html")
+    return FileResponse(Path(__file__).parent / "www" / "index.html")
