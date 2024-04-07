@@ -1,5 +1,5 @@
 import { html } from 'htm/preact';
-import { signal, computed } from "preact/signals";
+import { signal } from "preact/signals";
 
 // Create a signal that can be subscribed to:
 const page = signal(1);
@@ -8,7 +8,6 @@ const currentPage = signal(1);
 function Counter() {
   // Accessing .value in a component automatically re-renders when it changes:
   let value;
-  let active;
   let prevActive;
   let nextActive;
 
