@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [preact()],
   base: '/www/',
   build: {
-    outDir: '../ataskq/server/www'
+    outDir: '../ataskq/server/www',
+    sourcemap: true,
   }
 })

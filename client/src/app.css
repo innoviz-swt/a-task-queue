@@ -1,25 +1,58 @@
-/* #app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+html, body, #app{
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.preact:hover {
-  filter: drop-shadow(0 0 2em #673ab8aa);
+#app{
+  display: flex;
+  flex-direction: column;
 }
 
-.card {
-  padding: 2em;
+.navbar {
+  /* height: 75px; */
+  padding: 10px; /* scrollbar reserved pace */
 }
 
-.read-the-docs {
-  color: #888;
-} */
+.content{
+  width: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-grow: 1;
+  margin: 0;
+  padding: 0;
+}
+
+.table{
+  margin: 0;
+  padding: 0;
+}
+
+.tabulator-row {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.tabulator-cell>a {
+  color: cadetblue;
+  text-decoration: none;
+  font-weight: normal;
+}
+
+.tabulator-cell>a:hover {
+  font-weight: normal;
+  text-shadow: 1px 0px 0px cadetblue;
+}
+
+.targs-cell {
+  width: 50px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pagination {
+  margin: 1em 0;
+}

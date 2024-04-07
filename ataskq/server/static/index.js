@@ -52,5 +52,8 @@ const myfetch = async (pathname, search) => {
 
     const data = await response.json();
     console.log('fetch', data);
-    init_table(data);
+    if (data){
+        init_table(data);
+    }
+
 }
