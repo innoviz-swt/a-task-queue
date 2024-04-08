@@ -84,7 +84,6 @@ app.add_middleware(
 
 
 # static folder
-app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 app.mount("/www", StaticFiles(directory=Path(__file__).parent / "www"), name="www")
 
 
@@ -92,11 +91,6 @@ app.mount("/www", StaticFiles(directory=Path(__file__).parent / "www"), name="ww
 async def root():
     # return "Welcome to A-TASK-Q Server"
     return RedirectResponse("/custom_query/jobs_status")
-
-
-@app.get("/favicon.ico")
-async def favicon():
-    return FileResponse(Path(__file__).parent / "static" / "favicon.ico")
 
 
 @app.get("/api")
@@ -122,15 +116,15 @@ async def take_next_task(
 
 
 @app.get("/api/custom_query/jobs_status")
-async def jobs_status(dbh: DBHandler = Depends(db_handler)):
-    ret = dbh.jobs_status()
+async def jobs_status(request: Request, dbh: DBHandler = Depends(db_handler)):
+    ret = dbh.jobs_status(**request.query_params)
 
     return ret
 
 
 @app.get("/api/custom_query/tasks_status/{job_id}")
-async def tasks_status(job_id: int, dbh: DBHandler = Depends(db_handler)):
-    ret = dbh.tasks_status(job_id=job_id)
+async def tasks_status(job_id: int, request: Request, dbh: DBHandler = Depends(db_handler)):
+    ret = dbh.tasks_status(job_id=job_id, **request.query_params)
 
     return ret
 
@@ -140,7 +134,7 @@ async def tasks_status(job_id: int, dbh: DBHandler = Depends(db_handler)):
 #############
 @app.get("/api/{model}")
 async def get_model_all(model: str, request: Request, dbh: DBHandler = Depends(db_handler)):
-    logger.info(f"query_params: {request.query_params}")
+    # logger.info(f"query_params: {request.query_params}")
     model_cls = __MODELS__[model]
     mkwargs = model_cls.get_all_dict(_handler=dbh, **request.query_params)
     ikwargs = rh.m2i(model_cls, mkwargs)

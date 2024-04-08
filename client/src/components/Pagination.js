@@ -1,4 +1,4 @@
-import { page, currentPage } from '../signals'
+import { page, currentPage, offset, limit } from '../signals'
 
 const Pagination = () => {
   // Accessing .value in a component automatically re-renders when it changes:
@@ -32,6 +32,7 @@ const Pagination = () => {
   const pageClick = (e) => {
     e.preventDefault();
     currentPage.value = Number(e.target.innerText);
+    offset.value = (currentPage.value - 1) * limit;;
   }
 
   return (
