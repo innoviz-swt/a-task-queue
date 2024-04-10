@@ -64,10 +64,10 @@ jobs:
           export ATASKQ_SERVER_CONNECTION=${PG_CONNECTION/postgresql/pg}
           echo ATASKQ_CONNECTION $ATASKQ_CONNECTION
           export ATASKQ_SERVER_CONNECTION=${PG_CONNECTION/postgresql/pg}
-          echo ATASKQ_SERVER_CONNECTION $ATASKQ_CONNECTION
+          echo ATASKQ_SERVER_CONNECTION $ATASKQ_SERVER_CONNECTION
           echo ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL $ATASKQ_SERVER_CONNECTION
           echo ATASKQ_TASK_PULSE_TIMEOUT $ATASKQ_TASK_PULSE_TIMEOUT
-          ATASKQ_SERVER_CONNECTION=${ATASKQ_SERVER_CONNECTION/postgresql/pg}
+          echo ATASKQ_TASK_WAIT_TIMEOUT $ATASKQ_TASK_WAIT_TIMEOUT
           python -m uvicorn ataskq.server.server:app --port 8080 &
           sleep 5
           python -m pytest . -v --junitxml=tmp/report.xml
