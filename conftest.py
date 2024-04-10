@@ -2,7 +2,8 @@ from pytest import fixture
 import os
 import pytest
 
-if os.getenv('_PYTEST_RAISE', "0") != "0":
+if os.getenv("_PYTEST_RAISE", "0") != "0":
+
     @pytest.hookimpl(tryfirst=True)
     def pytest_exception_interact(call):
         raise call.excinfo.value
@@ -23,19 +24,18 @@ END $$;
 
 
 def drop_pg_tables(conn):
-    assert 'pg' in conn
+    assert "pg" in conn
     import psycopg2
-    from ataskq.db_handler.postgresql import from_connection_str
-    handler = from_connection_str(conn)
+    from ataskq.ihandler.postgresql import from_connection_str
+
+    connection = from_connection_str(conn)
     db_conn = psycopg2.connect(
-        host=handler.host,
-        database=handler.database,
-        user=handler.user,
-        password=handler.password)
+        host=connection.host, database=connection.database, user=connection.user, password=connection.password
+    )
     c = db_conn.cursor()
-    c.execute(truncate_query('tasks'))
-    c.execute(truncate_query('state_kwargs'))
-    c.execute(truncate_query('jobs'))
+    c.execute(truncate_query("tasks"))
+    c.execute(truncate_query("state_kwargs"))
+    c.execute(truncate_query("jobs"))
     # c.execute('DROP TABLE IF EXISTS tasks;')
     # c.execute('DROP TABLE IF EXISTS state_kwargs;')
     # c.execute('DROP TABLE IF EXISTS jobs;')
@@ -45,15 +45,15 @@ def drop_pg_tables(conn):
 
 @fixture
 def conn(tmp_path):
-    conn = os.getenv('ATASKQ_CONNECTION', 'sqlite://{tmp_path}/ataskq.db.sqlite3')
-    if 'sqlite' in conn:
+    conn = os.getenv("ATASKQ_CONNECTION", "sqlite://{tmp_path}/ataskq.db.sqlite3")
+    if "sqlite" in conn:
         conn = conn.format(tmp_path=tmp_path)
-    elif 'pg' in conn:
+    elif "pg" in conn:
         # connect and clear all db tables
         drop_pg_tables(conn)
-    elif 'http' in conn:
-        server_conn = os.getenv('ATASKQ_SERVER_CONNECTION', 'pg://postgres:postgres@localhost/postgres')
-        assert 'pg' in server_conn, 'rest api test must be with posgres server'
+    elif "http" in conn:
+        server_conn = os.getenv("ATASKQ_SERVER_CONNECTION", "pg://postgres:postgres@localhost/postgres")
+        assert "pg" in server_conn, "rest api test must be with posgres server"
         drop_pg_tables(server_conn)
     else:
         raise Exception(f"Unkown connection format '{conn}'")

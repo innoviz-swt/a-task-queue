@@ -2,4 +2,26 @@
 set -e
 cd $(dirname $0)/..
 
-ATASKQ_DB_INIT_ON_HANDLER_INIT=0 python -m uvicorn ataskq.server.server:app --reload --port 8080 # --host $HOSTNAME
+# ATASKQ_DB_INIT_ON_HANDLER_INIT=0 python -m uvicorn ataskq.server.server:app --reload --port 8080 # --host $HOSTNAME
+docker rm -f ataskq-server-dev
+docker run \
+    --name ataskq-server-dev \
+    -d \
+    --restart always \
+    -v $(pwd):/ataskq-server-dev \
+    -w /ataskq-server-dev \
+    -p 8080:8080 \
+    -e ATASKQ_DB_INIT_ON_HANDLER_INIT=0 \
+    -e PIP_NO_CACHE_DIR=1 \
+    python:3.8-alpine \
+    /bin/sh -c "pip install --upgrade pip && pip install -r requirements.txt && python -m uvicorn ataskq.server.server:app --reload --port 8080 --host 0.0.0.0"
+
+docker rm -f ataskq-client-dev
+docker run \
+    -d \
+    --name ataskq-client-dev \
+    -v ~/.npm:/.npm \
+    -v $(pwd):/web_client \
+    -w /web_client \
+    -u $(id -u ${USER}):$(id -g ${USER}) \
+    node:$(node --version | sed 's/v//g') bash -c "cd client && npm run dev"

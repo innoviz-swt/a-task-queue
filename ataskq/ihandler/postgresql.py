@@ -8,7 +8,7 @@ except ModuleNotFoundError:
     raise Exception("'psycopg2' is reuiqred for using atasgq postgresql adapter.")
 
 from .db_handler import DBHandler
-from ..handler import to_datetime, from_datetime
+from .handler import to_datetime, from_datetime
 
 
 class PostgresConnection(NamedTuple):
@@ -20,7 +20,7 @@ class PostgresConnection(NamedTuple):
 
     def __str__(self):
         if self.user:
-            userspec = f"{self.user}" + (self.password and f':{self.password}') + '@'
+            userspec = f"{self.user}" + (self.password and f":{self.password}") + "@"
 
         return f"pg://{userspec}{self.host}:{self.port}/{self.database}"
 
@@ -28,19 +28,19 @@ class PostgresConnection(NamedTuple):
 def from_connection_str(conn):
     # https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING-URIS
     # todo: add params spec support
-    format = 'pg://[user[:password]@][host][:port][/database]'
-    pattern = r'pg://(?P<user>[^:@]+)(:(?P<password>[^@]+))?@?(?P<host>[^:/]+)(:(?P<port>\d+))?/(?P<database>.+)$'
+    format = "pg://[user[:password]@][host][:port][/database]"
+    pattern = r"pg://(?P<user>[^:@]+)(:(?P<password>[^@]+))?@?(?P<host>[^:/]+)(:(?P<port>\d+))?/(?P<database>.+)$"
 
     match = re.match(pattern, conn)
 
     if not match:
         raise Exception(f"db must be in '{format}', ex: 'pg://user:password@localhost:5432/mydb'")
 
-    user = match.group('user')
-    password = match.group('password')
-    host = match.group('host')
-    port = match.group('port')
-    database = match.group('database')
+    user = match.group("user")
+    password = match.group("password")
+    host = match.group("host")
+    port = match.group("port")
+    database = match.group("database")
     ret = PostgresConnection(user=user, password=password, host=host, port=port, database=database)
 
     return ret
@@ -52,7 +52,7 @@ class PostgresqlDBHandler(DBHandler):
         super().__init__(**kwargs)
 
     @staticmethod
-    def to_interface_type_hanlders():
+    def to_interface_hanlders():
         type_handlers = {
             datetime: lambda v: from_datetime(v),
         }
@@ -60,7 +60,7 @@ class PostgresqlDBHandler(DBHandler):
         return type_handlers
 
     @staticmethod
-    def from_interface_type_hanlders():
+    def from_interface_hanlders():
         type_handlers = {
             datetime: lambda v: to_datetime(v),
         }
@@ -69,7 +69,7 @@ class PostgresqlDBHandler(DBHandler):
 
     @property
     def format_symbol(self):
-        return '%s'
+        return "%s"
 
     @property
     def connection(self):
@@ -77,22 +77,22 @@ class PostgresqlDBHandler(DBHandler):
 
     @property
     def bytes_type(self):
-        return 'BYTEA'
+        return "BYTEA"
 
     @property
     def primary_key(self):
-        return 'SERIAL PRIMARY KEY'
+        return "SERIAL PRIMARY KEY"
 
     @property
     def timestamp_type(self):
-        return 'TIMESTAMP'
+        return "TIMESTAMP"
 
     def timestamp(self, ts):
         return f"'{ts}'::timestamp"
 
     @property
     def begin_exclusive(self):
-        return 'BEGIN'
+        return "BEGIN"
 
     @property
     def for_update(self):
@@ -103,5 +103,6 @@ class PostgresqlDBHandler(DBHandler):
             host=self.connection.host,
             database=self.connection.database,
             user=self.connection.user,
-            password=self.connection.password)
+            password=self.connection.password,
+        )
         return conn

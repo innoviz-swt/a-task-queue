@@ -13,3 +13,10 @@ tasks:
       pyenv -m venv env
       source env/bin/activate
       ./contrib/setup.sh
+      ./contrib/run_server
+      ./contrib/run_postgres
+ports:
+  - port: 8080
+    visibility: public
+  - port: 5432
+    visibility: private

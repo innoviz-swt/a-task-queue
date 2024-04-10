@@ -5,13 +5,14 @@ async def form_data_array(data: dict):
     ret = []
     for k, v in data.items():
         import pickle
+
         if isinstance(v, starlette.datastructures.UploadFile):
             v = await v.read()
         # expect format of index.key
-        assert '.' in k
-        i, *k = k.split('.')
+        assert "." in k
+        i, *k = k.split(".")
         i = int(i)
-        k = '.'.join(k)
+        k = ".".join(k)
         # expect monotonic rising items
         if i == len(ret):
             ret += [dict()]

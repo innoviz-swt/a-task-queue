@@ -1,5 +1,5 @@
 class CounterKWArg:
-    def __init__(self, val=0, name='counter') -> None:
+    def __init__(self, val=0, name="counter") -> None:
         self._val = val
         self._name = name
 

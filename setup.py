@@ -10,17 +10,17 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(
-    name='ataskq',
+    name="ataskq",
     version=__version__,
-    description='An in process task queue for distributed computing systems.',
+    description="An in process task queue for distributed computing systems.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    author='Mark Kolodkin',
-    author_email='markk@innoviz-tech.com',
-    url='https://github.com/innoviz-swt/a-task-queue/',
-    packages=['ataskq'],
+    author="Mark Kolodkin",
+    author_email="markk@innoviz-tech.com",
+    url="https://github.com/innoviz-swt/a-task-queue/",
+    packages=["ataskq"],
     package_data={
-        'ataskq': ['templates/*'],
+        "ataskq": ["templates/*"],
     },
-    keywords=['python', 'task', 'queue', 'distributed systems', 'distributed computing'],
+    keywords=["python", "task", "queue", "distributed systems", "distributed computing"],
 )
