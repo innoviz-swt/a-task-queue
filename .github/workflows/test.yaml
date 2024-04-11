@@ -65,10 +65,11 @@ jobs:
           echo ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL $ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL
           echo ATASKQ_TASK_PULSE_TIMEOUT $ATASKQ_TASK_PULSE_TIMEOUT
           echo ATASKQ_TASK_WAIT_TIMEOUT $ATASKQ_TASK_WAIT_TIMEOUT
+          mkdir ataskq/server/www && touch ataskq/server/www/index.html  # server mocks
           python --version
           python -m pip install -r requirements.txt
           python -m uvicorn ataskq.server.server:app --port 8080 &
-          sleep 10
+          sleep 5
           curl http://127.0.0.1:8080/health
           python -m pytest . -v --junitxml=tmp/report.xml
         env:
