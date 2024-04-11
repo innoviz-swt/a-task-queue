@@ -46,7 +46,7 @@ def test_task_job_delete_cascade(conn):
     handler = from_connection_str(conn=conn)
     taskq1: TaskQ = TaskQ(conn=handler).create_job(name="job1")
     taskq2: TaskQ = TaskQ(conn=handler).create_job(name="job2")
-    assert len(Job.get_all(_handler=handler)) == 2
+    assert Job.count_all(_handler=handler) == 2
 
     taskq1.add_tasks(
         [
@@ -55,7 +55,7 @@ def test_task_job_delete_cascade(conn):
             Task(entrypoint=""),
         ]
     )
-    assert len(Task.get_all(_handler=handler)) == 3
+    assert Task.count_all(_handler=handler) == 3
     assert len(taskq1.get_tasks()) == 3
 
     taskq2.add_tasks(
@@ -64,18 +64,18 @@ def test_task_job_delete_cascade(conn):
             Task(entrypoint=""),
         ]
     )
-    assert len(Task.get_all(_handler=handler)) == 5
+    assert Task.count_all(_handler=handler) == 5
     assert len(taskq1.get_tasks()) == 3
     assert len(taskq2.get_tasks()) == 2
 
     taskq2.delete_job()
     assert len(Job.get_all(_handler=handler)) == 1
 
-    assert len(Task.get_all(_handler=handler)) == 3
+    assert Task.count_all(_handler=handler) == 3
     assert len(taskq1.get_tasks()) == 3
 
     taskq1.delete_job()
-    assert len(Task.get_all(_handler=handler)) == 0
+    assert Task.count_all(_handler=handler) == 0
 
 
 def test_state_kwargs_job_delete_cascade(conn):

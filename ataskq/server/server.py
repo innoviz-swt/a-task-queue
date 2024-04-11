@@ -93,6 +93,11 @@ async def root():
     return RedirectResponse("/custom_query/jobs_status")
 
 
+@app.get("/health")
+async def health():
+    return "ATASKQ Server is running"
+
+
 @app.get("/api")
 async def api():
     return {"message": "Welcome to A-TASK-Q Server API"}

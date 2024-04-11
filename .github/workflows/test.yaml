@@ -10,7 +10,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.8'
+          python-version: "3.8"
       - name: Build and run tests
         run: |
           python --version
@@ -29,15 +29,15 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.8'
+          python-version: "3.8"
       - uses: ikalnytskyi/action-setup-postgres@v4
         id: postgres
-      - name:  Build and run tests
+      - name: Build and run tests
         run: |
-          python --version
-          python -m pip install -r requirements.txt
           export ATASKQ_CONNECTION=${PG_CONNECTION/postgresql/pg}
           echo ATASKQ_CONNECTION $ATASKQ_CONNECTION
+          python --version
+          python -m pip install -r requirements.txt
           python -m pytest . -v --junitxml=tmp/report.xml
         env:
           PG_CONNECTION: ${{ steps.postgres.outputs.connection-uri }}
@@ -54,26 +54,28 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.8'
+          python-version: "3.8"
       - uses: ikalnytskyi/action-setup-postgres@v4
         id: postgres
-      - name:  Build and run tests
+      - name: Build and run tests
         run: |
+          echo ATASKQ_CONNECTION $ATASKQ_CONNECTION
+          export ATASKQ_SERVER_CONNECTION=${PG_CONNECTION/postgresql/pg}
+          echo ATASKQ_SERVER_CONNECTION $ATASKQ_SERVER_CONNECTION
+          echo ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL $ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL
+          echo ATASKQ_TASK_PULSE_TIMEOUT $ATASKQ_TASK_PULSE_TIMEOUT
+          echo ATASKQ_TASK_WAIT_TIMEOUT $ATASKQ_TASK_WAIT_TIMEOUT
+          mkdir ataskq/server/www && touch ataskq/server/www/index.html  # server mocks
           python --version
           python -m pip install -r requirements.txt
-          export ATASKQ_SERVER_CONNECTION=${PG_CONNECTION/postgresql/pg}
-          echo ATASKQ_CONNECTION $ATASKQ_CONNECTION
-          echo ATASKQ_SERVER_CONNECTION $ATASKQ_SERVER_CONNECTION
-          echo ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL $ATASKQ_SERVER_CONNECTION
-          echo ATASKQ_TASK_PULSE_TIMEOUT $ATASKQ_TASK_PULSE_TIMEOUT
-          ATASKQ_SERVER_CONNECTION=${ATASKQ_SERVER_CONNECTION/postgresql/pg}
           python -m uvicorn ataskq.server.server:app --port 8080 &
           sleep 5
+          curl http://127.0.0.1:8080/health
           python -m pytest . -v --junitxml=tmp/report.xml
         env:
-          ATASKQ_DB_INIT_ON_HANDLER_INIT: 0
-          ATASKQ_CONNECTION: http://127.0.0.1:8080
           PG_CONNECTION: ${{ steps.postgres.outputs.connection-uri }}
+          ATASKQ_CONNECTION: http://127.0.0.1:8080
+          ATASKQ_DB_INIT_ON_HANDLER_INIT: 0
           ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL: 2
           ATASKQ_TASK_PULSE_TIMEOUT: 1.5
           ATASKQ_TASK_WAIT_TIMEOUT: 10
