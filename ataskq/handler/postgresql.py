@@ -52,7 +52,7 @@ class PostgresqlDBHandler(DBHandler):
         super().__init__(**kwargs)
 
     @staticmethod
-    def to_interface_hanlders():
+    def m2i_serialize():
         type_handlers = {
             datetime: lambda v: from_datetime(v),
         }
@@ -60,7 +60,7 @@ class PostgresqlDBHandler(DBHandler):
         return type_handlers
 
     @staticmethod
-    def from_interface_hanlders():
+    def i2m_serialize():
         type_handlers = {
             datetime: lambda v: to_datetime(v),
         }

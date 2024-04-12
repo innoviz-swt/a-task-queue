@@ -205,9 +205,9 @@ class Model(IModel):
     def i2m(cls, kwargs: Union[dict, List[dict]], handler: IHandler) -> Union[dict, List[dict]]:
         """interface to model"""
         if isinstance(kwargs, list):
-            ret = [cls._serialize(kw, handler.from_interface_hanlders()) for kw in kwargs]
+            ret = [cls._serialize(kw, handler.i2m_serialize()) for kw in kwargs]
         else:
-            ret = cls._serialize(kwargs, handler.from_interface_hanlders())
+            ret = cls._serialize(kwargs, handler.i2m_serialize())
 
         return ret
 
@@ -226,9 +226,9 @@ class Model(IModel):
     def m2i(cls, kwargs: Union[dict, List[dict]], handler: IHandler) -> Union[dict, List[dict]]:
         """model to interface"""
         if isinstance(kwargs, list):
-            ret = [cls._serialize(kw, handler.to_interface_hanlders()) for kw in kwargs]
+            ret = [cls._serialize(kw, handler.m2i_serialize()) for kw in kwargs]
         else:
-            ret = cls._serialize(kwargs, handler.to_interface_hanlders())
+            ret = cls._serialize(kwargs, handler.m2i_serialize())
 
         return ret
 

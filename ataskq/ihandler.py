@@ -5,10 +5,10 @@ from typing import Dict, Callable
 class IHandler(ABC):
     @staticmethod
     @abstractmethod
-    def from_interface_hanlders() -> Dict[type, Callable]:
+    def i2m_serialize() -> Dict[type, Callable]:
         pass
 
     @staticmethod
     @abstractmethod
-    def to_interface_hanlders() -> Dict[type, Callable]:
+    def m2i_serialize() -> Dict[type, Callable]:
         pass
