@@ -67,23 +67,19 @@ class Handler(IHandler, Logger):
     # interface handlers #
     ######################
 
-    @classmethod
-    def i2m(cls, model_cls, kwargs: Union[dict, List[dict]]) -> Union[dict, List[dict]]:
+    def i2m(self, model_cls, kwargs: Union[dict, List[dict]]) -> Union[dict, List[dict]]:
         """interface to model"""
-        return model_cls.i2m(kwargs, cls.from_interface_hanlders())
+        return model_cls.i2m(kwargs, self)
 
-    @classmethod
-    def from_interface(cls, model_cls: IModel, kwargs: Union[dict, List[dict]]) -> Union[IModel, List[IModel]]:
-        return model_cls.from_interface(kwargs, cls.from_interface_hanlders())
+    def from_interface(self, model_cls: IModel, kwargs: Union[dict, List[dict]]) -> Union[IModel, List[IModel]]:
+        return model_cls.from_interface(kwargs, self)
 
-    @classmethod
-    def m2i(cls, model_cls: IModel, kwargs: Union[dict, List[dict]]) -> Union[dict, List[dict]]:
+    def m2i(self, model_cls: IModel, kwargs: Union[dict, List[dict]]) -> Union[dict, List[dict]]:
         """modle to interface"""
-        return model_cls.m2i(kwargs, cls.to_interface_hanlders())
+        return model_cls.m2i(kwargs, self)
 
-    @classmethod
-    def to_interface(cls, model: IModel) -> IModel:
-        return model.to_interface(cls.to_interface_hanlders())
+    def to_interface(self, model: IModel) -> IModel:
+        return model.to_interface(self)
 
     ########
     # CRUD #

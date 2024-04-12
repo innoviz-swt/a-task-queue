@@ -6,6 +6,7 @@ from datetime import datetime
 from copy import copy
 
 from .imodel import IModel
+from .ihandler import IHandler
 from .handler import get_handler, Handler
 
 
@@ -201,19 +202,19 @@ class Model(IModel):
         return ret
 
     @classmethod
-    def i2m(cls, kwargs: Union[dict, List[dict]], type_handlers) -> Union[dict, List[dict]]:
+    def i2m(cls, kwargs: Union[dict, List[dict]], handler: IHandler) -> Union[dict, List[dict]]:
         """interface to model"""
         if isinstance(kwargs, list):
-            ret = [cls._serialize(kw, type_handlers) for kw in kwargs]
+            ret = [cls._serialize(kw, handler.from_interface_hanlders()) for kw in kwargs]
         else:
-            ret = cls._serialize(kwargs, type_handlers)
+            ret = cls._serialize(kwargs, handler.from_interface_hanlders())
 
         return ret
 
     @classmethod
-    def from_interface(cls, kwargs: Union[dict, List[dict]], type_handlers):
+    def from_interface(cls, kwargs: Union[dict, List[dict]], handler: IHandler):
         """interface to model"""
-        mkwargs = cls.i2m(kwargs, type_handlers)
+        mkwargs = cls.i2m(kwargs, handler)
         if isinstance(kwargs, list):
             ret = [cls(_serialize=False, **kw) for kw in mkwargs]
         else:
@@ -222,18 +223,18 @@ class Model(IModel):
         return ret
 
     @classmethod
-    def m2i(cls, kwargs: Union[dict, List[dict]], type_handlers) -> Union[dict, List[dict]]:
+    def m2i(cls, kwargs: Union[dict, List[dict]], handler: IHandler) -> Union[dict, List[dict]]:
         """model to interface"""
         if isinstance(kwargs, list):
-            ret = [cls._serialize(kw, type_handlers) for kw in kwargs]
+            ret = [cls._serialize(kw, handler.to_interface_hanlders()) for kw in kwargs]
         else:
-            ret = cls._serialize(kwargs, type_handlers)
+            ret = cls._serialize(kwargs, handler.to_interface_hanlders())
 
         return ret
 
-    def to_interface(self, type_handlers) -> dict:
+    def to_interface(self, handler: IHandler) -> dict:
         """model to interface"""
-        ret = self.m2i(self.__dict__, type_handlers)
+        ret = self.m2i(self.__dict__, handler)
 
         return ret
 
@@ -251,7 +252,7 @@ class Model(IModel):
             _handler = get_handler(assert_registered=True)
 
         ret = _handler.get_all(cls, **kwargs)
-        ret = cls.i2m(ret, _handler.from_interface_hanlders())
+        ret = cls.i2m(ret, _handler)
 
         return ret
 
@@ -268,7 +269,7 @@ class Model(IModel):
             _handler = get_handler(assert_registered=True)
 
         ikwargs = _handler.get(cls, model_id)
-        mkwargs = cls.i2m(ikwargs, _handler.from_interface_hanlders())
+        mkwargs = cls.i2m(ikwargs, _handler)
 
         return mkwargs
 
@@ -294,7 +295,7 @@ class Model(IModel):
         if _handler is None:
             _handler = get_handler(assert_registered=True)
 
-        ikwargs = self.m2i(mkwargs, _handler.to_interface_hanlders())
+        ikwargs = self.m2i(mkwargs, _handler)
         model_id = _handler._create(self.__class__, **ikwargs)
 
         setattr(self, self.id_key(), model_id)
@@ -317,7 +318,7 @@ class Model(IModel):
             _handler = get_handler(assert_registered=True)
 
         model_id = getattr(self, self.id_key())
-        ikwargs = self.m2i(mkwargs, _handler.to_interface_hanlders())
+        ikwargs = self.m2i(mkwargs, _handler)
         _handler._update(self.__class__, model_id, **ikwargs)
 
         for k, v in mkwargs.items():
@@ -402,7 +403,7 @@ class Model(IModel):
             _handler = get_handler(assert_registered=True)
 
         ikwargs = _handler.get_all(child_cls, **{f"{parent_key}": primary_key_val})
-        mkwargs = child_cls.i2m(ikwargs, _handler.from_interface_hanlders())
+        mkwargs = child_cls.i2m(ikwargs, _handler)
 
         return mkwargs
 
