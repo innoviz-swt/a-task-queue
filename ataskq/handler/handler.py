@@ -4,8 +4,7 @@ from datetime import datetime
 from enum import Enum
 
 from ..logger import Logger
-from ..ihandler import IHandler
-from ..imodel import IModel
+from ..imodel import IModel, IModelSerializer
 
 __STRTIME_FORMAT__ = "%Y-%m-%d %H:%M:%S.%f"
 
@@ -59,7 +58,7 @@ class EAction(str, Enum):
     STOP = "stop"
 
 
-class Handler(IHandler, Logger):
+class Handler(IModelSerializer, Logger):
     def __init__(self, logger: Logger = None):
         Logger.__init__(self, logger)
 
