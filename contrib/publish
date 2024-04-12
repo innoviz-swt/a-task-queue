@@ -8,10 +8,16 @@ rm -rf ./build ./dist ./*.egg-info
 ver="${1:-0.0.0}"
 build=$(git rev-parse --short HEAD)
 
-# create version file
+# build client
+cd client && npm run build --emptyOutDir && cd -
+
+# create version files
 echo ver $ver build $build
+
 echo "__version__ = '${ver}'" > ./ataskq/version.py
 echo "__build__ = '${build}'" >> ./ataskq/version.py
+
+echo ${ver} > ./ataskq/server/www/version.txt
 
 # publish package
 python -m pip install --upgrade pip
@@ -19,8 +25,10 @@ python -m pip install --upgrade setuptools wheel
 python setup.py sdist bdist_wheel
 python -m twine upload --repository pypi dist/*
 
-# remove version file
+# remove version files
 rm ./ataskq/version.py
+rm ./ataskq/server/www/version.txt
 
 # remove build and dist folder
 rm -rf ./build ./dist ./*.egg-info
+rm -rf ./ataskq/www
