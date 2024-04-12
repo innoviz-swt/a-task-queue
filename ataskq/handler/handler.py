@@ -4,6 +4,7 @@ from datetime import datetime
 from enum import Enum
 
 from ..logger import Logger
+from ..ihandler import IHandler
 from ..imodel import IModel
 
 __STRTIME_FORMAT__ = "%Y-%m-%d %H:%M:%S.%f"
@@ -58,23 +59,13 @@ class EAction(str, Enum):
     STOP = "stop"
 
 
-class Handler(ABC, Logger):
+class Handler(IHandler, Logger):
     def __init__(self, logger: Logger = None):
         Logger.__init__(self, logger)
 
     ######################
     # interface handlers #
     ######################
-
-    @staticmethod
-    @abstractmethod
-    def from_interface_hanlders() -> Dict[type, Callable]:
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def to_interface_hanlders() -> Dict[type, Callable]:
-        pass
 
     @classmethod
     def i2m(cls, model_cls, kwargs: Union[dict, List[dict]]) -> Union[dict, List[dict]]:

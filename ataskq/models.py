@@ -6,7 +6,7 @@ from datetime import datetime
 from copy import copy
 
 from .imodel import IModel
-from .ihandler import get_handler, Handler
+from .handler import get_handler, Handler
 
 
 class EntryPointRuntimeError(RuntimeError):
