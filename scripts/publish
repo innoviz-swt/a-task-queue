@@ -2,14 +2,19 @@
 set -e
 cd $(dirname $0)/..
 
+client_dir=./ataskq/server/www
+
 # remove build and dist folder
-rm -rf ./build ./dist ./*.egg-info
+rm -rf ./build ./dist ./*.egg-info $client_dir
 
 ver="${1:-0.0.0}"
 build=$(git rev-parse --short HEAD)
 
 # build client
-cd client && npm run build --emptyOutDir && cd -
+cd client
+npm install
+npm run build --emptyOutDir
+cd -
 
 # create version files
 echo ver $ver build $build
@@ -17,7 +22,7 @@ echo ver $ver build $build
 echo "__version__ = '${ver}'" > ./ataskq/version.py
 echo "__build__ = '${build}'" >> ./ataskq/version.py
 
-echo ${ver} > ./ataskq/server/www/version.txt
+echo ${ver} > $client_dir/version.txt
 
 # publish package
 python -m pip install --upgrade pip
@@ -30,5 +35,4 @@ rm ./ataskq/version.py
 rm ./ataskq/server/www/version.txt
 
 # remove build and dist folder
-rm -rf ./build ./dist ./*.egg-info
-rm -rf ./ataskq/www
+rm -rf ./build ./dist ./*.egg-info $client_dir
