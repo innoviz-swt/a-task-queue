@@ -1,10 +1,9 @@
 # ChangeLog
 
-# x.x.x
+# 0.5.0
 - TASKQ __init__ db renamed to conn
-- add postgresql support
+- add postgresql and rest handlers
 - ATASKQ::create_job removed overwrite flag
-- schema v4: update schema with jobs. tasks.tid renamed to task_id
 
 # 0.4.1
 - bugfix: exception during code execution causing crash (unassigne variable 'ex')

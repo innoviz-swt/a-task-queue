@@ -1,0 +1,30 @@
+# https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions
+# https://docs.github.com/en/actions/publishing-packages/publishing-docker-images
+# https://docs.github.com/en/actions/using-workflows/storing-workflow-data-as-artifacts
+
+name: Tag Release Workflow
+
+on:
+  push:
+    tags:
+    - '*'
+    # - '!dev-*'
+
+jobs:
+  build:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "20.10.x"
+    - uses: actions/setup-python@v4
+      with:
+        python-version: "3.8"
+    - run: ./contrib/publish
+
+
+    # Add your build and deployment steps here
+    # For example, you can run tests, build your project, and deploy it.
