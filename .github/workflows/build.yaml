@@ -23,8 +23,7 @@ jobs:
     - uses: actions/setup-python@v4
       with:
         python-version: "3.8"
-    - run: ./contrib/publish
-
+    - run: ./scripts/publish
 
     # Add your build and deployment steps here
     # For example, you can run tests, build your project, and deploy it.
