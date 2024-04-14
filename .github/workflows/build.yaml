@@ -6,24 +6,25 @@ name: Tag Release Workflow
 
 on:
   push:
-    tags:
-    - '*'
-    # - '!dev-*'
+    # tags:
+    # - '*'
 
 jobs:
   build:
-    name: Build and Deploy
+    name: Build
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
       with:
         node-version: "20.10.x"
     - uses: actions/setup-python@v4
       with:
         python-version: "3.8"
-    - run: ./scripts/publish
-
-    # Add your build and deployment steps here
-    # For example, you can run tests, build your project, and deploy it.
+    - name: Build Package
+      run: |
+        ls
+        ls ./ataskq
+        echo ${GITHUB_REF##*/}
+        ./scripts/publish ${GITHUB_REF##*/}
