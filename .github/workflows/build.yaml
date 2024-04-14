@@ -24,7 +24,5 @@ jobs:
         python-version: "3.8"
     - name: Build Package
       run: |
-        ls
-        ls ./ataskq
-        echo Version(GITHUB_REF):  ${GITHUB_REF##*/}
+        echo Version(GITHUB_REF): ${GITHUB_REF##*/}
         ./scripts/build ${GITHUB_REF##*/}
