@@ -26,5 +26,5 @@ jobs:
       run: |
         ls
         ls ./ataskq
-        echo ${GITHUB_REF##*/}
-        ./scripts/publish ${GITHUB_REF##*/}
+        echo Version(GITHUB_REF):  ${GITHUB_REF##*/}
+        ./scripts/build ${GITHUB_REF##*/}
