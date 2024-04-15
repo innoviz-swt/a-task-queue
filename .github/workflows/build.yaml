@@ -1,6 +1,12 @@
 # https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions
 # https://docs.github.com/en/actions/publishing-packages/publishing-docker-images
 # https://docs.github.com/en/actions/using-workflows/storing-workflow-data-as-artifacts
+# on:
+#   push:
+#     tags:
+#       - 'v[0-9]+.[0-9]+.[0-9]+'
+#       - 'v[0-9]+.[0-9]+.[0-9]+-*'
+
 
 name: Tag Release Workflow
 
@@ -26,3 +32,17 @@ jobs:
       run: |
         echo version ${GITHUB_REF##*/}
         ./scripts/build ${GITHUB_REF##*/}
+    - name: Archive production artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist
+        path: |
+          dist/
+  pypi-publish:
+    name: Publish To PyPi
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: dist
+    - run: ls
