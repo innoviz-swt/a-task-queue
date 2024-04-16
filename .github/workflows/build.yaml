@@ -66,6 +66,8 @@ jobs:
         run: |
           version=${GITHUB_REF##*/}
           echo version ${version}
+          pip install -r requirements.txt
+          pip install dist/*.whl
           python -c "import ataskq; assert ataskq.__version__ == '${version}', f'{ataskq.__version__} != ${version}'"
           pytest --pyargs ataskq
 
