@@ -36,8 +36,8 @@ jobs:
       run: |
         echo python version: $(python --version)
         echo node version: $(node --version)
-        echo tag version ${GITHUB_REF##*/}
-        ./scripts/build ${GITHUB_REF##*/}
+        echo tag version ${GITHUB_REF##*/v}
+        ./scripts/build ${GITHUB_REF##*/v}
     - uses: actions/upload-artifact@v4
       with:
         name: dist
@@ -68,7 +68,7 @@ jobs:
           name: requirements
       - name: Build and run tests
         run: |
-          version=${GITHUB_REF##*/}
+          version=${GITHUB_REF##*/v}
           echo version ${version}
           pip install -r requirements.txt
           pip install dist/*.whl
