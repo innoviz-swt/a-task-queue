@@ -2,28 +2,23 @@
 # https://docs.github.com/en/actions/using-workflows/storing-workflow-data-as-artifacts
 # https://docs.github.com/en/actions/publishing-packages/publishing-docker-images
 # https://github.com/marketplace/actions/pypi-publish
-# on:
-#   push:
-#     tags:
-#       - 'v[0-9]+.[0-9]+.[0-9]+'
-#       - 'v[0-9]+.[0-9]+.[0-9]+-*'
-
 
 name: Tag Release Workflow
 
 on:
   push:
-    # tags:
-    # - '*'
+    tags:
+      - 'v*'
+
 
 jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    # needs:
-    #   - sqlite-test
-    #   - postgresql-test
-    #   - restapi-test
+    needs:
+      - sqlite-test
+      - postgresql-test
+      - restapi-test
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
