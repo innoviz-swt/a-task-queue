@@ -1,6 +1,7 @@
 # https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions
 # https://docs.github.com/en/actions/using-workflows/storing-workflow-data-as-artifacts
 # https://docs.github.com/en/actions/publishing-packages/publishing-docker-images
+# https://github.com/marketplace/actions/pypi-publish
 # on:
 #   push:
 #     tags:
@@ -93,7 +94,13 @@ jobs:
       id: meta
       uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
       with:
-        images: innovizswt/ataskq-server:${GITHUB_REF##*/}
+        images: innovizswt/ataskq-server
+        tags: |
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          type=sha
+
     - name: Build and push Docker image
       uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
       with:
