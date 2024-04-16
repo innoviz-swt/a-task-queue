@@ -72,6 +72,7 @@ jobs:
           pytest --pyargs ataskq
 
   docker-server-publish:
+    name: Publish Server Docker Image
     runs-on: ubuntu-22.04
     needs: test-build
     steps:
