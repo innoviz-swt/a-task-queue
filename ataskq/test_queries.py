@@ -1,7 +1,7 @@
 import pytest
 
 from .ataskq import TaskQ, Task
-from .ihandler import from_connection_str
+from .handler import from_connection_str
 
 
 @pytest.fixture()

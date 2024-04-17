@@ -19,7 +19,7 @@ from .env import (
 from .logger import Logger
 from .models import EStatus, Job, StateKWArg, Task, EntryPointRuntimeError
 from .monitor import MonitorThread
-from .ihandler import Handler, DBHandler, from_connection_str, EAction
+from .handler import Handler, DBHandler, from_connection_str, EAction
 
 
 def targs(*args, **kwargs):

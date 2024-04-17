@@ -1,0 +1,126 @@
+# https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions
+# https://docs.github.com/en/actions/using-workflows/storing-workflow-data-as-artifacts
+# https://docs.github.com/en/actions/publishing-packages/publishing-docker-images
+# https://github.com/marketplace/actions/pypi-publish
+
+name: Tag Release Workflow
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs:
+      - sqlite-test
+      - postgresql-test
+      - restapi-test
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "20.10.x"
+    - uses: actions/setup-python@v4
+      with:
+        python-version: "3.8"
+    - name: Build Package
+      run: |
+        echo python version: $(python --version)
+        echo node version: $(node --version)
+        echo tag version ${GITHUB_REF##*/v}
+        ./scripts/build ${GITHUB_REF##*/v}
+    - uses: actions/upload-artifact@v4
+      with:
+        name: dist
+        path: |
+          dist/
+    - uses: actions/upload-artifact@v4
+      with:
+        name: requirements
+        path: |
+          requirements.txt
+          .dockerignore
+          server/Dockerfile
+
+  test-build:
+    name: Test Build
+    runs-on: ubuntu-22.04
+    needs: build
+    steps:
+      - uses: actions/setup-python@v4
+        with:
+          python-version: "3.8"
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      - uses: actions/download-artifact@v4
+        with:
+          name: requirements
+      - name: Build and run tests
+        run: |
+          version=${GITHUB_REF##*/v}
+          echo version ${version}
+          pip install -r requirements.txt
+          pip install dist/*.whl
+          python -c "import ataskq; assert ataskq.__version__ == '${version}', f'{ataskq.__version__} != ${version}'"
+          python -c "from pathlib import Path; import ataskq; assert (Path(ataskq.__file__).parent / 'server' / 'www' / 'index.html').exists(), f'www/index.html not found'"
+          pytest --pyargs ataskq
+
+  docker-server-publish:
+    name: Publish Server Docker Image
+    runs-on: ubuntu-22.04
+    needs: test-build
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: dist
+        path: dist
+    - uses: actions/download-artifact@v4
+      with:
+        name: requirements
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@f4ef78c080cd8ba55a85445d5b36e214a81df20a
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    - name: Extract metadata (tags, labels) for Docker
+      id: meta
+      uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
+      with:
+        images: innovizswt/ataskq-server
+        tags: |
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          type=sha
+    - name: Build and push Docker image
+      uses: docker/build-push-action@3b5e8027fcad23fda98b2e3ac259d8d67585f671
+      with:
+        context: .
+        file: ./server/Dockerfile
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+
+  pypi-publish:
+    name: Publish package to PyPI
+    runs-on: ubuntu-22.04
+    needs: test-build
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        name: dist
+        path: dist
+    - name: Publish
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        packages-dir: dist
+        user: __token__
+        password: ${{ secrets.PYPITOKEN }}
+        verbose: true

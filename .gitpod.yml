@@ -14,7 +14,7 @@ tasks:
       source env/bin/activate
       ./contrib/setup.sh
       ./contrib/run_server
-      ./contrib/run_postgres
+      ./contrib/run_postgresun
 ports:
   - port: 8080
     visibility: public

@@ -6,7 +6,7 @@
     "configurations": [
         {
             "name": "Python: Current File",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
@@ -17,7 +17,7 @@
         },
         {
             "name": "Pytest Current",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "module": "pytest",
             "args": ["${file}", "-vs"],
@@ -30,7 +30,7 @@
         },
         {
             "name": "Pytest ALL",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "module": "pytest",
             "console": "integratedTerminal",
@@ -42,7 +42,7 @@
         },
         {
             "name": "rest_server",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "module": "uvicorn",
             "args": ["ataskq.server.server:app", "--port", "8080", "--reload"], // "--host", "${env:HOSTNAME}",
@@ -51,7 +51,7 @@
         },
         {
             "name": "basic_task_queue",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/examples/basic_task_queue.py",
             "console": "integratedTerminal",
@@ -59,7 +59,7 @@
         },
         {
             "name": "run_in_parallel",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/examples/run_in_parallel.py",
             "console": "integratedTerminal",
@@ -67,7 +67,7 @@
         },
         {
             "name": "run_with_status",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/examples/run_with_status.py",
             "console": "integratedTerminal",
@@ -75,7 +75,7 @@
         },
         {
             "name": "run_with_state_kwargs",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/examples/run_with_state_kwargs.py",
             "console": "integratedTerminal",

@@ -6,9 +6,9 @@ from datetime import datetime
 
 import pytest
 
-from .ihandler import Handler, from_connection_str
-from .ihandler.db_handler import DBHandler, transaction_decorator
-from .ihandler import register_handler
+from .handler import Handler, from_connection_str
+from .handler.db_handler import DBHandler, transaction_decorator
+from .handler import register_handler
 
 
 @pytest.fixture
@@ -48,16 +48,16 @@ def test_db_format(conn, handler):
     assert isinstance(handler, Handler)
 
     if "sqlite" in conn:
-        from .ihandler.sqlite3 import SQLite3DBHandler
+        from .handler.sqlite3 import SQLite3DBHandler
 
         assert isinstance(handler, SQLite3DBHandler)
         assert "ataskq.db" in handler.db_path
     elif "pg" in conn:
-        from .ihandler.postgresql import PostgresqlDBHandler
+        from .handler.postgresql import PostgresqlDBHandler
 
         assert isinstance(handler, PostgresqlDBHandler)
     elif "http" in conn:
-        from .ihandler.rest_handler import RESTHandler
+        from .handler.rest_handler import RESTHandler
 
         assert isinstance(handler, RESTHandler)
     else:

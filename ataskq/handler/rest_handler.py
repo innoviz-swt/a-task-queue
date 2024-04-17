@@ -33,7 +33,7 @@ class RESTHandler(Handler):
         super().__init__(logger)
 
     @staticmethod
-    def to_interface_hanlders():
+    def m2i_serialize():
         type_handlers = {
             datetime: lambda v: from_datetime(v),
             Enum: lambda v: v.value,
@@ -43,7 +43,7 @@ class RESTHandler(Handler):
         return type_handlers
 
     @staticmethod
-    def from_interface_hanlders():
+    def i2m_serialize():
         type_handlers = {datetime: lambda v: to_datetime(v), bytes: lambda v: base64.b64decode(v.encode("ascii"))}
 
         return type_handlers

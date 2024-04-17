@@ -1,10 +1,10 @@
-from abc import ABC, abstractmethod
-from typing import Union, Callable, List, Dict
+from abc import abstractmethod
+from typing import Union, List, Dict
 from datetime import datetime
 from enum import Enum
 
 from ..logger import Logger
-from ..imodel import IModel
+from ..imodel import IModel, IModelSerializer
 
 __STRTIME_FORMAT__ = "%Y-%m-%d %H:%M:%S.%f"
 
@@ -58,7 +58,7 @@ class EAction(str, Enum):
     STOP = "stop"
 
 
-class Handler(ABC, Logger):
+class Handler(IModelSerializer, Logger):
     def __init__(self, logger: Logger = None):
         Logger.__init__(self, logger)
 
@@ -66,33 +66,23 @@ class Handler(ABC, Logger):
     # interface handlers #
     ######################
 
-    @staticmethod
-    @abstractmethod
-    def from_interface_hanlders() -> Dict[type, Callable]:
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def to_interface_hanlders() -> Dict[type, Callable]:
-        pass
-
     @classmethod
     def i2m(cls, model_cls, kwargs: Union[dict, List[dict]]) -> Union[dict, List[dict]]:
         """interface to model"""
-        return model_cls.i2m(kwargs, cls.from_interface_hanlders())
+        return model_cls.i2m(kwargs, cls)
 
     @classmethod
     def from_interface(cls, model_cls: IModel, kwargs: Union[dict, List[dict]]) -> Union[IModel, List[IModel]]:
-        return model_cls.from_interface(kwargs, cls.from_interface_hanlders())
+        return model_cls.from_interface(kwargs, cls)
 
     @classmethod
     def m2i(cls, model_cls: IModel, kwargs: Union[dict, List[dict]]) -> Union[dict, List[dict]]:
         """modle to interface"""
-        return model_cls.m2i(kwargs, cls.to_interface_hanlders())
+        return model_cls.m2i(kwargs, cls)
 
     @classmethod
     def to_interface(cls, model: IModel) -> IModel:
-        return model.to_interface(cls.to_interface_hanlders())
+        return model.to_interface(cls)
 
     ########
     # CRUD #

@@ -1,3 +1,8 @@
+# Docker
+
+# git
+.git
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -10,14 +15,12 @@ __pycache__/
 .Python
 build/
 develop-eggs/
-dist/
 downloads/
 eggs/
 .eggs/
 lib/
 lib64/
 parts/
-sdist/
 var/
 wheels/
 pip-wheel-metadata/
@@ -138,8 +141,6 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
-dist-ssr
 *.local
 
 # vscode
@@ -156,12 +157,7 @@ dist-ssr
 *.sln
 *.sw?
 
-# contrib
-!contrib/.env
-
 # project related
-ataskq/version.py
-ataskq/server/www
 *.db.sqlite3
 
 # tmp
