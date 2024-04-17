@@ -201,19 +201,19 @@ class Model(IModel):
         return ret
 
     @classmethod
-    def i2m(cls, kwargs: Union[dict, List[dict]], handler: IModelSerializer) -> Union[dict, List[dict]]:
+    def i2m(cls, kwargs: Union[dict, List[dict]], serializer: IModelSerializer) -> Union[dict, List[dict]]:
         """interface to model"""
         if isinstance(kwargs, list):
-            ret = [cls._serialize(kw, handler.i2m_serialize()) for kw in kwargs]
+            ret = [cls._serialize(kw, serializer.i2m_serialize()) for kw in kwargs]
         else:
-            ret = cls._serialize(kwargs, handler.i2m_serialize())
+            ret = cls._serialize(kwargs, serializer.i2m_serialize())
 
         return ret
 
     @classmethod
-    def from_interface(cls, kwargs: Union[dict, List[dict]], handler: IModelSerializer):
+    def from_interface(cls, kwargs: Union[dict, List[dict]], serializer: IModelSerializer):
         """interface to model"""
-        mkwargs = cls.i2m(kwargs, handler)
+        mkwargs = cls.i2m(kwargs, serializer)
         if isinstance(kwargs, list):
             ret = [cls(_serialize=False, **kw) for kw in mkwargs]
         else:
@@ -222,18 +222,18 @@ class Model(IModel):
         return ret
 
     @classmethod
-    def m2i(cls, kwargs: Union[dict, List[dict]], handler: IModelSerializer) -> Union[dict, List[dict]]:
+    def m2i(cls, kwargs: Union[dict, List[dict]], serializer: IModelSerializer) -> Union[dict, List[dict]]:
         """model to interface"""
         if isinstance(kwargs, list):
-            ret = [cls._serialize(kw, handler.m2i_serialize()) for kw in kwargs]
+            ret = [cls._serialize(kw, serializer.m2i_serialize()) for kw in kwargs]
         else:
-            ret = cls._serialize(kwargs, handler.m2i_serialize())
+            ret = cls._serialize(kwargs, serializer.m2i_serialize())
 
         return ret
 
-    def to_interface(self, handler: IModelSerializer) -> dict:
+    def to_interface(self, serializer: IModelSerializer) -> dict:
         """model to interface"""
-        ret = self.m2i(self.__dict__, handler)
+        ret = self.m2i(self.__dict__, serializer)
 
         return ret
 
