@@ -20,4 +20,4 @@ include = ["ataskq*"]
 
 
 [tool.setuptools.package-data]
-ataskq =  ["templates/*"]
+ataskq =  ["server/www/**/*"]

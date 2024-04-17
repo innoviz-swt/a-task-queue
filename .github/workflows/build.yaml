@@ -68,6 +68,7 @@ jobs:
           pip install -r requirements.txt
           pip install dist/*.whl
           python -c "import ataskq; assert ataskq.__version__ == '${version}', f'{ataskq.__version__} != ${version}'"
+          python -c "from pathlib import Path; import ataskq; assert (Path(ataskq.__file__).parent / 'server' / 'www' / 'index.html').exists(), f'www/index.html not found'"
           pytest --pyargs ataskq
 
   docker-server-publish:
