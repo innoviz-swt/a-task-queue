@@ -1,5 +1,5 @@
-from abc import ABC, abstractmethod
-from typing import Union, Callable, List, Dict
+from abc import abstractmethod
+from typing import Union, List, Dict
 from datetime import datetime
 from enum import Enum
 
@@ -66,19 +66,23 @@ class Handler(IModelSerializer, Logger):
     # interface handlers #
     ######################
 
-    def i2m(self, model_cls, kwargs: Union[dict, List[dict]]) -> Union[dict, List[dict]]:
+    @classmethod
+    def i2m(cls, model_cls, kwargs: Union[dict, List[dict]]) -> Union[dict, List[dict]]:
         """interface to model"""
-        return model_cls.i2m(kwargs, self)
+        return model_cls.i2m(kwargs, cls)
 
-    def from_interface(self, model_cls: IModel, kwargs: Union[dict, List[dict]]) -> Union[IModel, List[IModel]]:
-        return model_cls.from_interface(kwargs, self)
+    @classmethod
+    def from_interface(cls, model_cls: IModel, kwargs: Union[dict, List[dict]]) -> Union[IModel, List[IModel]]:
+        return model_cls.from_interface(kwargs, cls)
 
-    def m2i(self, model_cls: IModel, kwargs: Union[dict, List[dict]]) -> Union[dict, List[dict]]:
+    @classmethod
+    def m2i(cls, model_cls: IModel, kwargs: Union[dict, List[dict]]) -> Union[dict, List[dict]]:
         """modle to interface"""
-        return model_cls.m2i(kwargs, self)
+        return model_cls.m2i(kwargs, cls)
 
-    def to_interface(self, model: IModel) -> IModel:
-        return model.to_interface(self)
+    @classmethod
+    def to_interface(cls, model: IModel) -> IModel:
+        return model.to_interface(cls)
 
     ########
     # CRUD #

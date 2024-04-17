@@ -1,9 +1,8 @@
 import logging
 import asyncio
-from typing import Union
 from pathlib import Path
 
-from fastapi import FastAPI, Query, Request, Depends
+from fastapi import FastAPI, Request, Depends
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -175,7 +174,7 @@ async def create_model(model: str, request: Request, dbh: DBHandler = Depends(db
 
 
 @app.post("/api/{model}/bulk")
-async def create_model(model: str, request: Request, dbh: DBHandler = Depends(db_handler)):
+async def create_model_bulk(model: str, request: Request, dbh: DBHandler = Depends(db_handler)):
     model_cls: Model = __MODELS__[model]
     ikwargs = await request.json()
     mkwargs = rh.i2m(model_cls, ikwargs)
@@ -206,15 +205,15 @@ async def delete_model(model: str, model_id: int, dbh: DBHandler = Depends(db_ha
 # WWW #
 #######
 @app.get("/db/{model}")
-async def show(model: str):
+async def show_db(model: str):
     return FileResponse(Path(__file__).parent / "www" / "index.html")
 
 
 @app.get("/custom_query/{query}")
-async def show(query: str):
+async def show_custom_qeury(query: str):
     return FileResponse(Path(__file__).parent / "www" / "index.html")
 
 
 @app.get("/custom_query/{query}/{job_id}")
-async def show(query: str, job_id: int):
+async def show_job_custom_query(query: str, job_id: int):
     return FileResponse(Path(__file__).parent / "www" / "index.html")
