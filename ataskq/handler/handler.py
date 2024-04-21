@@ -57,6 +57,9 @@ class EAction(str, Enum):
     WAIT = "wait"
     STOP = "stop"
 
+    def __str__(self) -> str:
+        return self.value
+
 
 class Handler(IModelSerializer, Logger):
     def __init__(self, logger: Logger = None):
