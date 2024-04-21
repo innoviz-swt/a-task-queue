@@ -1,5 +1,8 @@
 # ChangeLog
 
+# 0.5.1
+- fixed python 3.11+ support.
+
 # 0.5.0
 - TASKQ __init__ db renamed to conn
 - add postgresql and rest handlers

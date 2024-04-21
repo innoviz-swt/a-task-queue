@@ -1,3 +1,6 @@
+# https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstrategymatrix
+# todo share py-version between tests as a matrix https://github.com/orgs/community/discussions/26284
+
 name: Test Workflow
 
 on:
@@ -6,31 +9,37 @@ on:
 
 jobs:
   sqlite-test:
+    strategy:
+      matrix:
+        py-version: [3.8, 3.12]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: "3.8"
+          python-version: ${{ matrix.py-version }}
       - name: Build and run tests
         run: |
           python --version
           python -m pip install -r requirements.txt
-          python -m pytest . -v --junitxml=tmp/report.xml
+          python -m pytest . -v --junitxml=tmp/report-${{ matrix.py-version }}.xml
       - name: Publish Test Report
         uses: mikepenz/action-junit-report@v4
         if: success() || failure() # always run even if the previous step fails
         with:
-          report_paths: tmp/report.xml
-          check_name: sqlite3 report
+          report_paths: tmp/report-${{ matrix.py-version }}.xml
+          check_name: sqlite3 report ${{ matrix.py-version }}
 
   postgresql-test:
+    strategy:
+      matrix:
+        py-version: [3.8, 3.12]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: "3.8"
+          python-version: ${{ matrix.py-version }}
       - uses: ikalnytskyi/action-setup-postgres@v4
         id: postgres
       - name: Build and run tests
@@ -39,23 +48,26 @@ jobs:
           echo ATASKQ_CONNECTION $ATASKQ_CONNECTION
           python --version
           python -m pip install -r requirements.txt
-          python -m pytest . -v --junitxml=tmp/report.xml
+          python -m pytest . -v --junitxml=tmp/report-${{ matrix.py-version }}.xml
         env:
           PG_CONNECTION: ${{ steps.postgres.outputs.connection-uri }}
       - name: Publish Test Report
         uses: mikepenz/action-junit-report@v4
         if: success() || failure() # always run even if the previous step fails
         with:
-          report_paths: tmp/report.xml
-          check_name: postgres report
+          report_paths: tmp/report-${{ matrix.py-version }}.xml
+          check_name: postgres report ${{ matrix.py-version }}
 
   restapi-test:
+    strategy:
+      matrix:
+        py-version: [3.8, 3.12]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v4
         with:
-          python-version: "3.8"
+          python-version: ${{ matrix.py-version }}
       - uses: ikalnytskyi/action-setup-postgres@v4
         id: postgres
       - name: Build and run tests
@@ -72,7 +84,7 @@ jobs:
           python -m uvicorn ataskq.server.server:app --port 8080 &
           sleep 5
           curl http://127.0.0.1:8080/health
-          python -m pytest . -v --junitxml=tmp/report.xml
+          python -m pytest . -v --junitxml=tmp/report-${{ matrix.py-version }}.xml
         env:
           PG_CONNECTION: ${{ steps.postgres.outputs.connection-uri }}
           ATASKQ_CONNECTION: http://127.0.0.1:8080
@@ -84,5 +96,5 @@ jobs:
         uses: mikepenz/action-junit-report@v4
         if: success() || failure() # always run even if the previous step fails
         with:
-          report_paths: tmp/report.xml
-          check_name: rest api report
+          report_paths: tmp/report-${{ matrix.py-version }}.xml
+          check_name: rest api report ${{ matrix.py-version }}
