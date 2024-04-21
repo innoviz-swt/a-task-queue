@@ -1,4 +1,6 @@
 # https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstrategymatrix
+# todo share py-version between tests as a matrix https://github.com/orgs/community/discussions/26284
+
 name: Test Workflow
 
 on:
@@ -29,6 +31,9 @@ jobs:
           check_name: sqlite3 report ${{ matrix.py-version }}
 
   postgresql-test:
+    strategy:
+      matrix:
+        py-version: [3.8, 3.12]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -54,6 +59,9 @@ jobs:
           check_name: postgres report ${{ matrix.py-version }}
 
   restapi-test:
+    strategy:
+      matrix:
+        py-version: [3.8, 3.12]
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
