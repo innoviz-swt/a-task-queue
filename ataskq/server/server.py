@@ -9,8 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
 
-from ataskq.handler import from_connection_str
-from ataskq.handler import DBHandler
+from ataskq.handler import DBHandler, from_connection_str
 from ataskq.handler.rest_handler import RESTHandler as rh
 from ataskq.models import Model, __MODELS__
 from ataskq.env import (
