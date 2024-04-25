@@ -1,6 +1,6 @@
 import pytest
 
-from .ataskq import TaskQ, Task
+from . import TaskQ, Task
 from .handler import from_connection_str
 
 

@@ -56,7 +56,7 @@ class TaskQ(Logger):
 
         # get job
         if job_id is not None:
-            job = Job.get(self._job_id, self._handler)
+            job = Job.get(job_id, _handler=self._handler)
         else:
             job = None
         self._job = job

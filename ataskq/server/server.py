@@ -6,7 +6,6 @@ from fastapi import FastAPI, Request, Depends
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from contextlib import asynccontextmanager
 
 
 from ataskq.handler import DBHandler, from_connection_str
@@ -41,24 +40,8 @@ async def set_timout_tasks_task():
         await asyncio.sleep(ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL)
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    logger.info("enter lifspan")
+app = FastAPI()
 
-    logger.info("init db")
-    db_handler().init_db()
-
-    task = asyncio.create_task(set_timout_tasks_task())
-
-    # Load the ML model
-    yield
-    # Clean up the ML models and release the resources
-    logger.info("cancel task")
-    task.cancel()
-    logger.info("exit lifspan")
-
-
-app = FastAPI(lifespan=lifespan)
 
 # allow all cors
 app.add_middleware(

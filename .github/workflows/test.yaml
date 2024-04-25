@@ -81,6 +81,7 @@ jobs:
           mkdir ataskq/server/www && touch ataskq/server/www/index.html  # server mocks
           python --version
           python -m pip install -r requirements.txt
+          python -m ataskq.server.background &
           python -m uvicorn ataskq.server.server:app --port 8080 &
           sleep 5
           curl http://127.0.0.1:8080/health

@@ -8,8 +8,6 @@ from ataskq.env import (
     ATASKQ_TASK_PULSE_TIMEOUT,
 )
 
-ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL=2
-
 def init_logger(level=logging.INFO):
     logger = logging.getLogger("server-worker")
 
@@ -23,7 +21,7 @@ def init_logger(level=logging.INFO):
     return logger
 
 
-logger = init_logger(logging.DEBUG)
+logger = init_logger()
 logger.info(f"ATASKQ_SERVER_CONNECTION: {ATASKQ_SERVER_CONNECTION}")
 logger.info(f"ATASKQ_TASK_PULSE_TIMEOUT: {ATASKQ_TASK_PULSE_TIMEOUT}")
 logger.info(f"ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL: {ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL}")
@@ -39,6 +37,7 @@ async def set_timout_tasks_task():
         logger.debug("Set Timeout Tasks")
         dbh.fail_pulse_timeout_tasks(ATASKQ_TASK_PULSE_TIMEOUT)
         await asyncio.sleep(ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL)
+
 
 async def main():
     await asyncio.gather(

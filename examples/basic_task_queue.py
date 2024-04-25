@@ -15,9 +15,5 @@ tr.add_tasks(
     ]
 )
 
-tasks = tr.get_tasks()
-for t in tasks:
-    print(t)
-
 # run the tasks
 tr.run()  # to run in parallel add num_processes=N
