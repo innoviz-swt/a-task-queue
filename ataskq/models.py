@@ -445,6 +445,9 @@ class Task(Model, EntryPoint):
         EntryPoint.init(kwargs)
         Model.__init__(self, **kwargs)
 
+    def __str__(self):
+        return f"{self.name}({self.task_id})" if self.name else f"{self.task_id}"
+
 
 class StateKWArg(Model, EntryPoint):
     state_kwargs_id: int

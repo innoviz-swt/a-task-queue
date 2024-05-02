@@ -398,7 +398,7 @@ def test_run_2_processes(conn, tmp_path: Path):
         ]
     )
 
-    taskq.run(num_processes=2)
+    taskq.run(concurrency=2)
 
     assert filepath.exists()
     text = filepath.read_text()
@@ -441,14 +441,14 @@ def test_run_by_level(conn, tmp_path: Path, num_processes: int):
     assert taskq.count_pending_tasks_below_level(3) == 4
 
     assert taskq.count_pending_tasks_below_level(1) == 1
-    taskq.run(level=0, num_processes=num_processes)
+    taskq.run(level=0, concurrency=num_processes)
     taskq.count_pending_tasks_below_level(1) == 0
     assert filepath.exists()
     text = filepath.read_text()
     assert "task 0\n" in text
 
     assert taskq.count_pending_tasks_below_level(2) == 2
-    taskq.run(level=1, num_processes=num_processes)
+    taskq.run(level=1, concurrency=num_processes)
     taskq.count_pending_tasks_below_level(2) == 0
     text = filepath.read_text()
     assert "task 0\n" in text
@@ -456,7 +456,7 @@ def test_run_by_level(conn, tmp_path: Path, num_processes: int):
     assert "task 2\n" in text
 
     assert taskq.count_pending_tasks_below_level(3) == 1
-    taskq.run(level=2, num_processes=num_processes)
+    taskq.run(level=2, concurrency=num_processes)
     taskq.count_pending_tasks_below_level(3) == 0
     text = filepath.read_text()
     assert "task 0\n" in text
@@ -497,7 +497,7 @@ def test_task_wait_timeout(conn):
     )
 
     with pytest.raises(Exception) as excinfo:
-        taskq.run(num_processes=2)
+        taskq.run(concurrency=2)
     assert excinfo.value.args[0] == "Some processes failed, see logs for details"
 
 

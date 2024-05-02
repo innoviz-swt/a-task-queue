@@ -37,7 +37,7 @@ tr.add_tasks(
 )
 
 logger.info("running tasks...")
-tr.run(num_processes=3)
+tr.run(concurrency=3)
 
 time.sleep(5)
 # once process is down, "opened status browser window will be replaced by 'site can't be reached' window"

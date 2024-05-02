@@ -1,5 +1,5 @@
 from . import TaskQ, Task, targs
-from .tasks_utils.write_to_file_tasks import write_to_file
+from .tasks_utils.write_to_file_tasks import write_to_file, write_to_file_mp_lock
 from .__main__ import main
 
 
@@ -63,3 +63,25 @@ def test_run_level(tmp_path, conn):
 
     assert filepath.exists()
     assert filepath.read_text() == "task 0\n" "task 1\n" "task 2\n" "task 3\n" "task 4\n"
+
+
+def test_run_concurrency(tmp_path, conn):
+    filepath = tmp_path / "file.txt"
+
+    taskq = TaskQ(conn=conn).create_job()
+
+    taskq.add_tasks(
+        [
+            Task(entrypoint=write_to_file_mp_lock, targs=targs(filepath, "@{pid}\n", sleep=1)),
+            Task(entrypoint=write_to_file_mp_lock, targs=targs(filepath, "@{pid}\n", sleep=1)),
+            Task(entrypoint=write_to_file_mp_lock, targs=targs(filepath, "@{pid}\n", sleep=1)),
+            Task(entrypoint=write_to_file_mp_lock, targs=targs(filepath, "@{pid}\n", sleep=1)),
+            Task(entrypoint=write_to_file_mp_lock, targs=targs(filepath, "@{pid}\n", sleep=1)),
+        ]
+    )
+
+    args = ["run", "-c", conn, "--job-id", str(taskq.job_id), "--concurrency", "3"]
+    main(args=args)
+
+    assert filepath.exists()
+    assert len(set([l for l in filepath.read_text().split("\n") if l])) == 3

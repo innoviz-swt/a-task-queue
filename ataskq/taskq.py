@@ -1,4 +1,5 @@
 import multiprocessing
+import os
 from typing import Union
 import pickle
 import logging
@@ -37,7 +38,7 @@ class TaskQ(Logger):
         monitor_pulse_interval=ATASKQ_MONITOR_PULSE_INTERVAL,
         task_pulse_timeout=ATASKQ_TASK_PULSE_TIMEOUT,
         max_jobs: int = None,
-        logger: Union[logging.Logger, None] = None,
+        logger: Union[str, logging.Logger, None] = None,
     ) -> None:
         """
         Args:
@@ -56,7 +57,10 @@ class TaskQ(Logger):
 
         # get job
         if job_id is not None:
-            job = Job.get(job_id, _handler=self._handler)
+            try:
+                job = Job.get(job_id, _handler=self._handler)
+            except Exception as ex:
+                raise Exception(f"Failed to fetch job (job_id={job_id}).") from ex
         else:
             job = None
         self._job = job
@@ -163,10 +167,12 @@ class TaskQ(Logger):
         return ret
 
     def _run_task(self, task: Task):
+        self.info(f"Running task '{task}'")
+
         # get entry point func to execute
         ep = task.entrypoint
         if ep == "ataskq.skip_run_task":
-            self.info(f"task '{task.task_id}' is marked as 'skip_run_task', skipping run task.")
+            self.info(f"task '{task}' is marked as 'skip_run_task', skipping run task.")
             return
 
         assert "." in ep, "entry point must be inside a module."
@@ -261,6 +267,7 @@ class TaskQ(Logger):
         return self._handler.take_next_task(self.job_id, level_start, level_stop)
 
     def _run(self, level):
+        self.info(f"Started task pulling loop.")
         # make sure all state kwargs for job have key in self._state_kwargs, later to be used in _run_task
         state_kwargs_db = self.job.get_state_kwargs(self._handler)
         for skw in state_kwargs_db:
@@ -303,27 +310,27 @@ class TaskQ(Logger):
 
         return level
 
-    def run(self, num_processes=None, level=None):
+    def run(self, concurrency=None, level=None):
         if level is not None:
             level = self.assert_level(level)
 
         self._running = True
 
         # default to run in current process
-        if num_processes is None:
+        if concurrency is None:
             self._run(level)
             self._running = False
             return
 
-        assert isinstance(num_processes, (int, float))
+        assert isinstance(concurrency, (int, float))
 
-        if isinstance(num_processes, float):
-            assert 0.0 <= num_processes <= 1.0
-            nprocesses = int(multiprocessing.cpu_count() * num_processes)
-        elif num_processes < 0:
-            nprocesses = multiprocessing.cpu_count() - num_processes
+        if isinstance(concurrency, float):
+            assert 0.0 <= concurrency <= 1.0
+            nprocesses = int(multiprocessing.cpu_count() * concurrency)
+        elif concurrency < 0:
+            nprocesses = multiprocessing.cpu_count() - concurrency
         else:
-            nprocesses = num_processes
+            nprocesses = concurrency
 
         # set processes and Q
         processes = [Process(target=self._run, args=(level,)) for i in range(nprocesses)]
