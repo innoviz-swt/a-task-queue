@@ -11,9 +11,13 @@ def main(args=None):
 
     run_p.add_argument("--connection", "-c", help="connection string", default=ATASKQ_CONNECTION)
     run_p.add_argument("--job-id", "-jid", type=int, help="job id to run")
-    run_p.add_argument("--level", "-l", type=int, nargs=2, help="job level to run")
+    run_p.add_argument("--level", "-l", type=int, nargs="+", help="job level to run")
 
     args = parser.parse_args(args=args)
+    # specific args handling
+    if args.level is not None and len(args.level) == 1:
+        args.level = args.level[0]
+
     if args.command == "run":
         TaskQ(conn=args.connection, job_id=args.job_id).run(level=args.level)
 
