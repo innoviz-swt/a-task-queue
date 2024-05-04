@@ -346,7 +346,7 @@ class DBHandler(Handler):
     def take_next_task(self, c, job_id, level_start, level_stop):
         # imported here to avoid circular dependency
         from ..models import Task, EStatus
-        from .handler import Handler, EAction
+        from .handler import EAction
 
         # todo: add FOR UPDATE in the queries postgresql
         level_query = ""
@@ -356,10 +356,14 @@ class DBHandler(Handler):
             level_query += f" AND level < {level_stop}"
 
         # get pending task with minimum level
+        job_query = ""
+        if job_id is not None:
+            job_query += f" AND job_id = {job_id}"
+
         query = (
-            f"SELECT * FROM tasks WHERE job_id = {job_id} AND status IN ('{EStatus.PENDING}'){level_query} AND level = "
-            f"(SELECT MIN(level) FROM tasks WHERE job_id = {job_id} AND status IN ('{EStatus.PENDING}'){level_query})"
-            f" {self.for_update}"
+            f"SELECT * FROM tasks WHERE status IN ('{EStatus.PENDING}'){job_query}{level_query} AND level = "
+            f"(SELECT MIN(level) FROM tasks WHERE status IN ('{EStatus.PENDING}'){job_query}{level_query})"
+            f" {self.for_update} ORDER BY job_id ASC, task_id ASC"
         )
         query = query.strip()
 
@@ -373,8 +377,8 @@ class DBHandler(Handler):
 
         # get running task with minimum level
         query = (
-            f"SELECT * FROM tasks WHERE job_id = {job_id} AND status IN ('{EStatus.RUNNING}'){level_query} AND level = "
-            f"(SELECT MIN(level) FROM tasks WHERE job_id = {job_id} AND status IN ('{EStatus.RUNNING}'){level_query})"
+            f"SELECT * FROM tasks WHERE status IN ('{EStatus.RUNNING}'){job_query}{level_query} AND level = "
+            f"(SELECT MIN(level) FROM tasks WHERE status IN ('{EStatus.RUNNING}'){job_query}{level_query})"
             f" {self.for_update}"
         )
         query = query.strip()

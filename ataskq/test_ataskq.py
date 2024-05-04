@@ -4,11 +4,23 @@ from copy import copy
 
 import pytest
 
-from ataskq import TaskQ, StateKWArg, Job, Task, targs, EStatus
-from ataskq.handler import DBHandler
-from ataskq.handler import EAction, from_connection_str
+from . import TaskQ, StateKWArg, Job, Task, targs, EStatus
+from .handler import DBHandler
+from .handler import EAction, from_connection_str
 
 from .tasks_utils import dummy_args_task
+
+
+def non_decreasing(L):
+    return all(x <= y for x, y in zip(L, L[1:]))
+
+
+def non_increasing(L):
+    return all(x >= y for x, y in zip(L, L[1:]))
+
+
+def monotonic(L):
+    return non_decreasing(L) or non_increasing(L)
 
 
 @pytest.fixture
@@ -116,7 +128,7 @@ def test_state_kwargs_job_delete_cascade(conn):
 
 
 def test_update_task_start_time(jtaskq):
-    in_task1 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="task1")
+    in_task1 = Task(entrypoint=dummy_args_task, level=1, name="task1")
 
     jtaskq.add_tasks(
         [
@@ -142,7 +154,7 @@ def test_update_task_start_time(jtaskq):
 
 
 def test_update_task_status(jtaskq):
-    in_task1 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="task1")
+    in_task1 = Task(entrypoint=dummy_args_task, level=1, name="task1")
 
     jtaskq.add_tasks(
         [
@@ -183,7 +195,7 @@ def test_update_task_status(jtaskq):
     assert task.done_time == now
 
 
-def _compare_task_taken(task1: Task, task2: Task, job_id=None):
+def _compare_tasks(task1: Task, task2: Task, job_id=None):
     if job_id:
         assert task1.job_id == job_id
     assert task1.job_id == task2.job_id
@@ -194,8 +206,32 @@ def _compare_task_taken(task1: Task, task2: Task, job_id=None):
     assert task1.targs == task2.targs
 
 
+def test_get_tasks(jtaskq):
+    in_task1 = Task(entrypoint=dummy_args_task, level=1, name="task1")
+    in_task2 = Task(entrypoint=dummy_args_task, level=2, name="task2")
+    in_task3 = Task(entrypoint=dummy_args_task, level=3, name="task3")
+
+    jtaskq.add_tasks(
+        [
+            in_task3,
+            in_task2,
+            in_task1,
+        ]
+    )
+
+    tasks = jtaskq.get_tasks()
+    assert len(tasks) == 3
+    for t in tasks:
+        if t.level == 1:
+            _compare_tasks(in_task1, t)
+        elif t.level == 2:
+            _compare_tasks(in_task2, t)
+        elif t.level == 3:
+            _compare_tasks(in_task3, t)
+
+
 def test_take_next_task_sanity(jtaskq):
-    in_task1 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="task1")
+    in_task1 = Task(entrypoint=dummy_args_task, level=1, name="task1")
 
     jtaskq.add_tasks(
         [
@@ -205,12 +241,12 @@ def test_take_next_task_sanity(jtaskq):
 
     action, task = jtaskq._take_next_task(level=None)
     assert action == EAction.RUN_TASK
-    _compare_task_taken(in_task1, task)
+    _compare_tasks(in_task1, task)
 
 
 def test_take_next_task(jtaskq):
-    in_task1 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="task1")
-    in_task2 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=2, name="task2")
+    in_task1 = Task(entrypoint=dummy_args_task, level=1, name="task1")
+    in_task2 = Task(entrypoint=dummy_args_task, level=2, name="task2")
     in_task3 = copy(in_task1)
 
     jtaskq.add_tasks(
@@ -227,13 +263,13 @@ def test_take_next_task(jtaskq):
     assert action == EAction.RUN_TASK
     assert task.task_id not in tids
     tids.append(task.task_id)
-    _compare_task_taken(in_task1, task)
+    _compare_tasks(in_task1, task)
 
     action, task = jtaskq._take_next_task(level=None)
     assert action == EAction.RUN_TASK
     assert task.task_id not in tids
     tids.append(task.task_id)
-    _compare_task_taken(in_task3, task)  # note in_task3 is copy of in_task1
+    _compare_tasks(in_task3, task)  # note in_task3 is copy of in_task1
 
     action, task = jtaskq._take_next_task(level=None)
     assert action == EAction.WAIT
@@ -246,11 +282,11 @@ def test_take_next_task_2_jobs(conn):
     taskq1: TaskQ = TaskQ(conn=handler).create_job(name="job1")
     taskq2: TaskQ = TaskQ(conn=handler).create_job(name="job2")
 
-    in_task1 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=2, name="taska")
-    in_task2 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="taskb")
-    in_task3 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="taskb")
-    in_task4 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, name="taskd")
-    in_task5 = Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=2, name="taske")
+    in_task1 = Task(entrypoint=dummy_args_task, level=2, name="taska")
+    in_task2 = Task(entrypoint=dummy_args_task, level=1, name="taskb")
+    in_task3 = Task(entrypoint=dummy_args_task, level=1, name="taskb")
+    in_task4 = Task(entrypoint=dummy_args_task, level=1, name="taskd")
+    in_task5 = Task(entrypoint=dummy_args_task, level=2, name="taske")
 
     taskq1.add_tasks(
         [
@@ -277,30 +313,30 @@ def test_take_next_task_2_jobs(conn):
     assert len(Job.get_all(_handler=handler)) == 2
     assert len(taskq2.get_tasks()) == 2
 
-    # db handler 1
+    # taskq 1
     action, task = taskq1._take_next_task(level=None)
     assert action == EAction.RUN_TASK
     assert task.task_id not in tids
     tids.append(task.task_id)
-    _compare_task_taken(in_task2, task, job_id=jid1)
+    _compare_tasks(in_task2, task, job_id=jid1)
     tids.append(task.task_id)
 
     action, task = taskq1._take_next_task(level=None)
     assert action == EAction.RUN_TASK
     assert task.task_id not in tids
     tids.append(task.task_id)
-    _compare_task_taken(in_task3, task, job_id=jid1)  # note in_task3 is copy of in_task1
+    _compare_tasks(in_task3, task, job_id=jid1)  # note in_task3 is copy of in_task1
 
     action, task = taskq1._take_next_task(level=None)
     assert action == EAction.WAIT
     assert task is None
 
-    # db handler 2
+    # taskq 2
     action, task = taskq2._take_next_task(level=None)
     assert action == EAction.RUN_TASK
     assert task.task_id not in tids
     tids.append(task.task_id)
-    _compare_task_taken(in_task4, task, job_id=jid2)
+    _compare_tasks(in_task4, task, job_id=jid2)
     tids.append(task.task_id)
 
     action, task = taskq2._take_next_task(level=None)
@@ -308,28 +344,60 @@ def test_take_next_task_2_jobs(conn):
     assert task is None
 
 
-def test_get_tasks(jtaskq):
-    in_task1 = Task(entrypoint=dummy_args_task, level=1, name="task1")
-    in_task2 = Task(entrypoint=dummy_args_task, level=2, name="task2")
-    in_task3 = Task(entrypoint=dummy_args_task, level=3, name="task3")
+def test_take_next_all_jobs(tmp_path, conn):
+    filepath = tmp_path / "file.txt"
+    # todo: test should ne under ataskq
+    handler = from_connection_str(conn=conn)
+    taskq1: TaskQ = TaskQ(conn=handler).create_job(name="job1")
+    taskq2: TaskQ = TaskQ(conn=handler).create_job(name="job2")
 
-    jtaskq.add_tasks(
+    def init_task(name):
+        return Task(entrypoint=dummy_args_task, name=name)
+
+    in_task1 = init_task("job1 - task1")
+    in_task2 = init_task("job1 - task2")
+    taskq1.add_tasks(
         [
-            in_task3,
-            in_task2,
             in_task1,
+            in_task2,
         ]
     )
 
-    tasks = jtaskq.get_tasks()
-    assert len(tasks) == 3
-    for t in tasks:
-        if t.level == 1:
-            _compare_task_taken(in_task1, t)
-        elif t.level == 2:
-            _compare_task_taken(in_task2, t)
-        elif t.level == 3:
-            _compare_task_taken(in_task3, t)
+    in_task4 = init_task("job2 - task4")
+    in_task5 = init_task("job2 - task5")
+    taskq2.add_tasks(
+        [
+            in_task4,
+            in_task5,
+        ]
+    )
+
+    in_task3 = init_task("job1 - task3")
+    taskq1.add_tasks(
+        [
+            in_task3,
+        ]
+    )
+
+    jid1 = taskq1.job_id
+    jid2 = taskq2.job_id
+
+    # sanity check
+    assert len(Job.get_all(_handler=handler)) == 2
+    assert len(taskq1.get_tasks()) == 3
+    assert len(Job.get_all(_handler=handler)) == 2
+    assert len(taskq2.get_tasks()) == 2
+
+    taskq = TaskQ(conn=conn)
+    in_tasks = [in_task1, in_task2, in_task3, in_task4, in_task5]
+    in_jids = [jid1, jid1, jid1, jid2, jid2]
+    for t, jid in zip(in_tasks, in_jids):
+        action, task = taskq._take_next_task()
+        assert action == EAction.RUN_TASK
+        assert task.task_id == t.task_id
+        _compare_tasks(t, task, job_id=jid)
+
+    assert not monotonic([t.task_id for t in in_tasks])
 
 
 def test_run_default(conn, tmp_path: Path):
@@ -472,7 +540,7 @@ def test_monitor_pulse_failure(conn):
         [
             # reserved keyward for ignored task for testing
             Task(entrypoint="ataskq.skip_run_task", targs=targs("task will fail")),
-            Task(entrypoint="ataskq.tasks_utils.dummy_args_task", targs=targs("task will success")),
+            Task(entrypoint=dummy_args_task, targs=targs("task will success")),
         ]
     )
     start = datetime.now()
@@ -491,8 +559,8 @@ def test_task_wait_timeout(conn):
     taskq = TaskQ(conn=conn, run_task_raise_exception=True, task_wait_timeout=0).create_job()
     taskq.add_tasks(
         [
-            Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=1, targs=targs("task will success", sleep=0.2)),
-            Task(entrypoint="ataskq.tasks_utils.dummy_args_task", level=2, targs=targs("task will success")),
+            Task(entrypoint=dummy_args_task, level=1, targs=targs("task will success", sleep=0.2)),
+            Task(entrypoint=dummy_args_task, level=2, targs=targs("task will success")),
         ]
     )
 

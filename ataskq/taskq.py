@@ -259,12 +259,12 @@ class TaskQ(Logger):
     def init_state_kwarg(self, state_kwarg: StateKWArg):
         return
 
-    def _take_next_task(self, level):
-        assert self._job is not None, "job must be assigned to taskq before taking next task."
+    def _take_next_task(self, level=None):
         level_start = level.start if level is not None else None
         level_stop = level.stop if level is not None else None
 
-        return self._handler.take_next_task(self.job_id, level_start, level_stop)
+        job_id = self.job_id if self.job is not None else None
+        return self._handler.take_next_task(job_id, level_start, level_stop)
 
     def _run(self, level):
         self.info(f"Started task pulling loop.")
