@@ -1,5 +1,4 @@
 import multiprocessing
-import os
 from typing import Union
 import pickle
 import logging
@@ -21,6 +20,7 @@ from .logger import Logger
 from .models import EStatus, Job, StateKWArg, Task, EntryPointRuntimeError
 from .monitor import MonitorThread
 from .handler import Handler, DBHandler, from_connection_str, EAction
+from .config import load_config
 
 
 def targs(*args, **kwargs):
@@ -39,6 +39,8 @@ class TaskQ(Logger):
         task_pulse_timeout=ATASKQ_TASK_PULSE_TIMEOUT,
         max_jobs: int = None,
         logger: Union[str, logging.Logger, None] = None,
+        config="default",
+        config_environ=True,
     ) -> None:
         """
         Args:
@@ -76,6 +78,7 @@ class TaskQ(Logger):
         self._state_kwargs: Dict[str:object] = dict()
 
         self._running = False
+        self._config = load_config(config, environ=config_environ)
 
     @property
     def job(self):
