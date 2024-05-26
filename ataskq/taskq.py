@@ -9,13 +9,6 @@ import time
 from typing import Dict, List
 from datetime import datetime
 
-from .env import (
-    ATASKQ_CONNECTION,
-    ATASKQ_MONITOR_PULSE_INTERVAL,
-    ATASKQ_TASK_PULSE_TIMEOUT,
-    ATASKQ_TASK_PULL_INTERVAL,
-    ATASKQ_TASK_WAIT_TIMEOUT,
-)
 from .logger import Logger
 from .models import EStatus, Job, StateKWArg, Task, EntryPointRuntimeError
 from .monitor import MonitorThread
@@ -31,28 +24,20 @@ class TaskQ(Logger):
     def __init__(
         self,
         job_id=None,
-        conn=ATASKQ_CONNECTION,
-        run_task_raise_exception=False,
-        task_wait_timeout=ATASKQ_TASK_WAIT_TIMEOUT,
-        task_pull_intervnal=ATASKQ_TASK_PULL_INTERVAL,
-        monitor_pulse_interval=ATASKQ_MONITOR_PULSE_INTERVAL,
-        task_pulse_timeout=ATASKQ_TASK_PULSE_TIMEOUT,
-        max_jobs: int = None,
+        conn=None,
         logger: Union[str, logging.Logger, None] = None,
-        config="default",
+        config=None,
         config_environ=True,
     ) -> None:
-        """
-        Args:
-        task_pull_intervnal: pulling interval for task to complete in seconds.
-        task_pulse_timeout: update interval for pulse in seconds while taks is running.
-        monitor_timeout_internal: timeout for task last monitor pulse in seconds, if passed before getting next task, set to Failure.
-        run_task_raise_exception: if True, run_task will raise exception when task fails. This is for debugging purpose only and will fail production flow.
-        """
         super().__init__(logger)
 
+        # init config
+        self._config = load_config(config, environ=config_environ)
+        if conn is None:
+            conn = self._config["connection"]
+
         # init db handler
-        # todo: hanlder shouldn't get job_id
+        # todo: handler shouldn't get job_id
         self._handler: Handler = (
             conn if isinstance(conn, Handler) else from_connection_str(conn=conn, logger=self._logger)
         )
@@ -67,18 +52,14 @@ class TaskQ(Logger):
             job = None
         self._job = job
 
-        self._run_task_raise_exception = run_task_raise_exception
-        self._task_wait_timeout = task_wait_timeout
-        self._task_pull_interval = task_pull_intervnal
-        self._monitor_pulse_interval = monitor_pulse_interval
-        self._task_pulse_timeout = task_pulse_timeout
-        self._max_jobs = max_jobs
-
         # state kwargs for jobs
         self._state_kwargs: Dict[str:object] = dict()
 
         self._running = False
-        self._config = load_config(config, environ=config_environ)
+
+    @property
+    def config(self):
+        return self._config
 
     @property
     def job(self):
@@ -114,7 +95,7 @@ class TaskQ(Logger):
         job = Job(name=name, description=description).create(_handler=self._handler)
         self._job = job
 
-        if self._max_jobs is not None:
+        if self.config["db"]["max_jobs"] is not None:
             # keep max jbos
             Job.delete_all(
                 _where=f"job_id NOT IN (SELECT job_id FROM jobs ORDER BY job_id DESC limit {self._max_jobs})",
@@ -195,7 +176,7 @@ class TaskQ(Logger):
             try:
                 targs = pickle.loads(task.targs)
             except Exception as ex:
-                if self._run_task_raise_exception:  # for debug purposes only
+                if self.config["run"]["raise_exception"]:  # for debug purposes only
                     self.warning("Getting tasks args failed.")
                     self.update_task_status(task, EStatus.FAILURE)
                     raise ex
@@ -226,7 +207,7 @@ class TaskQ(Logger):
                     self._logger.info(f"Failed to initialize state kwarg '{name}'")
                     self.update_task_status(task, EStatus.FAILURE)
 
-                    if self._run_task_raise_exception:
+                    if self.config["run"]["raise_exception"]:
                         raise ex
                     return
             # state kwargs already inistliazed
@@ -237,14 +218,14 @@ class TaskQ(Logger):
         self.update_task_start_time(task)
 
         # run task
-        monitor = MonitorThread(task, self, pulse_interval=self._monitor_pulse_interval)
+        monitor = MonitorThread(task, self, pulse_interval=self.config["monitor"]["pulse_interval"])
         monitor.start()
 
         try:
             func(*targs[0], **targs[1])
             status = EStatus.SUCCESS
         except Exception as ex:
-            if self._run_task_raise_exception:  # for debug purposes only
+            if self.config["run"]["raise_exception"]:  # for debug purposes only
                 self.warning("Running task entry point failed with exception.")
                 self.update_task_status(task, EStatus.FAILURE)
                 monitor.stop()
@@ -282,7 +263,7 @@ class TaskQ(Logger):
         while True:
             # if the taskq handler is db handler, the taskq performs background tasks before each run
             if isinstance(self._handler, DBHandler):
-                self._handler.fail_pulse_timeout_tasks(self._task_pulse_timeout)
+                self._handler.fail_pulse_timeout_tasks(self.config["monitor"]["pulse_timeout"])
             # grab tasks and set them in Q
             action, task = self._take_next_task(level)
 
@@ -351,7 +332,7 @@ class TaskQ(Logger):
 
         self._running = False
 
-        if self._run_task_raise_exception and fail:
+        if self.config["run"]["raise_exception"] and fail:
             raise Exception("Some processes failed, see logs for details")
 
         return self

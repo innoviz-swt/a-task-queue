@@ -433,7 +433,7 @@ def test_run_task_raise_exception(conn):
         assert False, "exception_task raises exception with run_task_raise_exception=False"
 
     # exception raised
-    taskq: TaskQ = TaskQ(conn=conn, run_task_raise_exception=True).create_job()
+    taskq: TaskQ = TaskQ(conn=conn, config={"run": {"raise_exception": True}}).create_job()
     taskq.add_tasks(
         [
             Task(entrypoint="ataskq.tasks_utils.exception_task", targs=targs(message="task failed")),

@@ -1,13 +1,10 @@
 from datetime import datetime, timedelta
-from typing import List, Tuple
-from pathlib import Path
-from io import TextIOWrapper
+from typing import List
 from abc import abstractmethod
 from datetime import datetime
 
 from .handler import Handler, get_query_kwargs
 from ..imodel import IModel
-from ..env import ATASKQ_DB_INIT_ON_HANDLER_INIT, ATASKQ_DB_LIMIT_DEFAULT
 from .. import __schema_version__
 
 CONNECTION_LOG = [None]
@@ -92,10 +89,9 @@ def expand_query_str(query_str, _where=None, _order_by=None, _limit=None, _offse
 
 
 class DBHandler(Handler):
-    def __init__(self, init_db=ATASKQ_DB_INIT_ON_HANDLER_INIT, logger=None) -> None:
-        super().__init__(logger)
-
-        if init_db:
+    def __init__(self, config=None, config_environ=True, logger=None) -> None:
+        super().__init__(config=config, config_environ=config_environ, logger=logger)
+        if self.config["handler"]["db_init"]:
             self.init_db()
 
     @property
@@ -306,9 +302,9 @@ class DBHandler(Handler):
         )
 
     @transaction_decorator()
-    def count_query(
-        self, c, model_cls: IModel, _where: str = None, _limit: int = ATASKQ_DB_LIMIT_DEFAULT, _offset: int = 0
-    ):
+    def count_query(self, c, model_cls: IModel, _where: str = None, _limit: int = None, _offset: int = 0):
+        if _limit is None:
+            _limit = self.config["api"]["limit"]
         query_str = f"SELECT COUNT(*) FROM {model_cls.table_key()}"
         query_str = expand_query_str(query_str, _where=_where, _limit=_limit, _offset=_offset)
 
@@ -324,9 +320,11 @@ class DBHandler(Handler):
         model_cls: IModel,
         _where: str = None,
         _order_by=None,
-        _limit: int = ATASKQ_DB_LIMIT_DEFAULT,
+        _limit: int = None,
         _offset: int = 0,
     ):
+        if _limit is None:
+            _limit = self.config["api"]["limit"]
         query_str = f"SELECT * FROM {model_cls.table_key()}"
         if _order_by is None:
             _order_by = f"{model_cls.table_key()}.{model_cls.id_key()} ASC"
@@ -439,10 +437,13 @@ class DBHandler(Handler):
         job_id,
         _where: str = None,
         _order_by: str = None,
-        _limit: int = ATASKQ_DB_LIMIT_DEFAULT,
+        _limit: int = None,
         _offset: int = 0,
     ):
         from ..models import EStatus
+
+        if _limit is None:
+            _limit = self.config["api"]["limit"]
 
         query_str = (
             "SELECT level, name,"
@@ -465,10 +466,11 @@ class DBHandler(Handler):
         return ret
 
     @transaction_decorator()
-    def jobs_status(
-        self, c, _where: str = None, _order_by: str = None, _limit: int = ATASKQ_DB_LIMIT_DEFAULT, _offset: int = 0
-    ):
+    def jobs_status(self, c, _where: str = None, _order_by: str = None, _limit: int = None, _offset: int = 0):
         from ..models import EStatus
+
+        if _limit is None:
+            _limit = self.config["api"]["limit"]
 
         query_str = (
             "SELECT jobs.job_id, jobs.name, jobs.description, jobs.priority, "

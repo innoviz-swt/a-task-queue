@@ -5,8 +5,9 @@ from ataskq.handler import DBHandler, from_connection_str
 from ataskq.env import (
     ATASKQ_SERVER_CONNECTION,
     ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL,
-    ATASKQ_TASK_PULSE_TIMEOUT,
+    ataskq_monitor_pulse_timeout,
 )
+
 
 def init_logger(level=logging.INFO):
     logger = logging.getLogger("server-worker")
@@ -23,7 +24,7 @@ def init_logger(level=logging.INFO):
 
 logger = init_logger()
 logger.info(f"ATASKQ_SERVER_CONNECTION: {ATASKQ_SERVER_CONNECTION}")
-logger.info(f"ATASKQ_TASK_PULSE_TIMEOUT: {ATASKQ_TASK_PULSE_TIMEOUT}")
+logger.info(f"ataskq_monitor_pulse_timeout: {ataskq_monitor_pulse_timeout}")
 logger.info(f"ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL: {ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL}")
 
 
@@ -35,14 +36,14 @@ async def set_timout_tasks_task():
     dbh = db_handler()
     while True:
         logger.debug("Set Timeout Tasks")
-        dbh.fail_pulse_timeout_tasks(ATASKQ_TASK_PULSE_TIMEOUT)
+        dbh.fail_pulse_timeout_tasks(ataskq_monitor_pulse_timeout)
         await asyncio.sleep(ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL)
 
 
 async def main():
     await asyncio.gather(
         set_timout_tasks_task(),
-    ) 
+    )
 
 
 def run():

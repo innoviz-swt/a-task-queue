@@ -4,6 +4,7 @@ from datetime import datetime
 from enum import Enum
 
 from ..logger import Logger
+from ..config import load_config
 from ..imodel import IModel, IModelSerializer
 
 __STRTIME_FORMAT__ = "%Y-%m-%d %H:%M:%S.%f"
@@ -62,8 +63,15 @@ class EAction(str, Enum):
 
 
 class Handler(IModelSerializer, Logger):
-    def __init__(self, logger: Logger = None):
+    def __init__(self, config=None, config_environ=True, logger: Logger = None):
         Logger.__init__(self, logger)
+
+        # init config
+        self._config = load_config(config, environ=config_environ)
+
+    @property
+    def config(self):
+        return self._config
 
     ######################
     # interface handlers #
@@ -192,7 +200,7 @@ def get_handler(name=None, assert_registered=False):
     else:
         assert (
             name is not None
-        ), f"more than 1 type hander registered, please specify hanlder name. registered handlers: {list(__HANDLERS__.keys())}"
+        ), f"more than 1 type hander registered, please specify handler name. registered handlers: {list(__HANDLERS__.keys())}"
         assert (
             name in __HANDLERS__
         ), f"no handler named '{name}' is registered. registered handlers: {list(__HANDLERS__.keys())}"
