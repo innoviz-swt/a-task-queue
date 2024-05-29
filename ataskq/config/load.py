@@ -83,7 +83,7 @@ def load_file(config: Path):
     return ret
 
 
-def load_config(config: Union[CONGIF_TYPE, List[CONGIF_TYPE]], environ=False):
+def load_config(config: Union[CONGIF_TYPE, List[CONGIF_TYPE]]):
     if config is None or config == DEFAULT_CONFIG:
         # default config used as base configuration for _load_config
         config = []
@@ -97,12 +97,12 @@ def load_config(config: Union[CONGIF_TYPE, List[CONGIF_TYPE]], environ=False):
                 # presets
                 config[i] = CONFIG_SETS[c]
             else:
-                config[i] = load_file(c)
+                config[i] = load_file(Path(c))
         elif isinstance(c, Path):
             config[i] = load_file(c)
         elif isinstance(c, dict):
             continue
 
-    ret = _load_config(config, CONFIG_SETS[DEFAULT_CONFIG], environ=environ)
+    ret = _load_config(config, CONFIG_SETS[DEFAULT_CONFIG], environ=True)
 
     return ret

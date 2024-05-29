@@ -45,13 +45,15 @@ CONFIG_SETS = {
         },
     },
     "client": {
+        "connection": "http://localhost:8080",
         "handler": {
             "db_init": False,
         },
     },
     "server": {
+        "connection": "pg://postgres:postgres@localhost/postgres",
         "handler": {
             "db_init": False,
-        }
+        },
     },
 }

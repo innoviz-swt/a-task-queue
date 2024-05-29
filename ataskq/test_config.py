@@ -1,3 +1,5 @@
+import copy
+
 from .config import load_config
 from .config.config import CONFIG_FORMAT, CONFIG_SETS, DEFAULT_CONFIG
 
@@ -36,7 +38,8 @@ def test_load_default():
 def test_load_client_preset():
     config = load_config("client")
 
-    ref = CONFIG_SETS[DEFAULT_CONFIG]
+    ref = copy.deepcopy(CONFIG_SETS[DEFAULT_CONFIG])
+    ref["connection"] = "http://localhost:8080"
     ref["handler"]["db_init"] = False
 
     assert_config(ref, config)
@@ -45,7 +48,17 @@ def test_load_client_preset():
 def test_load_custom():
     config = load_config({"connection": "test", "run": {"wait_timeout": 100}})
 
-    ref = CONFIG_SETS[DEFAULT_CONFIG]
+    ref = copy.deepcopy(CONFIG_SETS[DEFAULT_CONFIG])
+    ref["connection"] = "test"
+    ref["run"]["wait_timeout"] = 100.0
+
+    assert_config(ref, config)
+
+
+def test_load_custom2():
+    config = load_config([{"connection": "test", "run": {"wait_timeout": 100}}])
+
+    ref = copy.deepcopy(CONFIG_SETS[DEFAULT_CONFIG])
     ref["connection"] = "test"
     ref["run"]["wait_timeout"] = 100.0
 
@@ -55,7 +68,7 @@ def test_load_custom():
 def test_load_custom_and_preset():
     config = load_config([{"connection": "test"}, "client"])
 
-    ref = CONFIG_SETS[DEFAULT_CONFIG]
+    ref = copy.deepcopy(CONFIG_SETS[DEFAULT_CONFIG])
     ref["connection"] = "test"
     ref["handler"]["db_init"] = False
 

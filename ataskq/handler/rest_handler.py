@@ -20,17 +20,16 @@ class RESTConnection(NamedTuple):
         return {self.url}
 
 
-def from_connection_str(conn):
-    ret = RESTConnection(url=conn)
-
-    return ret
-
-
 class RESTHandler(Handler):
     # todo: remove max jobs
-    def __init__(self, conn=None, logger=None) -> None:
-        self._connection = from_connection_str(conn)
+    def __init__(self, logger=None) -> None:
         super().__init__(logger)
+
+    @staticmethod
+    def from_connection_str(conn):
+        ret = RESTConnection(url=conn)
+
+        return ret
 
     @staticmethod
     def m2i_serialize():

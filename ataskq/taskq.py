@@ -9,10 +9,11 @@ import time
 from typing import Dict, List
 from datetime import datetime
 
+
 from .logger import Logger
 from .models import EStatus, Job, StateKWArg, Task, EntryPointRuntimeError
 from .monitor import MonitorThread
-from .handler import Handler, DBHandler, from_connection_str, EAction
+from .handler import Handler, DBHandler, from_config, EAction
 from .config import load_config
 
 
@@ -24,23 +25,24 @@ class TaskQ(Logger):
     def __init__(
         self,
         job_id=None,
-        conn=None,
+        handler: Handler = None,
         logger: Union[str, logging.Logger, None] = None,
         config=None,
-        config_environ=True,
     ) -> None:
         super().__init__(logger)
 
         # init config
-        self._config = load_config(config, environ=config_environ)
-        if conn is None:
-            conn = self._config["connection"]
+        self._config = load_config(config)
 
         # init db handler
         # todo: handler shouldn't get job_id
-        self._handler: Handler = (
-            conn if isinstance(conn, Handler) else from_connection_str(conn=conn, logger=self._logger)
-        )
+        if handler is None:
+            self._handler: Handler = from_config(
+                config=config,
+                logger=self._logger,
+            )
+        else:
+            self._handler = handler
 
         # get job
         if job_id is not None:
@@ -98,7 +100,7 @@ class TaskQ(Logger):
         if self.config["db"]["max_jobs"] is not None:
             # keep max jbos
             Job.delete_all(
-                _where=f"job_id NOT IN (SELECT job_id FROM jobs ORDER BY job_id DESC limit {self._max_jobs})",
+                _where=f"job_id NOT IN (SELECT job_id FROM jobs ORDER BY job_id DESC limit {self.config['db']['max_jobs']})",
                 _handler=self.handler,
             )
 
@@ -273,11 +275,14 @@ class TaskQ(Logger):
             if action == EAction.RUN_TASK:
                 self._run_task(task)
             elif action == EAction.WAIT:
-                if self._task_wait_timeout is not None and time.time() - task_pull_start > self._task_wait_timeout:
-                    raise Exception(f"task pull timeout of '{self._task_wait_timeout}' sec reached.")
+                if (
+                    wait_timeout := self.config["run"]["wait_timeout"] is not None
+                    and time.time() - task_pull_start > wait_timeout
+                ):
+                    raise Exception(f"task pull timeout of '{wait_timeout}' sec reached.")
 
-                self.debug(f"waiting for {self._task_pull_interval} sec before taking next task")
-                time.sleep(self._task_pull_interval)
+                self.debug(f'waiting for {self.config["run"]["pull_interval"]} sec before taking next task')
+                time.sleep(self.config["run"]["pull_interval"])
 
     def assert_level(self, level):
         if isinstance(level, int):

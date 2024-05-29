@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 
-from ataskq.handler import DBHandler, from_connection_str
+from ataskq.handler import DBHandler, from_config
 from ataskq.handler.rest_handler import RESTHandler as rh
 from ataskq.models import Model, __MODELS__
 from ataskq.env import (
@@ -29,7 +29,7 @@ logger.info(f"ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL: {ATASKQ_SERVER_
 
 
 def db_handler() -> DBHandler:
-    return from_connection_str(ATASKQ_SERVER_CONNECTION)
+    return from_config(ATASKQ_SERVER_CONNECTION)
 
 
 async def set_timout_tasks_task():

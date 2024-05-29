@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from ataskq.handler import DBHandler, from_connection_str
+from ataskq.handler import DBHandler, from_config
 from ataskq.env import (
     ATASKQ_SERVER_CONNECTION,
     ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL,
@@ -29,7 +29,7 @@ logger.info(f"ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL: {ATASKQ_SERVER_
 
 
 def db_handler() -> DBHandler:
-    return from_connection_str(ATASKQ_SERVER_CONNECTION)
+    return from_config(ATASKQ_SERVER_CONNECTION)
 
 
 async def set_timout_tasks_task():

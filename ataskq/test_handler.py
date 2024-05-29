@@ -1,19 +1,15 @@
 # todo: add queries order_by tests
 
-from pathlib import Path
-from copy import copy
-from datetime import datetime
-
 import pytest
 
-from .handler import Handler, from_connection_str
+from .handler import Handler, from_config
 from .handler.db_handler import DBHandler, transaction_decorator
 from .handler import register_handler
 
 
 @pytest.fixture
-def handler(conn) -> Handler:
-    handler = from_connection_str(conn)
+def handler(config) -> Handler:
+    handler = from_config(config)
     register_handler("test_handler", handler)
     return handler
 
@@ -44,8 +40,9 @@ def test_invalid_transaction(handler):
     assert "syntax error" in str(excinfo.value)
 
 
-def test_db_format(conn, handler):
+def test_db_format(config, handler):
     assert isinstance(handler, Handler)
+    conn = config["connection"]
 
     if "sqlite" in conn:
         from .handler.sqlite3 import SQLite3DBHandler
@@ -66,17 +63,17 @@ def test_db_format(conn, handler):
 
 def test_db_invalid_format_no_sep():
     with pytest.raises(RuntimeError) as excinfo:
-        from_connection_str(conn=f"sqlite")
+        from_config(config={"connection": "sqlite"})
     assert "connection must be of format <type>://<connection string>" == str(excinfo.value)
 
 
 def test_db_invalid_format_no_type():
     with pytest.raises(RuntimeError) as excinfo:
-        from_connection_str(conn=f"://ataskq.db")
+        from_config(config={"connection": f"://ataskq.db"})
     assert "missing handler type, connection must be of format <type>://<connection string>" == str(excinfo.value)
 
 
 def test_db_invalid_format_no_connectino():
     with pytest.raises(RuntimeError) as excinfo:
-        from_connection_str(conn=f"sqlite://")
+        from_config(config={"connection": "sqlite://"})
     assert "missing connection string, connection must be of format <type>://<connection string>" == str(excinfo.value)

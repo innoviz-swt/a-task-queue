@@ -1,7 +1,7 @@
 import argparse
 
 from ataskq import TaskQ
-from ataskq.env import ATASKQ_CONNECTION
+from ataskq.env import ATASKQ_CONFIG
 
 
 def parse_number(number: str):
@@ -23,7 +23,7 @@ def main(args=None):
     subparsers = parser.add_subparsers(title="commands", dest="command")
     run_p = subparsers.add_parser("run")
 
-    run_p.add_argument("--connection", "-c", help="connection string", default=ATASKQ_CONNECTION)
+    run_p.add_argument("--config", "-c", help="config set or path to file", default=ATASKQ_CONFIG)
     run_p.add_argument("--job-id", "-jid", type=int, help="job id to run")
     run_p.add_argument("--level", "-l", type=int, nargs="+", help="job level to run")
     run_p.add_argument(
@@ -37,7 +37,7 @@ def main(args=None):
         args.level = args.level[0]
 
     if args.command == "run":
-        TaskQ(conn=args.connection, job_id=args.job_id).run(level=args.level, concurrency=args.concurrency)
+        TaskQ(config=args.config, job_id=args.job_id).run(level=args.level, concurrency=args.concurrency)
 
 
 if __name__ == "__main__":

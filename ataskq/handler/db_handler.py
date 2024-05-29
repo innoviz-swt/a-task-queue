@@ -89,10 +89,12 @@ def expand_query_str(query_str, _where=None, _order_by=None, _limit=None, _offse
 
 
 class DBHandler(Handler):
-    def __init__(self, config=None, config_environ=True, logger=None) -> None:
-        super().__init__(config=config, config_environ=config_environ, logger=logger)
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
         if self.config["handler"]["db_init"]:
             self.init_db()
+        else:
+            a = 2
 
     @property
     def db_path(self):

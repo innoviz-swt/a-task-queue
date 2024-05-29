@@ -3,6 +3,7 @@ from typing import Union, List, Dict
 from datetime import datetime
 from enum import Enum
 
+from ..env import ATASKQ_CONFIG
 from ..logger import Logger
 from ..config import load_config
 from ..imodel import IModel, IModelSerializer
@@ -63,15 +64,21 @@ class EAction(str, Enum):
 
 
 class Handler(IModelSerializer, Logger):
-    def __init__(self, config=None, config_environ=True, logger: Logger = None):
+    def __init__(self, config=ATASKQ_CONFIG, logger: Logger = None):
         Logger.__init__(self, logger)
 
         # init config
-        self._config = load_config(config, environ=config_environ)
+        self._config = load_config(config)
+        self._connection = self.from_connection_str(self._config["connection"])
 
     @property
     def config(self):
         return self._config
+
+    @staticmethod
+    @abstractmethod
+    def from_connection_str(conn):
+        pass
 
     ######################
     # interface handlers #
@@ -207,9 +214,10 @@ def get_handler(name=None, assert_registered=False):
         return __HANDLERS__[name]
 
 
-def from_connection_str(conn=None, **kwargs) -> Handler:
-    if conn is None:
-        conn = ""
+def from_config(config=ATASKQ_CONFIG, **kwargs) -> Handler:
+    # expand config in factory and not inside handler
+    config = load_config(config)
+    conn = config["connection"]
 
     sep = "://"
     sep_index = conn.find(sep)
@@ -226,18 +234,19 @@ def from_connection_str(conn=None, **kwargs) -> Handler:
         raise RuntimeError("missing connection string, connection must be of format <type>://<connection string>")
 
     # get db type handler
+    kwargs["config"] = config
     if handler_type == "sqlite":
         from .sqlite3 import SQLite3DBHandler
 
-        handler = SQLite3DBHandler(conn, **kwargs)
+        handler = SQLite3DBHandler(**kwargs)
     elif handler_type == "pg":
         from .postgresql import PostgresqlDBHandler
 
-        handler = PostgresqlDBHandler(conn, **kwargs)
+        handler = PostgresqlDBHandler(**kwargs)
     elif handler_type == "http" or handler_type == "https":
         from .rest_handler import RESTHandler
 
-        handler = RESTHandler(conn, **kwargs)
+        handler = RESTHandler(**kwargs)
     else:
         raise Exception(f"unsupported handler type '{handler_type}', type must be one of ['sqlite', 'pg', 'http']")
 
