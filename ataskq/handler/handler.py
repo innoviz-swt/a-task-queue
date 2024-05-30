@@ -174,11 +174,11 @@ class Handler(IModelSerializer, Logger):
         pass
 
     @abstractmethod
-    def tasks_status(self, job_id) -> List[dict]:
+    def tasks_status(self, job_id, _order_by: str = None, _limit: int = None, _offset: int = 0) -> List[dict]:
         pass
 
     @abstractmethod
-    def jobs_status(self) -> List[dict]:
+    def jobs_status(self, _order_by: str = None, _limit: int = None, _offset: int = 0) -> List[dict]:
         pass
 
 

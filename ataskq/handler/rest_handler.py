@@ -22,8 +22,8 @@ class RESTConnection(NamedTuple):
 
 class RESTHandler(Handler):
     # todo: remove max jobs
-    def __init__(self, logger=None) -> None:
-        super().__init__(logger)
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
 
     @staticmethod
     def from_connection_str(conn):
@@ -135,12 +135,12 @@ class RESTHandler(Handler):
 
         return (action, task)
 
-    def tasks_status(self, job_id):
-        res = self.rest_get(f"custom_query/tasks_status/{job_id}")
+    def tasks_status(self, job_id, **kwargs):
+        res = self.rest_get(f"custom_query/tasks_status/{job_id}", data=kwargs)
 
         return res
 
-    def jobs_status(self):
-        res = self.rest_get(f"custom_query/jobs_status")
+    def jobs_status(self, **kwargs):
+        res = self.rest_get(f"custom_query/jobs_status", data=kwargs)
 
         return res

@@ -156,9 +156,6 @@ dist-ssr
 *.sln
 *.sw?
 
-# contrib
-!contrib/.env
-
 # project related
 ataskq/version.py
 ataskq/server/www

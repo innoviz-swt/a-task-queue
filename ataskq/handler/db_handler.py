@@ -93,8 +93,6 @@ class DBHandler(Handler):
         super().__init__(**kwargs)
         if self.config["handler"]["db_init"]:
             self.init_db()
-        else:
-            a = 2
 
     @property
     def db_path(self):
@@ -437,7 +435,6 @@ class DBHandler(Handler):
         self,
         c,
         job_id,
-        _where: str = None,
         _order_by: str = None,
         _limit: int = None,
         _offset: int = 0,
@@ -468,7 +465,7 @@ class DBHandler(Handler):
         return ret
 
     @transaction_decorator()
-    def jobs_status(self, c, _where: str = None, _order_by: str = None, _limit: int = None, _offset: int = 0):
+    def jobs_status(self, c, _order_by: str = None, _limit: int = None, _offset: int = 0):
         from ..models import EStatus
 
         if _limit is None:

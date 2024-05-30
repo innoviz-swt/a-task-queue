@@ -276,9 +276,8 @@ class TaskQ(Logger):
                 self._run_task(task)
             elif action == EAction.WAIT:
                 if (
-                    wait_timeout := self.config["run"]["wait_timeout"] is not None
-                    and time.time() - task_pull_start > wait_timeout
-                ):
+                    wait_timeout := self.config["run"]["wait_timeout"]
+                ) is not None and time.time() - task_pull_start > wait_timeout:
                     raise Exception(f"task pull timeout of '{wait_timeout}' sec reached.")
 
                 self.debug(f'waiting for {self.config["run"]["pull_interval"]} sec before taking next task')

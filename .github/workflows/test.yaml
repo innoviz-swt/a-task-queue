@@ -44,8 +44,8 @@ jobs:
         id: postgres
       - name: Build and run tests
         run: |
-          export ATASKQ_CONNECTION=${PG_CONNECTION/postgresql/pg}
-          echo ATASKQ_CONNECTION $ATASKQ_CONNECTION
+          export ataskq_connection=${PG_CONNECTION/postgresql/pg}
+          echo ataskq_connection $ataskq_connection
           python --version
           python -m pip install -r requirements.txt
           python -m pytest . -v --junitxml=tmp/report-${{ matrix.py-version }}.xml
@@ -72,25 +72,24 @@ jobs:
         id: postgres
       - name: Build and run tests
         run: |
-          echo ATASKQ_CONNECTION $ATASKQ_CONNECTION
           export ATASKQ_SERVER_CONNECTION=${PG_CONNECTION/postgresql/pg}
           echo ATASKQ_SERVER_CONNECTION $ATASKQ_SERVER_CONNECTION
-          echo ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL $ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL
+          echo ataskq_monitor_pulse_interval $ataskq_monitor_pulse_interval
           echo ataskq_monitor_pulse_timeout $ataskq_monitor_pulse_timeout
           echo ataskq_run_wait_timeout $ataskq_run_wait_timeout
           mkdir ataskq/server/www && touch ataskq/server/www/index.html  # server mocks
           python --version
           python -m pip install -r requirements.txt
           python -m ataskq.server.background &
-          python -m uvicorn ataskq.server.server:app --port 8080 &
+          ataskq_connection=$ATASKQ_SERVER_CONNECTION python -m uvicorn ataskq.server.server:app --port 8080 &
           sleep 5
           curl http://127.0.0.1:8080/health
           python -m pytest . -v --junitxml=tmp/report-${{ matrix.py-version }}.xml
         env:
           PG_CONNECTION: ${{ steps.postgres.outputs.connection-uri }}
-          ATASKQ_CONNECTION: http://127.0.0.1:8080
-          ataskq_handler_db_init: 0
-          ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL: 2
+          ATASKQ_CONFIG: "client"
+          ATASKQ_SERVER_CONFIG: "server"
+          ataskq_monitor_pulse_interval: 2
           ataskq_monitor_pulse_timeout: 1.5
           ataskq_run_wait_timeout: 10
       - name: Publish Test Report
