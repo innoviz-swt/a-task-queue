@@ -49,7 +49,7 @@ def drop_pg_tables(conn):
 
 @fixture
 def config(tmp_path):
-    config = load_config({"connection": "sqlite://{tmp_path}/ataskq.db.sqlite3"})
+    config = load_config(ATASKQ_CONFIG or "test")
     conn = config["connection"]
     if "sqlite" in conn:
         config["connection"] = conn.format(tmp_path=tmp_path)

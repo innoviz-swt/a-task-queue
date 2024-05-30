@@ -44,6 +44,9 @@ CONFIG_SETS = {
             "limit": 100,
         },
     },
+    "test": {
+        "connection": "sqlite://{tmp_path}/ataskq.db.sqlite3",
+    },
     "client": {
         "connection": "http://localhost:8080",
         "handler": {

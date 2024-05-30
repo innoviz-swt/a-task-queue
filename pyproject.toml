@@ -1,7 +1,7 @@
 [project]
 name = "ataskq"
 version = "0.0.0"
-description = "An in process task queue for distributed computing systems."
+description = "Easily create and run tasks (=function calls) with almost seamless transition between Local development and Distributed deployment."
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [

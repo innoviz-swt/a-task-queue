@@ -346,8 +346,6 @@ def test_take_next_task_2_jobs(config):
 
 
 def test_take_next_all_jobs(tmp_path, config):
-    filepath = tmp_path / "file.txt"
-    # todo: test should ne under ataskq
     handler = from_config(config)
     taskq1: TaskQ = TaskQ(handler=handler).create_job(name="job1")
     taskq2: TaskQ = TaskQ(handler=handler).create_job(name="job2")

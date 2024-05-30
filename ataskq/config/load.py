@@ -5,7 +5,7 @@ import os
 
 from .config import CONFIG_FORMAT, CONFIG_SETS, DEFAULT_CONFIG
 
-CONGIF_TYPE = Union[str, Path, dict]
+CONFIG_TYPE = Union[str, Path, dict]
 
 
 def _get_args_names(union):
@@ -87,7 +87,7 @@ def load_file(config: Path):
     return ret
 
 
-def load_config(config: Union[CONGIF_TYPE, List[CONGIF_TYPE]], environ=True):
+def load_config(config: Union[CONFIG_TYPE, List[CONFIG_TYPE]], environ=True):
     loaded = False
     if config is None or config == DEFAULT_CONFIG:
         # default config used as base configuration for _load_config
@@ -98,13 +98,13 @@ def load_config(config: Union[CONGIF_TYPE, List[CONGIF_TYPE]], environ=True):
         config = config if loaded else [config]
     elif isinstance(config, list):
         for i, c in enumerate(config):
-            if not isinstance(c, get_args(CONGIF_TYPE)):
-                raise RuntimeError(f"onvalid config[{i}] element type. supported types: {_get_args_names(CONGIF_TYPE)}")
-    elif isinstance(config, get_args(CONGIF_TYPE)):
+            if not isinstance(c, get_args(CONFIG_TYPE)):
+                raise RuntimeError(f"onvalid config[{i}] element type. supported types: {_get_args_names(CONFIG_TYPE)}")
+    elif isinstance(config, get_args(CONFIG_TYPE)):
         # list already handled as pass
         config = [config]
     else:
-        raise RuntimeError(f"invalid config type. supported types: {_get_args_names(CONGIF_TYPE)}")
+        raise RuntimeError(f"invalid config type. supported types: {_get_args_names(CONFIG_TYPE)}")
 
     if loaded:
         return config

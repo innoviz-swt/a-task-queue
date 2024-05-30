@@ -1,6 +1,7 @@
 import argparse
 
 from ataskq import TaskQ
+from ataskq.config.config import CONFIG_SETS, DEFAULT_CONFIG
 from ataskq.env import ATASKQ_CONFIG
 
 
@@ -23,7 +24,12 @@ def main(args=None):
     subparsers = parser.add_subparsers(title="commands", dest="command")
     run_p = subparsers.add_parser("run")
 
-    run_p.add_argument("--config", "-c", help="config set or path to file", default=ATASKQ_CONFIG)
+    run_p.add_argument(
+        "--config",
+        "-c",
+        help=f"config preset {list(CONFIG_SETS.keys())} or path to file",
+        default=DEFAULT_CONFIG,
+    )
     run_p.add_argument("--job-id", "-jid", type=int, help="job id to run")
     run_p.add_argument("--level", "-l", type=int, nargs="+", help="job level to run")
     run_p.add_argument(
