@@ -363,7 +363,7 @@ class DBHandler(Handler):
         query = (
             f"SELECT * FROM tasks WHERE status IN ('{EStatus.PENDING}'){job_query}{level_query} AND level = "
             f"(SELECT MIN(level) FROM tasks WHERE status IN ('{EStatus.PENDING}'){job_query}{level_query})"
-            f" {self.for_update} ORDER BY job_id ASC, task_id ASC"
+            f" ORDER BY job_id ASC, task_id ASC {self.for_update}"
         )
         query = query.strip()
 

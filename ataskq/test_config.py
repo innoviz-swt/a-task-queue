@@ -1,4 +1,5 @@
 import copy
+import os
 
 import pytest
 
@@ -28,17 +29,17 @@ def assert_config(ref_config: dict, test_config: dict, format=CONFIG_FORMAT, pat
 
 
 def test_load_default_none():
-    config = load_config(None)
+    config = load_config(None, environ=False)
     assert_config(CONFIG_SETS[DEFAULT_CONFIG], config)
 
 
 def test_load_default():
-    config = load_config(DEFAULT_CONFIG)
+    config = load_config(DEFAULT_CONFIG, environ=False)
     assert_config(CONFIG_SETS[DEFAULT_CONFIG], config)
 
 
 def test_load_client_preset():
-    config = load_config("client")
+    config = load_config("client", environ=False)
 
     ref = copy.deepcopy(CONFIG_SETS[DEFAULT_CONFIG])
     ref["connection"] = "http://localhost:8080"
@@ -48,7 +49,7 @@ def test_load_client_preset():
 
 
 def test_load_custom():
-    config = load_config({"connection": "test", "run": {"wait_timeout": 100}})
+    config = load_config({"connection": "test", "run": {"wait_timeout": 100}}, environ=False)
 
     ref = copy.deepcopy(CONFIG_SETS[DEFAULT_CONFIG])
     ref["connection"] = "test"
@@ -58,7 +59,7 @@ def test_load_custom():
 
 
 def test_load_custom2():
-    config = load_config([{"connection": "test", "run": {"wait_timeout": 100}}])
+    config = load_config([{"connection": "test", "run": {"wait_timeout": 100}}], environ=False)
 
     ref = copy.deepcopy(CONFIG_SETS[DEFAULT_CONFIG])
     ref["connection"] = "test"
@@ -68,13 +69,37 @@ def test_load_custom2():
 
 
 def test_load_custom_and_preset():
-    config = load_config([{"connection": "test"}, "client"])
+    config = load_config([{"connection": "test"}, "client"], environ=False)
 
     ref = copy.deepcopy(CONFIG_SETS[DEFAULT_CONFIG])
     ref["connection"] = "test"
     ref["handler"]["db_init"] = False
 
     assert_config(ref, config)
+
+
+def test_load_with_env_override():
+    os.environ["ataskq.connection"] = "test"
+    os.environ["ataskq.run.wait_timeout"] = "111"
+    config = load_config(DEFAULT_CONFIG)
+    # pop to avoid effect on other tests
+    os.environ.pop("ataskq.connection")
+    os.environ.pop("ataskq.run.wait_timeout")
+
+    assert config["connection"] == "test"
+    assert config["run"]["wait_timeout"] == 111.0
+
+
+def test_load_with_env_override2():
+    os.environ["ataskq_connection"] = "test"
+    os.environ["ataskq_run_wait_timeout"] = "111"
+    config = load_config(DEFAULT_CONFIG)
+    # pop to avoid effect on other tests
+    os.environ.pop("ataskq_connection")
+    os.environ.pop("ataskq_run_wait_timeout")
+
+    assert config["connection"] == "test"
+    assert config["run"]["wait_timeout"] == 111.0
 
 
 def test_invalid_config_type():

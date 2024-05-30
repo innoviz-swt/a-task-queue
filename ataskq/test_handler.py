@@ -2,6 +2,7 @@
 
 import pytest
 
+from .config import load_config
 from .handler import Handler, from_config
 from .handler.db_handler import DBHandler, transaction_decorator
 from .handler import register_handler
@@ -63,17 +64,17 @@ def test_db_format(config, handler):
 
 def test_db_invalid_format_no_sep():
     with pytest.raises(RuntimeError) as excinfo:
-        from_config(config={"connection": "sqlite"})
+        from_config(config=load_config({"connection": "sqlite"}, environ=False))
     assert "connection must be of format <type>://<connection string>" == str(excinfo.value)
 
 
 def test_db_invalid_format_no_type():
     with pytest.raises(RuntimeError) as excinfo:
-        from_config(config={"connection": f"://ataskq.db"})
+        from_config(load_config({"connection": f"://ataskq.db"}, environ=False))
     assert "missing handler type, connection must be of format <type>://<connection string>" == str(excinfo.value)
 
 
 def test_db_invalid_format_no_connectino():
     with pytest.raises(RuntimeError) as excinfo:
-        from_config(config={"connection": "sqlite://"})
+        from_config(load_config({"connection": "sqlite://"}, environ=False))
     assert "missing connection string, connection must be of format <type>://<connection string>" == str(excinfo.value)
