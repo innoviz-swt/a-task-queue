@@ -227,14 +227,15 @@ class TaskQ(Logger):
             func(*targs[0], **targs[1])
             status = EStatus.SUCCESS
         except Exception as ex:
+            msg = f"Running task '{task}' failed with exception."
             if self.config["run"]["raise_exception"]:  # for debug purposes only
-                self.warning("Running task entry point failed with exception.")
+                self.warning(msg)
                 self.update_task_status(task, EStatus.FAILURE)
                 monitor.stop()
                 monitor.join()
                 raise ex
 
-            self.warning("Running task entry point failed with exception.", exc_info=True)
+            self.warning(msg, exc_info=True)
             status = EStatus.FAILURE
 
         monitor.stop()

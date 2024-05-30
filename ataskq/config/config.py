@@ -28,7 +28,7 @@ CONFIG_SETS = {
         "run": {
             "wait_timeout": None,
             "pull_interval": 0.2,
-            "raise_exception": True,
+            "raise_exception": False,
         },
         "handler": {
             "db_init": True,

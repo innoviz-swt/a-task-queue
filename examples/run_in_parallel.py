@@ -1,9 +1,11 @@
+from pathlib import Path
+
 import context
 from ataskq import TaskQ, Task, targs
 
 
 # create  job
-tr = TaskQ().create_job(name="run_in_parallel")
+tr = TaskQ().create_job(name=Path(__file__).stem)
 
 # create following flow.
 #  level 1   level 2             level 3
