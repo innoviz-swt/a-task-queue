@@ -1,4 +1,4 @@
-from typing import Union, List
+from typing import Union, List, get_args
 from pathlib import Path
 import json
 import os
@@ -6,6 +6,10 @@ import os
 from .config import CONFIG_FORMAT, CONFIG_SETS, DEFAULT_CONFIG
 
 CONGIF_TYPE = Union[str, Path, dict]
+
+
+def _get_args_names(union):
+    return [u.__name__ for u in get_args(union)]
 
 
 def _load_config(config: List[dict], default: dict, format=CONFIG_FORMAT, path="", environ=False):
@@ -83,12 +87,27 @@ def load_file(config: Path):
     return ret
 
 
-def load_config(config: Union[CONGIF_TYPE, List[CONGIF_TYPE]]):
+def load_config(config: Union[CONGIF_TYPE, List[CONGIF_TYPE]], environ=True):
+    loaded = False
     if config is None or config == DEFAULT_CONFIG:
         # default config used as base configuration for _load_config
         config = []
-    elif not isinstance(config, list):
+    elif isinstance(config, dict):
+        # flag indicating config was already loaded (and hence shuold be used as is)
+        loaded = config.get("_loaded", False)
+        config = config if loaded else [config]
+    elif isinstance(config, list):
+        for i, c in enumerate(config):
+            if not isinstance(c, get_args(CONGIF_TYPE)):
+                raise RuntimeError(f"onvalid config[{i}] element type. supported types: {_get_args_names(CONGIF_TYPE)}")
+    elif isinstance(config, get_args(CONGIF_TYPE)):
+        # list already handled as pass
         config = [config]
+    else:
+        raise RuntimeError(f"invalid config type. supported types: {_get_args_names(CONGIF_TYPE)}")
+
+    if loaded:
+        return config
 
     # convert config to dicts
     for i, c in enumerate(config):
@@ -103,6 +122,7 @@ def load_config(config: Union[CONGIF_TYPE, List[CONGIF_TYPE]]):
         elif isinstance(c, dict):
             continue
 
-    ret = _load_config(config, CONFIG_SETS[DEFAULT_CONFIG], environ=True)
+    ret = _load_config(config, CONFIG_SETS[DEFAULT_CONFIG], environ=environ)
+    ret["_loaded"] = True
 
     return ret

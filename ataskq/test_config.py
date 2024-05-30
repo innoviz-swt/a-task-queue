@@ -1,5 +1,7 @@
 import copy
 
+import pytest
+
 from .config import load_config
 from .config.config import CONFIG_FORMAT, CONFIG_SETS, DEFAULT_CONFIG
 
@@ -73,3 +75,24 @@ def test_load_custom_and_preset():
     ref["handler"]["db_init"] = False
 
     assert_config(ref, config)
+
+
+def test_invalid_config_type():
+    with pytest.raises(RuntimeError) as excinfo:
+        load_config(config=2)
+
+    assert "invalid config type. supported types: ['str', 'Path', 'dict']" == str(excinfo.value)
+
+
+def test_invalid_config_type_in_list():
+    with pytest.raises(RuntimeError) as excinfo:
+        load_config(config=[DEFAULT_CONFIG, 2])
+
+    assert "onvalid config[1] element type. supported types: ['str', 'Path', 'dict']" == str(excinfo.value)
+
+
+def test_loaded_config():
+    c = {"a": 3, "_loaded": True}
+    config = load_config(c)
+
+    assert id(c) == id(config)
