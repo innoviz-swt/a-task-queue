@@ -5,6 +5,7 @@ CONFIG_FORMAT = {
     "run": {
         "wait_timeout": float,
         "pull_interval": float,
+        "fail_pulse_timeout": bool,
         "raise_exception": bool,
     },
     "handler": {
@@ -28,6 +29,7 @@ CONFIG_SETS = {
         "run": {
             "wait_timeout": None,
             "pull_interval": 0.2,
+            "fail_pulse_timeout": False,
             "raise_exception": False,
         },
         "handler": {
@@ -49,12 +51,18 @@ CONFIG_SETS = {
     },
     "client": {
         "connection": "http://localhost:8080",
+        "run": {
+            "fail_pulse_timeout": False,
+        },
         "handler": {
             "db_init": False,
         },
     },
     "server": {
         "connection": "pg://postgres:postgres@localhost/postgres",
+        "run": {
+            "fail_pulse_timeout": False,
+        },
         "handler": {
             "db_init": False,
         },

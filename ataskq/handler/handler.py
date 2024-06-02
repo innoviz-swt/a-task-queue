@@ -170,7 +170,7 @@ class Handler(IModelSerializer, Logger):
     # Custom #
     ##########
     @abstractmethod
-    def take_next_task(self, job_id, level: Union[int, None]) -> tuple:
+    def take_next_task(self, job_id=None, level_start: int = None, level_stop: int = None) -> tuple:
         pass
 
     @abstractmethod

@@ -23,14 +23,6 @@ def db_handler() -> DBHandler:
     return from_config(ATASKQ_SERVER_CONFIG or "server")
 
 
-async def set_timout_tasks_task():
-    dbh = db_handler()
-    while True:
-        logger.debug("Set Timeout Tasks")
-        dbh.fail_pulse_timeout_tasks(dbh.config["monitor"]["pulse_timeout"])
-        await asyncio.sleep(dbh.config["monitor"]["pulse_interval"])
-
-
 app = FastAPI()
 
 
@@ -80,13 +72,11 @@ async def api():
 ####################
 @app.get("/api/custom_query/take_next_task")
 async def take_next_task(
-    job_id: int,
-    level_start: int = None,
-    level_stop: int = None,
+    request: Request,
     dbh: DBHandler = Depends(db_handler),
 ):
     # take next task
-    action, task = dbh.take_next_task(job_id, level_start, level_stop)
+    action, task = dbh.take_next_task(**request.query_params)
     task = rh.to_interface(task) if task is not None else None
 
     return dict(action=action, task=task)

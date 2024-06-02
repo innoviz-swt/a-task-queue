@@ -123,12 +123,10 @@ class RESTHandler(Handler):
     # Custom Queries #
     ##################
 
-    def take_next_task(self, job_id, level_start, level_stop) -> Tuple:
+    def take_next_task(self, **kwargs) -> Tuple:
         from ..models import Task
 
-        res = self.rest_get(
-            "custom_query/take_next_task", params=dict(job_id=job_id, level_start=level_start, level_stop=level_stop)
-        )
+        res = self.rest_get("custom_query/take_next_task", params=kwargs)
 
         action = EAction(res["action"])
         task = self.from_interface(Task, res["task"]) if res["task"] is not None else None

@@ -82,6 +82,7 @@ jobs:
           python -m pip install -r requirements.txt
           python -m ataskq.server.background &
           ataskq_connection=$ATASKQ_SERVER_CONNECTION python -m uvicorn ataskq.server.server:app --port 8080 &
+          ataskq_connection=$ATASKQ_SERVER_CONNECTION python -m ataskq.server.background &
           sleep 5
           curl http://127.0.0.1:8080/health
           python -m pytest . -v --junitxml=tmp/report-${{ matrix.py-version }}.xml

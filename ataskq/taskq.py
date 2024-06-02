@@ -251,7 +251,7 @@ class TaskQ(Logger):
         level_stop = level.stop if level is not None else None
 
         job_id = self.job_id if self.job is not None else None
-        return self._handler.take_next_task(job_id, level_start, level_stop)
+        return self._handler.take_next_task(job_id=job_id, level_start=level_start, level_stop=level_stop)
 
     def _run(self, level):
         self.info(f"Started task pulling loop.")
@@ -265,7 +265,7 @@ class TaskQ(Logger):
         task_pull_start = time.time()
         while True:
             # if the taskq handler is db handler, the taskq performs background tasks before each run
-            if isinstance(self._handler, DBHandler):
+            if self.config["run"]["fail_pulse_timeout"]:
                 self._handler.fail_pulse_timeout_tasks(self.config["monitor"]["pulse_timeout"])
             # grab tasks and set them in Q
             action, task = self._take_next_task(level)

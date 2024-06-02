@@ -341,7 +341,7 @@ class DBHandler(Handler):
     ##################
 
     @transaction_decorator(exclusive=True)
-    def take_next_task(self, c, job_id, level_start, level_stop):
+    def take_next_task(self, c, job_id: int = None, level_start: int = None, level_stop: int = None):
         # imported here to avoid circular dependency
         from ..models import Task, EStatus
         from .handler import EAction

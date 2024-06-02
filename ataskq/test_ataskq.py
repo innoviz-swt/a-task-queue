@@ -536,7 +536,7 @@ def test_run_by_level(config, tmp_path: Path, num_processes: int):
 
 def test_monitor_pulse_failure(config):
     # set monitor pulse longer than timeout
-    config["monitor"]["pulse_interval"] = 10
+    config["monitor"]["pulse_interval"] = 2
     config["monitor"]["pulse_timeout"] = 1.5
     taskq = TaskQ(config=config).create_job()
     taskq.add_tasks(

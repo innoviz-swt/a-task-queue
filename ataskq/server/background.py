@@ -6,7 +6,7 @@ from ataskq.env import ATASKQ_SERVER_CONFIG
 
 
 def init_logger(level=logging.INFO):
-    logger = logging.getLogger("server-worker")
+    logger = logging.getLogger("server-background")
 
     handler = logging.StreamHandler()
     handler.setFormatter(logging.Formatter(logging.BASIC_FORMAT))
@@ -27,10 +27,15 @@ def db_handler() -> DBHandler:
 
 async def set_timout_tasks_task():
     dbh = db_handler()
+    i = 0
     while True:
-        logger.debug("Set Timeout Tasks")
+        if i % 10 == 0:
+            logger.info(f"[{i}] Set Timeout Tasks")
+        else:
+            logger.debug(f"[{i}] Set Timeout Tasks")
         dbh.fail_pulse_timeout_tasks(dbh.config["monitor"]["pulse_timeout"])
         await asyncio.sleep(dbh.config["monitor"]["pulse_interval"])
+        i += 1
 
 
 async def main():
