@@ -1,5 +1,26 @@
 # ChangeLog
 
+# 0.6.0
+- taskq configuration moved to config
+(conn, run_task_raise_exception, task_wait_timeout, task_pull_intervnal, monitor_pulse_interval, task_pulse_timeout, max_jobs)
+- taskq.run num_processes renamed to concurrency
+- added \_\_main\_\_.py entry point for running ataskq
+    ```
+    usage: ataskq run [-h] [--config CONFIG] [--job-id JOB_ID] [--level LEVEL [LEVEL ...]]
+                    [--concurrency CONCURRENCY]
+
+    optional arguments:
+        -h, --help            show this help message and exit
+        --config CONFIG, -c CONFIG
+                            config preset ['standalone', 'client', 'server'] or path to file
+        --job-id JOB_ID, -jid JOB_ID
+                            job id to run
+        --level LEVEL [LEVEL ...], -l LEVEL [LEVEL ...]
+                            job level to run
+        --concurrency CONCURRENCY, -cn CONCURRENCY
+                            number of task execution runner to open in parallel
+    ```
+
 # 0.5.1
 - fixed python 3.11+ support.
 

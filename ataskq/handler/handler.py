@@ -3,7 +3,9 @@ from typing import Union, List, Dict
 from datetime import datetime
 from enum import Enum
 
+from ..env import ATASKQ_CONFIG
 from ..logger import Logger
+from ..config import load_config
 from ..imodel import IModel, IModelSerializer
 
 __STRTIME_FORMAT__ = "%Y-%m-%d %H:%M:%S.%f"
@@ -62,8 +64,21 @@ class EAction(str, Enum):
 
 
 class Handler(IModelSerializer, Logger):
-    def __init__(self, logger: Logger = None):
+    def __init__(self, config=ATASKQ_CONFIG, logger: Logger = None):
         Logger.__init__(self, logger)
+
+        # init config
+        self._config = load_config(config)
+        self._connection = self.from_connection_str(self._config["connection"])
+
+    @property
+    def config(self):
+        return self._config
+
+    @staticmethod
+    @abstractmethod
+    def from_connection_str(conn):
+        pass
 
     ######################
     # interface handlers #
@@ -155,15 +170,15 @@ class Handler(IModelSerializer, Logger):
     # Custom #
     ##########
     @abstractmethod
-    def take_next_task(self, job_id, level: Union[int, None]) -> tuple:
+    def take_next_task(self, job_id=None, level_start: int = None, level_stop: int = None) -> tuple:
         pass
 
     @abstractmethod
-    def tasks_status(self, job_id) -> List[dict]:
+    def tasks_status(self, job_id, _order_by: str = None, _limit: int = None, _offset: int = 0) -> List[dict]:
         pass
 
     @abstractmethod
-    def jobs_status(self) -> List[dict]:
+    def jobs_status(self, _order_by: str = None, _limit: int = None, _offset: int = 0) -> List[dict]:
         pass
 
 
@@ -192,16 +207,17 @@ def get_handler(name=None, assert_registered=False):
     else:
         assert (
             name is not None
-        ), f"more than 1 type hander registered, please specify hanlder name. registered handlers: {list(__HANDLERS__.keys())}"
+        ), f"more than 1 type hander registered, please specify handler name. registered handlers: {list(__HANDLERS__.keys())}"
         assert (
             name in __HANDLERS__
         ), f"no handler named '{name}' is registered. registered handlers: {list(__HANDLERS__.keys())}"
         return __HANDLERS__[name]
 
 
-def from_connection_str(conn=None, **kwargs) -> Handler:
-    if conn is None:
-        conn = ""
+def from_config(config=ATASKQ_CONFIG, **kwargs) -> Handler:
+    # expand config in factory and not inside handler
+    config = load_config(config)
+    conn = config["connection"]
 
     sep = "://"
     sep_index = conn.find(sep)
@@ -218,18 +234,19 @@ def from_connection_str(conn=None, **kwargs) -> Handler:
         raise RuntimeError("missing connection string, connection must be of format <type>://<connection string>")
 
     # get db type handler
+    kwargs["config"] = config
     if handler_type == "sqlite":
         from .sqlite3 import SQLite3DBHandler
 
-        handler = SQLite3DBHandler(conn, **kwargs)
+        handler = SQLite3DBHandler(**kwargs)
     elif handler_type == "pg":
         from .postgresql import PostgresqlDBHandler
 
-        handler = PostgresqlDBHandler(conn, **kwargs)
+        handler = PostgresqlDBHandler(**kwargs)
     elif handler_type == "http" or handler_type == "https":
         from .rest_handler import RESTHandler
 
-        handler = RESTHandler(conn, **kwargs)
+        handler = RESTHandler(**kwargs)
     else:
         raise Exception(f"unsupported handler type '{handler_type}', type must be one of ['sqlite', 'pg', 'http']")
 

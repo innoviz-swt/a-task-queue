@@ -9,17 +9,12 @@ import time
 from typing import Dict, List
 from datetime import datetime
 
-from .env import (
-    ATASKQ_CONNECTION,
-    ATASKQ_MONITOR_PULSE_INTERVAL,
-    ATASKQ_TASK_PULSE_TIMEOUT,
-    ATASKQ_TASK_PULL_INTERVAL,
-    ATASKQ_TASK_WAIT_TIMEOUT,
-)
+
 from .logger import Logger
 from .models import EStatus, Job, StateKWArg, Task, EntryPointRuntimeError
 from .monitor import MonitorThread
-from .handler import Handler, DBHandler, from_connection_str, EAction
+from .handler import Handler, DBHandler, from_config, EAction
+from .config import load_config
 
 
 def targs(*args, **kwargs):
@@ -30,48 +25,43 @@ class TaskQ(Logger):
     def __init__(
         self,
         job_id=None,
-        conn=ATASKQ_CONNECTION,
-        run_task_raise_exception=False,
-        task_wait_timeout=ATASKQ_TASK_WAIT_TIMEOUT,
-        task_pull_intervnal=ATASKQ_TASK_PULL_INTERVAL,
-        monitor_pulse_interval=ATASKQ_MONITOR_PULSE_INTERVAL,
-        task_pulse_timeout=ATASKQ_TASK_PULSE_TIMEOUT,
-        max_jobs: int = None,
-        logger: Union[logging.Logger, None] = None,
+        handler: Handler = None,
+        logger: Union[str, logging.Logger, None] = None,
+        config=None,
     ) -> None:
-        """
-        Args:
-        task_pull_intervnal: pulling interval for task to complete in seconds.
-        task_pulse_timeout: update interval for pulse in seconds while taks is running.
-        monitor_timeout_internal: timeout for task last monitor pulse in seconds, if passed before getting next task, set to Failure.
-        run_task_raise_exception: if True, run_task will raise exception when task fails. This is for debugging purpose only and will fail production flow.
-        """
         super().__init__(logger)
 
+        # init config
+        self._config = load_config(config)
+
         # init db handler
-        # todo: hanlder shouldn't get job_id
-        self._handler: Handler = (
-            conn if isinstance(conn, Handler) else from_connection_str(conn=conn, logger=self._logger)
-        )
+        # todo: handler shouldn't get job_id
+        if handler is None:
+            self._handler: Handler = from_config(
+                config=config,
+                logger=self._logger,
+            )
+        else:
+            self._handler = handler
 
         # get job
         if job_id is not None:
-            job = Job.get(self._job_id, self._handler)
+            try:
+                job = Job.get(job_id, _handler=self._handler)
+            except Exception as ex:
+                raise Exception(f"Failed to fetch job (job_id={job_id}).") from ex
         else:
             job = None
         self._job = job
-
-        self._run_task_raise_exception = run_task_raise_exception
-        self._task_wait_timeout = task_wait_timeout
-        self._task_pull_interval = task_pull_intervnal
-        self._monitor_pulse_interval = monitor_pulse_interval
-        self._task_pulse_timeout = task_pulse_timeout
-        self._max_jobs = max_jobs
 
         # state kwargs for jobs
         self._state_kwargs: Dict[str:object] = dict()
 
         self._running = False
+
+    @property
+    def config(self):
+        return self._config
 
     @property
     def job(self):
@@ -107,10 +97,10 @@ class TaskQ(Logger):
         job = Job(name=name, description=description).create(_handler=self._handler)
         self._job = job
 
-        if self._max_jobs is not None:
+        if self.config["db"]["max_jobs"] is not None:
             # keep max jbos
             Job.delete_all(
-                _where=f"job_id NOT IN (SELECT job_id FROM jobs ORDER BY job_id DESC limit {self._max_jobs})",
+                _where=f"job_id NOT IN (SELECT job_id FROM jobs ORDER BY job_id DESC limit {self.config['db']['max_jobs']})",
                 _handler=self.handler,
             )
 
@@ -163,10 +153,12 @@ class TaskQ(Logger):
         return ret
 
     def _run_task(self, task: Task):
+        self.info(f"Running task '{task}'")
+
         # get entry point func to execute
         ep = task.entrypoint
         if ep == "ataskq.skip_run_task":
-            self.info(f"task '{task.task_id}' is marked as 'skip_run_task', skipping run task.")
+            self.info(f"task '{task}' is marked as 'skip_run_task', skipping run task.")
             return
 
         assert "." in ep, "entry point must be inside a module."
@@ -186,7 +178,7 @@ class TaskQ(Logger):
             try:
                 targs = pickle.loads(task.targs)
             except Exception as ex:
-                if self._run_task_raise_exception:  # for debug purposes only
+                if self.config["run"]["raise_exception"]:  # for debug purposes only
                     self.warning("Getting tasks args failed.")
                     self.update_task_status(task, EStatus.FAILURE)
                     raise ex
@@ -217,7 +209,7 @@ class TaskQ(Logger):
                     self._logger.info(f"Failed to initialize state kwarg '{name}'")
                     self.update_task_status(task, EStatus.FAILURE)
 
-                    if self._run_task_raise_exception:
+                    if self.config["run"]["raise_exception"]:
                         raise ex
                     return
             # state kwargs already inistliazed
@@ -228,21 +220,22 @@ class TaskQ(Logger):
         self.update_task_start_time(task)
 
         # run task
-        monitor = MonitorThread(task, self, pulse_interval=self._monitor_pulse_interval)
+        monitor = MonitorThread(task, self, pulse_interval=self.config["monitor"]["pulse_interval"])
         monitor.start()
 
         try:
             func(*targs[0], **targs[1])
             status = EStatus.SUCCESS
         except Exception as ex:
-            if self._run_task_raise_exception:  # for debug purposes only
-                self.warning("Running task entry point failed with exception.")
+            msg = f"Running task '{task}' failed with exception."
+            if self.config["run"]["raise_exception"]:  # for debug purposes only
+                self.warning(msg)
                 self.update_task_status(task, EStatus.FAILURE)
                 monitor.stop()
                 monitor.join()
                 raise ex
 
-            self.warning("Running task entry point failed with exception.", exc_info=True)
+            self.warning(msg, exc_info=True)
             status = EStatus.FAILURE
 
         monitor.stop()
@@ -253,14 +246,15 @@ class TaskQ(Logger):
     def init_state_kwarg(self, state_kwarg: StateKWArg):
         return
 
-    def _take_next_task(self, level):
-        assert self._job is not None, "job must be assigned to taskq before taking next task."
+    def _take_next_task(self, level=None):
         level_start = level.start if level is not None else None
         level_stop = level.stop if level is not None else None
 
-        return self._handler.take_next_task(self.job_id, level_start, level_stop)
+        job_id = self.job_id if self.job is not None else None
+        return self._handler.take_next_task(job_id=job_id, level_start=level_start, level_stop=level_stop)
 
     def _run(self, level):
+        self.info(f"Started task pulling loop.")
         # make sure all state kwargs for job have key in self._state_kwargs, later to be used in _run_task
         state_kwargs_db = self.job.get_state_kwargs(self._handler)
         for skw in state_kwargs_db:
@@ -271,8 +265,8 @@ class TaskQ(Logger):
         task_pull_start = time.time()
         while True:
             # if the taskq handler is db handler, the taskq performs background tasks before each run
-            if isinstance(self._handler, DBHandler):
-                self._handler.fail_pulse_timeout_tasks(self._task_pulse_timeout)
+            if self.config["run"]["fail_pulse_timeout"] and isinstance(self._handler, DBHandler):
+                self._handler.fail_pulse_timeout_tasks(self.config["monitor"]["pulse_timeout"])
             # grab tasks and set them in Q
             action, task = self._take_next_task(level)
 
@@ -282,11 +276,13 @@ class TaskQ(Logger):
             if action == EAction.RUN_TASK:
                 self._run_task(task)
             elif action == EAction.WAIT:
-                if self._task_wait_timeout is not None and time.time() - task_pull_start > self._task_wait_timeout:
-                    raise Exception(f"task pull timeout of '{self._task_wait_timeout}' sec reached.")
+                if (
+                    wait_timeout := self.config["run"]["wait_timeout"]
+                ) is not None and time.time() - task_pull_start > wait_timeout:
+                    raise Exception(f"task pull timeout of '{wait_timeout}' sec reached.")
 
-                self.debug(f"waiting for {self._task_pull_interval} sec before taking next task")
-                time.sleep(self._task_pull_interval)
+                self.debug(f'waiting for {self.config["run"]["pull_interval"]} sec before taking next task')
+                time.sleep(self.config["run"]["pull_interval"])
 
     def assert_level(self, level):
         if isinstance(level, int):
@@ -303,27 +299,27 @@ class TaskQ(Logger):
 
         return level
 
-    def run(self, num_processes=None, level=None):
+    def run(self, concurrency=None, level=None):
         if level is not None:
             level = self.assert_level(level)
 
         self._running = True
 
         # default to run in current process
-        if num_processes is None:
+        if concurrency is None:
             self._run(level)
             self._running = False
             return
 
-        assert isinstance(num_processes, (int, float))
+        assert isinstance(concurrency, (int, float))
 
-        if isinstance(num_processes, float):
-            assert 0.0 <= num_processes <= 1.0
-            nprocesses = int(multiprocessing.cpu_count() * num_processes)
-        elif num_processes < 0:
-            nprocesses = multiprocessing.cpu_count() - num_processes
+        if isinstance(concurrency, float):
+            assert 0.0 <= concurrency <= 1.0
+            nprocesses = int(multiprocessing.cpu_count() * concurrency)
+        elif concurrency < 0:
+            nprocesses = multiprocessing.cpu_count() - concurrency
         else:
-            nprocesses = num_processes
+            nprocesses = concurrency
 
         # set processes and Q
         processes = [Process(target=self._run, args=(level,)) for i in range(nprocesses)]
@@ -341,7 +337,7 @@ class TaskQ(Logger):
 
         self._running = False
 
-        if self._run_task_raise_exception and fail:
+        if self.config["run"]["raise_exception"] and fail:
             raise Exception("Some processes failed, see logs for details")
 
         return self

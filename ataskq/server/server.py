@@ -6,60 +6,25 @@ from fastapi import FastAPI, Request, Depends
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from contextlib import asynccontextmanager
 
 
-from ataskq.handler import from_connection_str
-from ataskq.handler import DBHandler
+from ataskq.handler import DBHandler, from_config
 from ataskq.handler.rest_handler import RESTHandler as rh
 from ataskq.models import Model, __MODELS__
-from ataskq.env import (
-    ATASKQ_SERVER_CONNECTION,
-    ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL,
-    ATASKQ_TASK_PULSE_TIMEOUT,
-)
+from ataskq.env import ATASKQ_SERVER_CONFIG
 
 # from .form_utils import form_data_array
 
 logger = logging.getLogger("uvicorn")
-logger.info(f"ATASKQ_SERVER_CONNECTION: {ATASKQ_SERVER_CONNECTION}")
-logger.info(f"ATASKQ_TASK_PULSE_TIMEOUT: {ATASKQ_TASK_PULSE_TIMEOUT}")
-logger.info(f"ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL: {ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL}")
 
 
 # DB Handler
-
-
 def db_handler() -> DBHandler:
-    return from_connection_str(ATASKQ_SERVER_CONNECTION)
+    return from_config(ATASKQ_SERVER_CONFIG or "server")
 
 
-async def set_timout_tasks_task():
-    dbh = db_handler()
-    while True:
-        logger.debug("Set Timeout Tasks")
-        dbh.fail_pulse_timeout_tasks(ATASKQ_TASK_PULSE_TIMEOUT)
-        await asyncio.sleep(ATASKQ_SERVER_TASK_PULSE_TIMEOUT_MONITOR_INTERVAL)
+app = FastAPI()
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    logger.info("enter lifspan")
-
-    logger.info("init db")
-    db_handler().init_db()
-
-    task = asyncio.create_task(set_timout_tasks_task())
-
-    # Load the ML model
-    yield
-    # Clean up the ML models and release the resources
-    logger.info("cancel task")
-    task.cancel()
-    logger.info("exit lifspan")
-
-
-app = FastAPI(lifespan=lifespan)
 
 # allow all cors
 app.add_middleware(
@@ -107,13 +72,11 @@ async def api():
 ####################
 @app.get("/api/custom_query/take_next_task")
 async def take_next_task(
-    job_id: int,
-    level_start: int = None,
-    level_stop: int = None,
+    request: Request,
     dbh: DBHandler = Depends(db_handler),
 ):
     # take next task
-    action, task = dbh.take_next_task(job_id, level_start, level_stop)
+    action, task = dbh.take_next_task(**request.query_params)
     task = rh.to_interface(task) if task is not None else None
 
     return dict(action=action, task=task)

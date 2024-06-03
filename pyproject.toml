@@ -1,7 +1,7 @@
 [project]
 name = "ataskq"
 version = "0.0.0"
-description = "An in process task queue for distributed computing systems."
+description = "Easily create and run tasks (=function calls) with almost seamless transition between Local development and Distributed deployment."
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
@@ -21,3 +21,9 @@ include = ["ataskq*"]
 
 [tool.setuptools.package-data]
 ataskq =  ["server/www/**/*"]
+
+[tool.pytest.ini_options]
+log_cli = true
+log_cli_level = "WARNING"
+log_cli_format = "%(asctime)s.%(msecs)03d [%(process)d] [%(levelname)8s] %(message)s (%(filename)s:%(lineno)s)"
+log_cli_date_format = "%Y-%m-%d %H:%M:%S"

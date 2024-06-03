@@ -41,6 +41,15 @@
             "justMyCode": true
         },
         {
+            "name": "main",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "ataskq",
+            "args": ["run", "--job-id", "1"],
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
             "name": "rest_server",
             "type": "debugpy",
             "request": "launch",

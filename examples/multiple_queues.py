@@ -1,10 +1,10 @@
+from pathlib import Path
+
 import context
 from ataskq import TaskQ, Task, targs
 
 # create  job to first quee
-tr = TaskQ(name="queue1").create_job()
-tr.handler.query("jobs")
-tr.handler.query("jobs_status")
+tr = TaskQ().create_job(name=Path(__file__).stem)
 
 # add tasks
 tr.add_tasks(
@@ -15,4 +15,4 @@ tr.add_tasks(
 )
 
 # run the tasks
-tr.run()  # to run in parallel add num_processes=N
+tr.run()

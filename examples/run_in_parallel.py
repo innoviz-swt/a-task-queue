@@ -1,14 +1,11 @@
-import logging
+from pathlib import Path
 
 import context
 from ataskq import TaskQ, Task, targs
-from utils import get_logger
 
 
 # create  job
-logger = None
-# logger = get_logger() uncomment for internal logs
-tr = TaskQ(logger=logger).create_job(name="run_in_parallel")
+tr = TaskQ().create_job(name=Path(__file__).stem)
 
 # create following flow.
 #  level 1   level 2             level 3

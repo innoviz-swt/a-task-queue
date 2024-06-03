@@ -1,12 +1,12 @@
 import pytest
 
 from .models import Model, __MODELS__, Job
-from .handler import Handler, from_connection_str, register_handler, unregister_handler
+from .handler import Handler, from_config, register_handler, unregister_handler
 
 
 @pytest.fixture(scope="function")
-def handler(conn):
-    handler = from_connection_str(conn)
+def handler(config):
+    handler = from_config(config)
     register_handler("test_handler", handler)
     yield handler
     unregister_handler("test_handler")
@@ -125,7 +125,7 @@ MODEL_CHILD = [
 ]
 
 
-@pytest.mark.parametrize("model_cls, child_cls, parent_key", [MODEL_CHILD[0]])
+@pytest.mark.parametrize("model_cls, child_cls, parent_key", MODEL_CHILD)
 def test_add_get_children(handler, model_cls: Model, child_cls, parent_key):
     m1 = create(model_cls)
     children = [init(child_cls, **{parent_key: None}) for i in range(3)]

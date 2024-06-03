@@ -20,17 +20,16 @@ class RESTConnection(NamedTuple):
         return {self.url}
 
 
-def from_connection_str(conn):
-    ret = RESTConnection(url=conn)
-
-    return ret
-
-
 class RESTHandler(Handler):
     # todo: remove max jobs
-    def __init__(self, conn=None, logger=None) -> None:
-        self._connection = from_connection_str(conn)
-        super().__init__(logger)
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+
+    @staticmethod
+    def from_connection_str(conn):
+        ret = RESTConnection(url=conn)
+
+        return ret
 
     @staticmethod
     def m2i_serialize():
@@ -124,24 +123,22 @@ class RESTHandler(Handler):
     # Custom Queries #
     ##################
 
-    def take_next_task(self, job_id, level_start, level_stop) -> Tuple:
+    def take_next_task(self, **kwargs) -> Tuple:
         from ..models import Task
 
-        res = self.rest_get(
-            "custom_query/take_next_task", params=dict(job_id=job_id, level_start=level_start, level_stop=level_stop)
-        )
+        res = self.rest_get("custom_query/take_next_task", params=kwargs)
 
         action = EAction(res["action"])
         task = self.from_interface(Task, res["task"]) if res["task"] is not None else None
 
         return (action, task)
 
-    def tasks_status(self, job_id):
-        res = self.rest_get(f"custom_query/tasks_status/{job_id}")
+    def tasks_status(self, job_id, **kwargs):
+        res = self.rest_get(f"custom_query/tasks_status/{job_id}", data=kwargs)
 
         return res
 
-    def jobs_status(self):
-        res = self.rest_get(f"custom_query/jobs_status")
+    def jobs_status(self, **kwargs):
+        res = self.rest_get(f"custom_query/jobs_status", data=kwargs)
 
         return res

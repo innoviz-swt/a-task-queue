@@ -1,5 +1,5 @@
 # a-task-queue
-An in process task queue for distributed computing systems.
+Easily create and run tasks (=function calls) with almost seamless transition between Local development and Distributed deployment."
 
 ## Usage
 ```python
@@ -18,7 +18,7 @@ tr.add_tasks([
 ])
 
 # run the tasks
-tr.run() # to run in parallel add num_processes=N
+tr.run() # to run in parallel add concurrency=N
 ```
 
 more example can be found [here](./examples)

@@ -15,24 +15,23 @@ class SqliteConnection(NamedTuple):
         return f"sqlite://{self.path}"
 
 
-def from_connection_str(conn):
-    format = "sqlite://path"
-    pattern = r"sqlite://(?P<path>.+)$"
-    match = re.match(pattern, conn)
-
-    if not match:
-        raise Exception(f"conn must be in '{format}', ex: 'sqlite://ataskq.db.sqlite3'")
-
-    path = match.group("path")
-    ret = SqliteConnection(path=path)
-
-    return ret
-
-
 class SQLite3DBHandler(DBHandler):
-    def __init__(self, conn=None, **kwargs) -> None:
-        self._connection = from_connection_str(conn)
+    def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
+
+    @staticmethod
+    def from_connection_str(conn):
+        format = "sqlite://path"
+        pattern = r"sqlite://(?P<path>.+)$"
+        match = re.match(pattern, conn)
+
+        if not match:
+            raise Exception(f"conn must be in '{format}', ex: 'sqlite://ataskq.db.sqlite3'")
+
+        path = match.group("path")
+        ret = SqliteConnection(path=path)
+
+        return ret
 
     @staticmethod
     def m2i_serialize():

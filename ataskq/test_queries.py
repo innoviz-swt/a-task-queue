@@ -1,14 +1,14 @@
 import pytest
 
-from .ataskq import TaskQ, Task
-from .handler import from_connection_str
+from . import TaskQ, Task
+from .handler import from_config
 
 
 @pytest.fixture()
-def job_ids(conn):
+def job_ids(config):
     ret = []
 
-    taskq = TaskQ(conn=conn).create_job(name="job1")
+    taskq = TaskQ(config=config).create_job(name="job1")
     taskq.add_tasks(
         [
             Task(name="n1", entrypoint=""),
@@ -18,7 +18,7 @@ def job_ids(conn):
     )
     ret.append(taskq.job_id)
 
-    taskq = TaskQ(conn=conn).create_job(name="job2")
+    taskq = TaskQ(config=config).create_job(name="job2")
     taskq.add_tasks(
         [
             Task(name="n3", entrypoint=""),
@@ -32,8 +32,8 @@ def job_ids(conn):
 
 
 @pytest.fixture()
-def handler(conn):
-    return from_connection_str(conn)
+def handler(config):
+    return from_config(config)
 
 
 def test_tasks_status(handler, job_ids):

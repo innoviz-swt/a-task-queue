@@ -1,4 +1,6 @@
 import logging
+from pathlib import Path
+from pathlib import Path
 
 import os
 
@@ -15,7 +17,7 @@ logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
 # create  job
-tr = TaskQ(logger=logger).create_job()
+tr = TaskQ(logger=logger).create_job(name=Path(__file__).stem)
 
 # add tasks
 tr.add_tasks(
