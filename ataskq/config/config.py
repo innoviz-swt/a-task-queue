@@ -29,7 +29,7 @@ CONFIG_SETS = {
         "run": {
             "wait_timeout": None,
             "pull_interval": 0.2,
-            "fail_pulse_timeout": False,
+            "fail_pulse_timeout": True,
             "raise_exception": False,
         },
         "handler": {

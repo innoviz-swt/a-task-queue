@@ -265,7 +265,7 @@ class TaskQ(Logger):
         task_pull_start = time.time()
         while True:
             # if the taskq handler is db handler, the taskq performs background tasks before each run
-            if self.config["run"]["fail_pulse_timeout"]:
+            if self.config["run"]["fail_pulse_timeout"] and isinstance(self._handler, DBHandler):
                 self._handler.fail_pulse_timeout_tasks(self.config["monitor"]["pulse_timeout"])
             # grab tasks and set them in Q
             action, task = self._take_next_task(level)
