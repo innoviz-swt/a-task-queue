@@ -1,5 +1,8 @@
 # ChangeLog
 
+# 0.6.1
+- bugfix: sqlite3 returning error on sqlite ver smaller 3.35.0
+
 # 0.6.0
 - taskq configuration moved to config
 (conn, run_task_raise_exception, task_wait_timeout, task_pull_intervnal, monitor_pulse_interval, task_pulse_timeout, max_jobs)
