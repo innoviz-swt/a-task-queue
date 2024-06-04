@@ -166,17 +166,8 @@ class DBHandler(Handler):
     def connect(self):
         pass
 
-    @transaction_decorator()
-    def _create(self, c, model_cls: IModel, **ikwargs) -> int:
-        d = {k: v for k, v in ikwargs.items() if model_cls.id_key() not in k}
-        keys = list(d.keys())
-        values = list(d.values())
-        c.execute(
-            f'INSERT INTO {model_cls.table_key()} ({", ".join(keys)}) VALUES ({", ".join([self.format_symbol] * len(keys))}) RETURNING {model_cls.id_key()}',
-            values,
-        )
-
-        model_id = c.fetchone()[0]
+    def _create(self, model_cls: IModel, **ikwargs) -> int:
+        model_id = self.create_bulk(model_cls, [ikwargs])[0]
 
         return model_id
 

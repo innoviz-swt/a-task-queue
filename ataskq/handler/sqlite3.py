@@ -1,11 +1,11 @@
 import re
-from typing import NamedTuple
+from typing import NamedTuple, List
 import sqlite3
 from datetime import datetime
 
-from ..models import Model
+from ..imodel import IModel
 from .handler import to_datetime, from_datetime
-from .db_handler import DBHandler
+from .db_handler import DBHandler, transaction_decorator
 
 
 class SqliteConnection(NamedTuple):
@@ -91,3 +91,20 @@ class SQLite3DBHandler(DBHandler):
     def connect(self):
         conn = sqlite3.connect(self.db_path)
         return conn
+
+    @transaction_decorator()
+    def _create_bulk(self, c, model_cls: IModel, ikwargs: List[dict]) -> List[int]:
+        # todo: consolidate all ikwargs with same keys to single insert command
+        model_ids = []
+        for v in ikwargs:
+            d = {k: v for k, v in v.items() if model_cls.id_key() not in k}
+            keys = list(d.keys())
+            values = list(d.values())
+            c.execute(
+                f'INSERT INTO {model_cls.table_key()} ({", ".join(keys)}) VALUES ({", ".join([self.format_symbol] * len(keys))})',
+                values,
+            )
+            model_id = c.lastrowid
+            model_ids.append(model_id)
+
+        return model_ids
