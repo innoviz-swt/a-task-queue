@@ -38,11 +38,7 @@ def drop_pg_tables(conn):
     )
     c = db_conn.cursor()
     c.execute(truncate_query("tasks"))
-    c.execute(truncate_query("state_kwargs"))
     c.execute(truncate_query("jobs"))
-    # c.execute('DROP TABLE IF EXISTS tasks;')
-    # c.execute('DROP TABLE IF EXISTS state_kwargs;')
-    # c.execute('DROP TABLE IF EXISTS jobs;')
     db_conn.commit()
     db_conn.close()
 

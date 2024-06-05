@@ -20,7 +20,9 @@ def parse_number(number: str):
 
 
 def main(args=None):
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter, description="ataskq command line interface help"
+    )
     subparsers = parser.add_subparsers(title="commands", dest="command")
     run_p = subparsers.add_parser("run")
 
@@ -39,10 +41,10 @@ def main(args=None):
     args = parser.parse_args(args=args)
 
     # specific args handling
-    if args.level is not None and len(args.level) == 1:
-        args.level = args.level[0]
-
     if args.command == "run":
+        if args.level is not None and len(args.level) == 1:
+            args.level = args.level[0]
+
         TaskQ(config=args.config, job_id=args.job_id).run(level=args.level, concurrency=args.concurrency)
 
 

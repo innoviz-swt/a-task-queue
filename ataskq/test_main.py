@@ -1,8 +1,18 @@
 import json
 
+import pytest
+
 from . import TaskQ, Task, targs
 from .tasks_utils.write_to_file_tasks import write_to_file, write_to_file_mp_lock
 from .__main__ import main
+
+
+def test_empty():
+    try:
+        args = []
+        main(args=args)
+    except Exception as ex:
+        pytest.fail("main without args failed")
 
 
 def test_run_job(tmp_path, config):
