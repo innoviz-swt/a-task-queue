@@ -34,9 +34,9 @@ tr.run()  # to run in parallel add concurrency=N
 more example can be found [here](./examples)
 
 ## Contributer
-setup project git hooks
+to setup project run
 ```
-contrib/setup.sh
+./contrib/setup.sh
 ```
 
 ### vs code
