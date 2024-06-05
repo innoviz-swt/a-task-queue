@@ -1,7 +1,6 @@
 from pathlib import Path
 
 import context
-from ataskq.test_ataskq import test_state_kwargs_job_delete_cascade as t
 from ataskq.handler.db_handler import set_connection_log
 
 if __name__ == "__main__":

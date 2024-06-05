@@ -4,11 +4,11 @@ from copy import copy
 
 import pytest
 
-from . import TaskQ, StateKWArg, Job, Task, targs, EStatus
+from . import TaskQ, Job, Task, targs, EStatus
 from .handler import DBHandler
 from .handler import EAction, from_config
 
-from .tasks_utils import dummy_args_task
+from .tasks_utils import dummy_args_task, write_to_file
 
 
 def non_decreasing(L):
@@ -89,43 +89,6 @@ def test_task_job_delete_cascade(config):
 
     taskq1.delete_job()
     assert Task.count_all(_handler=handler) == 0
-
-
-def test_state_kwargs_job_delete_cascade(config):
-    # todo: test should ne under ataskq
-    handler = from_config(config)
-    taskq1: TaskQ = TaskQ(handler=handler).create_job(name="job1")
-    taskq2: TaskQ = TaskQ(handler=handler).create_job(name="job2")
-    assert len(Job.get_all(_handler=handler)) == 2
-
-    taskq1.add_state_kwargs(
-        [
-            StateKWArg(entrypoint=""),
-            StateKWArg(entrypoint=""),
-            StateKWArg(entrypoint=""),
-        ]
-    )
-    assert len(StateKWArg.get_all(_handler=handler)) == 3
-    assert len(taskq1.get_state_kwargs()) == 3
-
-    taskq2.add_state_kwargs(
-        [
-            StateKWArg(entrypoint=""),
-            StateKWArg(entrypoint=""),
-        ]
-    )
-    assert len(StateKWArg.get_all(_handler=handler)) == 5
-    assert len(taskq1.get_state_kwargs()) == 3
-    assert len(taskq2.get_state_kwargs()) == 2
-
-    taskq2.delete_job()
-    assert len(Job.get_all(_handler=handler)) == 1
-
-    assert len(StateKWArg.get_all(_handler=handler)) == 3
-    assert len(taskq1.get_state_kwargs()) == 3
-
-    taskq1.delete_job()
-    assert len(StateKWArg.get_all(_handler=handler)) == 0
 
 
 def test_update_task_start_time(jtaskq):
@@ -345,7 +308,7 @@ def test_take_next_task_2_jobs(config):
     assert task is None
 
 
-def test_take_next_all_jobs(tmp_path, config):
+def test_take_next_all_jobs(config):
     handler = from_config(config)
     taskq1: TaskQ = TaskQ(handler=handler).create_job(name="job1")
     taskq2: TaskQ = TaskQ(handler=handler).create_job(name="job2")
@@ -476,6 +439,37 @@ def test_run_2_processes(config, tmp_path: Path):
     assert "task 1\n" in text
 
 
+def test_run_all_jobs(config, tmp_path: Path):
+    filepath1 = tmp_path / "file1.txt"
+    taskq1 = TaskQ(config=config).create_job()
+    taskq1.add_tasks(
+        [
+            Task(
+                entrypoint=write_to_file,
+                targs=targs(filepath1, "task 0\n"),
+            ),
+        ]
+    )
+
+    filepath2 = tmp_path / "file2.txt"
+    taskq2 = TaskQ(config=config).create_job()
+    taskq2.add_tasks(
+        [
+            Task(
+                entrypoint=write_to_file,
+                targs=targs(filepath2, "task 1\n"),
+            ),
+        ]
+    )
+
+    TaskQ(config=config).run()
+
+    assert filepath1.exists()
+    assert "task 0\n" == filepath1.read_text()
+    assert filepath2.exists()
+    assert "task 1\n" == filepath2.read_text()
+
+
 @pytest.mark.parametrize("num_processes", [None, 2])
 def test_run_by_level(config, tmp_path: Path, num_processes: int):
     filepath = tmp_path / "file.txt"
@@ -572,26 +566,6 @@ def test_task_wait_timeout(config):
     with pytest.raises(Exception) as excinfo:
         taskq.run(concurrency=2)
     assert excinfo.value.args[0] == "Some processes failed, see logs for details"
-
-
-def test_run_with_state_kwargs(config):
-    from ataskq.tasks_utils.counter_task import counter_kwarg, counter_task
-
-    taskq = TaskQ(config=config).create_job()
-
-    taskq.add_state_kwargs(
-        [
-            StateKWArg(entrypoint=counter_kwarg, name="counter"),
-        ]
-    )
-
-    taskq.add_tasks(
-        [
-            Task(entrypoint=counter_task, targs=targs(print_counter=True)),
-        ]
-    )
-
-    taskq.run()
 
 
 def test_max_jobs(config):

@@ -48,9 +48,6 @@ const NAV = () => {
                         <li class="nav-item">
                             <a class="nav-link active" aria-current="page" href={`/db/tasks/?job_id=${job_id}`}>Tasks</a>
                         </li>
-                        <li class="nav-item">
-                            <a class="nav-link active" aria-current="page" href={`/db/state_kwargs?job_id=${job_id}`}>State KWArgs</a>
-                        </li>
                     </ul>
                     <form id="tasks-status-go" class="navbar-nav nav-form d-flex" action="/custom_query/tasks_status" method="GET" onSubmit={onSubmit}>
                         <Input value={job_id} set={(v) => job_id.value = v}/>

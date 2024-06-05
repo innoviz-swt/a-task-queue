@@ -11,7 +11,7 @@ from datetime import datetime
 
 
 from .logger import Logger
-from .models import EStatus, Job, StateKWArg, Task, EntryPointRuntimeError
+from .models import EStatus, Job, Task
 from .monitor import MonitorThread
 from .handler import Handler, DBHandler, from_config, EAction
 from .config import load_config
@@ -53,9 +53,6 @@ class TaskQ(Logger):
         else:
             job = None
         self._job = job
-
-        # state kwargs for jobs
-        self._state_kwargs: Dict[str:object] = dict()
 
         self._running = False
 
@@ -109,14 +106,6 @@ class TaskQ(Logger):
     def delete_job(self):
         self.job.delete(_handler=self.handler)
         self._job = None
-
-    def get_state_kwargs(self) -> List[StateKWArg]:
-        return self.job.get_state_kwargs(self._handler)
-
-    def add_state_kwargs(self, state_kwargs):
-        self.job.add_state_kwargs(state_kwargs, _handler=self._handler)
-
-        return self
 
     def get_tasks(self) -> List[Task]:
         return self.job.get_tasks(self._handler)
@@ -190,32 +179,6 @@ class TaskQ(Logger):
         else:
             targs = ((), {})
 
-        # get state kwargs for kwarg in function signature
-        ep_state_kwargs = {
-            param.name: param.default
-            for param in signature(func).parameters.values()
-            if param.default is not param.empty and param.name in self._state_kwargs
-        }
-
-        for name, default in ep_state_kwargs.items():
-            state_kwarg = self._state_kwargs.get(name)
-            if isinstance(state_kwarg, StateKWArg):
-                # state kwargs not initalized yet
-                assert default is None, f"state kwarg '{name}' default value must be None"
-                self._logger.info(f"Initializing state kwarg '{name}'")
-                try:
-                    self._state_kwargs[name] = state_kwarg.call()
-                except EntryPointRuntimeError as ex:
-                    self._logger.info(f"Failed to initialize state kwarg '{name}'")
-                    self.update_task_status(task, EStatus.FAILURE)
-
-                    if self.config["run"]["raise_exception"]:
-                        raise ex
-                    return
-            # state kwargs already inistliazed
-            self._logger.info(f"Update kwarg '{name}' with state kwargs")
-            targs[1][name] = self._state_kwargs[name]
-
         # update task start time
         self.update_task_start_time(task)
 
@@ -242,10 +205,6 @@ class TaskQ(Logger):
         monitor.join()
         self.update_task_status(task, status)
 
-    @staticmethod
-    def init_state_kwarg(self, state_kwarg: StateKWArg):
-        return
-
     def _take_next_task(self, level=None):
         level_start = level.start if level is not None else None
         level_stop = level.stop if level is not None else None
@@ -255,11 +214,6 @@ class TaskQ(Logger):
 
     def _run(self, level):
         self.info(f"Started task pulling loop.")
-        # make sure all state kwargs for job have key in self._state_kwargs, later to be used in _run_task
-        state_kwargs_db = self.job.get_state_kwargs(self._handler)
-        for skw in state_kwargs_db:
-            if skw.name not in self._state_kwargs:
-                self._state_kwargs[skw.name] = skw
 
         # check for error code
         task_pull_start = time.time()

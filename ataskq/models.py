@@ -449,27 +449,6 @@ class Task(Model, EntryPoint):
         return f"{self.name}({self.task_id})" if self.name else f"{self.task_id}"
 
 
-class StateKWArg(Model, EntryPoint):
-    state_kwargs_id: int
-    name: str
-    entrypoint: str
-    targs: bytes
-    description: str
-    job_id: int
-
-    @staticmethod
-    def id_key():
-        return "state_kwargs_id"
-
-    @staticmethod
-    def table_key():
-        return "state_kwargs"
-
-    def __init__(self, **kwargs) -> None:
-        EntryPoint.init(kwargs)
-        Model.__init__(self, **kwargs)
-
-
 class Job(Model):
     job_id: int
     name: str
@@ -488,7 +467,6 @@ class Job(Model):
     def children():
         return {
             Task: "job_id",
-            StateKWArg: "job_id",
         }
 
     def __init__(self, **kwargs):
@@ -500,11 +478,5 @@ class Job(Model):
     def add_tasks(self, tasks: List[Task], _handler=None):
         return self.add_children(Task, tasks, _handler=_handler)
 
-    def get_state_kwargs(self, _handler=None) -> List[StateKWArg]:
-        return self.get_children(StateKWArg, _handler=_handler)
 
-    def add_state_kwargs(self, state_kwarg: List[StateKWArg], _handler=None):
-        return self.add_children(StateKWArg, state_kwarg, _handler=_handler)
-
-
-__MODELS__: Dict[str, Model] = {m.table_key(): m for m in [Task, StateKWArg, Job]}
+__MODELS__: Dict[str, Model] = {m.table_key(): m for m in [Task, Job]}

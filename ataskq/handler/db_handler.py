@@ -257,20 +257,6 @@ class DBHandler(Handler):
             ")"
         )
 
-        # Create state arguments table if not exists
-        c.execute(
-            "CREATE TABLE IF NOT EXISTS state_kwargs ("
-            f"state_kwargs_id {self.primary_key}, "
-            "name TEXT, "
-            "entrypoint TEXT NOT NULL, "
-            f"targs {self.bytes_type}, "
-            "description TEXT, "
-            "job_id INTEGER NOT NULL, "
-            "CONSTRAINT uq_name_job_id UNIQUE(name, job_id), "
-            "CONSTRAINT fk_job_id FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE CASCADE"
-            ")"
-        )
-
         # Create tasks table if not exists
         statuses = ", ".join([f'"{a}"' for a in EStatus])
         c.execute(

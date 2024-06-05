@@ -1,0 +1,4 @@
+#!/bin/sh
+ATASKQ_PORT=${ATASKQ_PORT:-8080}
+ATASKQ_HOST=${ATASKQ_HOST:-0.0.0.0}
+python -m uvicorn ataskq.server.server:app --port $ATASKQ_PORT --host $ATASKQ_HOST
