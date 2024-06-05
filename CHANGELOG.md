@@ -1,5 +1,8 @@
 # ChangeLog
 
+# 0.6.2
+- bugfix: Docker image update
+
 # 0.6.1
 - bugfix: sqlite3 returning error on sqlite ver smaller 3.35.0
 
