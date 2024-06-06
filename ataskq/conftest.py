@@ -57,6 +57,6 @@ def config(tmp_path):
         assert "pg" in server_conn, "rest apigi test must be with posgres server"
         drop_pg_tables(server_conn)
     else:
-        raise Exception(f"Unkown connection format '{conn}'")
+        return "invalid_config"
 
     return copy.deepcopy(config)

@@ -1,6 +1,8 @@
 from pathlib import Path
 from datetime import datetime, timedelta
 from copy import copy
+from multiprocessing import Process
+import time
 
 import pytest
 
@@ -585,3 +587,20 @@ def test_max_jobs(config):
 
     remaining_jobs = [j.job_id for j in jobs]
     assert remaining_jobs == jobs_id[-max_jobs:]
+
+
+def test_run_forever(config):
+    taskq = TaskQ(config=config)
+    taskq.run()  # no tasks, instant complete
+
+    def run():
+        TaskQ(config=[config, {"run": {"run_forever": True}}]).run()
+
+    p = Process(target=run)
+    p.start()
+    while not p.is_alive():
+        time.sleep(0.2)
+    time.sleep(2)
+    assert p.is_alive(), "run finished with run_forever True"
+    p.kill()
+    p.join()

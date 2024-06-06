@@ -25,27 +25,24 @@ def db_handler() -> DBHandler:
     return from_config(ATASKQ_SERVER_CONFIG or "server")
 
 
-async def set_timout_tasks_task():
+async def set_timeout_tasks_task():
     dbh = db_handler()
-    i = 0
     while True:
-        if i % 10 == 0:
-            logger.info(f"[{i}] Set Timeout Tasks")
-        else:
-            logger.debug(f"[{i}] Set Timeout Tasks")
+        logger.info(f"Set Timeout Tasks")
         dbh.fail_pulse_timeout_tasks(dbh.config["monitor"]["pulse_timeout"])
-        await asyncio.sleep(dbh.config["monitor"]["pulse_interval"])
+        await asyncio.sleep(dbh.config["background"]["pulse_timeout_interval"])
         i += 1
 
 
 async def main():
     await asyncio.gather(
-        set_timout_tasks_task(),
+        set_timeout_tasks_task(),
     )
 
 
 def run():
     dbh: DBHandler = db_handler()
+    logger.info("init db")
     dbh.init_db()
     asyncio.run(main())
 

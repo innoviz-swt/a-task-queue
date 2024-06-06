@@ -1,8 +1,26 @@
 import argparse
+import logging
 
 from ataskq import TaskQ
 from ataskq.config.config import CONFIG_SETS, DEFAULT_CONFIG
-from ataskq.env import ATASKQ_CONFIG
+
+
+def init_logger(level=logging.INFO):
+    logger = logging.getLogger("ataskq")
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(
+        logging.Formatter(
+            "%(asctime)s.%(msecs)03d [%(process)d] [%(levelname)s] %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+    handler.setLevel(level)
+
+    logger.addHandler(handler)
+    logger.setLevel(level)
+
+    return logger
 
 
 def parse_number(number: str):
@@ -44,7 +62,7 @@ def main(args=None):
     if args.command == "run":
         if args.level is not None and len(args.level) == 1:
             args.level = args.level[0]
-
+        init_logger()
         TaskQ(config=args.config, job_id=args.job_id).run(level=args.level, concurrency=args.concurrency)
 
 

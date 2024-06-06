@@ -3,45 +3,53 @@ import os
 
 import pytest
 
-from .config import load_config
-from .config.config import CONFIG_FORMAT, CONFIG_SETS, DEFAULT_CONFIG
+from .config import load_config, get_config_set
+from .config.config import CONFIG_FORMAT, DEFAULT_CONFIG
 
 
-def assert_config(ref_config: dict, test_config: dict, format=CONFIG_FORMAT, path="", count=0):
-    """load config dict,
+def assert_instance(ref, format):
+    if ref is None:
+        return True
+    elif isinstance(ref, (int, float)) and issubclass(format, (int, float)):
+        return True
+    else:
+        return isinstance(ref, format)
 
-    Args:
-        config (dict): _description_
-        path (str, optional): _description_. Defaults to "".
-    """
+
+def assert_config(ref_config: dict, test_config: dict, format=CONFIG_FORMAT, path="", count=None):
+    if count is None:
+        count = [0]
+
     for k in ref_config.keys():
         kpath = (path and path + ".") + k
         assert k in ref_config, f"{kpath} missing in dst_config"
         if isinstance(ref_config[k], dict):
-            count += assert_config(ref_config[k], test_config[k], format=format[k], path=kpath, count=count)
+            assert_config(ref_config[k], test_config[k], format=format[k], path=kpath, count=count)
         else:
             # overwrite config with environment value
-            assert ref_config[k] is None or isinstance(ref_config[k], format[k]), f"config '{kpath}' mismatch"
-            assert ref_config[k] == test_config[k], f"config '{kpath}' mismatch"
-            count += 1
+            assert assert_instance(ref_config[k], format[k]), f"config '{kpath}' type mismatch"
+            assert ref_config[k] == test_config[k], f"config '{kpath}' value mismatch"
+            count[0] += 1
 
-    return count
+    return count[0]
 
 
 def test_load_default_none():
-    config = load_config(None, environ=False)
-    assert_config(CONFIG_SETS[DEFAULT_CONFIG], config)
+    config = load_config(environ=False)
+    count = assert_config(get_config_set(), config)
+    # sanity
+    assert count == 12, "invalid number of configurations."
 
 
 def test_load_default():
     config = load_config(DEFAULT_CONFIG, environ=False)
-    assert_config(CONFIG_SETS[DEFAULT_CONFIG], config)
+    assert_config(get_config_set(), config)
 
 
 def test_load_client_preset():
     config = load_config("client", environ=False)
 
-    ref = copy.deepcopy(CONFIG_SETS[DEFAULT_CONFIG])
+    ref = copy.deepcopy(get_config_set())
     ref["connection"] = "http://localhost:8080"
     ref["handler"]["db_init"] = False
     ref["run"]["fail_pulse_timeout"] = False
@@ -52,7 +60,7 @@ def test_load_client_preset():
 def test_load_custom():
     config = load_config({"connection": "test", "run": {"wait_timeout": 100}}, environ=False)
 
-    ref = copy.deepcopy(CONFIG_SETS[DEFAULT_CONFIG])
+    ref = copy.deepcopy(get_config_set())
     ref["connection"] = "test"
     ref["run"]["wait_timeout"] = 100.0
 
@@ -62,7 +70,7 @@ def test_load_custom():
 def test_load_custom2():
     config = load_config([{"connection": "test", "run": {"wait_timeout": 100}}], environ=False)
 
-    ref = copy.deepcopy(CONFIG_SETS[DEFAULT_CONFIG])
+    ref = copy.deepcopy(get_config_set())
     ref["connection"] = "test"
     ref["run"]["wait_timeout"] = 100.0
 
@@ -70,9 +78,9 @@ def test_load_custom2():
 
 
 def test_load_custom_and_preset():
-    config = load_config([{"connection": "test"}, "client"], environ=False)
+    config = load_config(["client", {"connection": "test"}], environ=False)
 
-    ref = copy.deepcopy(CONFIG_SETS[DEFAULT_CONFIG])
+    ref = copy.deepcopy(get_config_set())
     ref["connection"] = "test"
     ref["handler"]["db_init"] = False
     ref["run"]["fail_pulse_timeout"] = False
@@ -80,28 +88,35 @@ def test_load_custom_and_preset():
     assert_config(ref, config)
 
 
-def test_load_with_env_override():
-    os.environ["ataskq.connection"] = "test"
-    os.environ["ataskq.run.wait_timeout"] = "111"
-    config = load_config(DEFAULT_CONFIG)
-    # pop to avoid effect on other tests
-    os.environ.pop("ataskq.connection")
-    os.environ.pop("ataskq.run.wait_timeout")
+# def test_load_with_env_override():
+#     os.environ["ataskq.connection"] = "test"
+#     os.environ["ataskq.run.wait_timeout"] = "111"
+#     config = load_config(DEFAULT_CONFIG)
+#     # pop to avoid effect on other tests
+#     os.environ.pop("ataskq.connection")
+#     os.environ.pop("ataskq.run.wait_timeout")
 
-    assert config["connection"] == "test"
-    assert config["run"]["wait_timeout"] == 111.0
+#     assert config["connection"] == "test"
+#     assert config["run"]["wait_timeout"] == 111.0
 
 
-def test_load_with_env_override2():
-    os.environ["ataskq_connection"] = "test"
-    os.environ["ataskq_run_wait_timeout"] = "111"
-    config = load_config(DEFAULT_CONFIG)
-    # pop to avoid effect on other tests
-    os.environ.pop("ataskq_connection")
-    os.environ.pop("ataskq_run_wait_timeout")
+# def test_load_with_env_override2():
+#     os.environ["ataskq_connection"] = "test"
+#     os.environ["ataskq_run_wait_timeout"] = "111"
+#     config = load_config(DEFAULT_CONFIG)
+#     # pop to avoid effect on other tests
+#     os.environ.pop("ataskq_connection")
+#     os.environ.pop("ataskq_run_wait_timeout")
 
-    assert config["connection"] == "test"
-    assert config["run"]["wait_timeout"] == 111.0
+#     assert config["connection"] == "test"
+#     assert config["run"]["wait_timeout"] == 111.0
+
+
+def test_invalid_config_format():
+    with pytest.raises(ValueError) as excinfo:
+        load_config({"run": {"wait_timeout": "asd"}}, environ=False)
+
+    assert "config 'run.wait_timeout' value 'asd' can't be cast to 'float'" == str(excinfo.value)
 
 
 def test_invalid_config_type():

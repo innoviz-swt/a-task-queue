@@ -6,11 +6,11 @@ ENV ATASKQ_SERVER_WORKERS 4
 
 WORKDIR /app
 
-ADD dist dist
-ADD requirements.txt requirements.txt
+COPY dist dist
+COPY requirements.txt requirements.txt
 RUN pip install --upgrade pip && pip install -r requirements.txt
 RUN pip install dist/*.whl
 RUN rm -r dist requirements.txt
-ADD scripts/run* .
+COPY --chmod=+x scripts/run* .
 
 CMD [ "/bin/sh" ]
