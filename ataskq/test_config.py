@@ -88,24 +88,6 @@ def test_load_custom_and_preset():
     assert_config(ref, config)
 
 
-# def test_load_with_env_override():
-#     os.environ["ataskq.connection"] = "test"
-#     os.environ["ataskq.run.wait_timeout"] = "111"
-#     config = load_config(DEFAULT_CONFIG)
-
-#     assert config["connection"] == "test"
-#     assert config["run"]["wait_timeout"] == 111.0
-
-
-# def test_load_with_env_override2():
-#     os.environ["ataskq_connection"] = "test"
-#     os.environ["ataskq_run_wait_timeout"] = "111"
-#     config = load_config(DEFAULT_CONFIG)
-
-#     assert config["connection"] == "test"
-#     assert config["run"]["wait_timeout"] == 111.0
-
-
 def test_invalid_config_format():
     with pytest.raises(ValueError) as excinfo:
         load_config({"run": {"wait_timeout": "asd"}}, environ=False)
