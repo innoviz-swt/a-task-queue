@@ -92,9 +92,6 @@ def test_load_custom_and_preset():
 #     os.environ["ataskq.connection"] = "test"
 #     os.environ["ataskq.run.wait_timeout"] = "111"
 #     config = load_config(DEFAULT_CONFIG)
-#     # pop to avoid effect on other tests
-#     os.environ.pop("ataskq.connection")
-#     os.environ.pop("ataskq.run.wait_timeout")
 
 #     assert config["connection"] == "test"
 #     assert config["run"]["wait_timeout"] == 111.0
@@ -104,9 +101,6 @@ def test_load_custom_and_preset():
 #     os.environ["ataskq_connection"] = "test"
 #     os.environ["ataskq_run_wait_timeout"] = "111"
 #     config = load_config(DEFAULT_CONFIG)
-#     # pop to avoid effect on other tests
-#     os.environ.pop("ataskq_connection")
-#     os.environ.pop("ataskq_run_wait_timeout")
 
 #     assert config["connection"] == "test"
 #     assert config["run"]["wait_timeout"] == 111.0
