@@ -4,9 +4,8 @@ import pickle
 import logging
 from importlib import import_module
 from multiprocessing import Process
-from inspect import signature
 import time
-from typing import Dict, List
+from typing import List
 from datetime import datetime
 
 
@@ -225,18 +224,20 @@ class TaskQ(Logger):
             action, task = self._take_next_task(level)
 
             # handle no task available
-            if action == EAction.STOP:
+            if not self.config["run"]["run_forever"] and action == EAction.STOP:
                 break
             if action == EAction.RUN_TASK:
                 self._run_task(task)
-            elif action == EAction.WAIT:
+            elif action == EAction.WAIT or action == EAction.STOP:
                 if (
                     wait_timeout := self.config["run"]["wait_timeout"]
                 ) is not None and time.time() - task_pull_start > wait_timeout:
                     raise Exception(f"task pull timeout of '{wait_timeout}' sec reached.")
 
-                self.debug(f'waiting for {self.config["run"]["pull_interval"]} sec before taking next task')
+                self.info(f'Task pulling loop - waiting for {self.config["run"]["pull_interval"]} sec')
                 time.sleep(self.config["run"]["pull_interval"])
+            else:
+                raise Exception(f"Unsupported action {action}")
 
     def assert_level(self, level):
         if isinstance(level, int):
@@ -254,6 +255,7 @@ class TaskQ(Logger):
         return level
 
     def run(self, concurrency=None, level=None):
+        self.info(f"Start running with connection {self.config['connection']}")
         if level is not None:
             level = self.assert_level(level)
 

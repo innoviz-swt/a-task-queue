@@ -1,2 +1,2 @@
 #!/bin/sh
-python -u -m ataskq
+ataskq_run_run_forever=1 python -u -m ataskq run

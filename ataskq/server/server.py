@@ -59,7 +59,7 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return "ATASKQ Server is running"
+    return "Server is running"
 
 
 @app.get("/api")

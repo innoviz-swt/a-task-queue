@@ -1,3 +1,4 @@
+import copy
 from typing import Union, List, get_args
 from pathlib import Path
 import json
@@ -59,9 +60,9 @@ def _load_config(config: List[dict], default: dict, format=CONFIG_FORMAT, path="
                         f"Failed parsing config env variable '{env_var}' value '{os.environ[env_var]}' to '{format[k].__name__}'"
                     )
 
-        # set first config value found
+        # set last config value found
         try:
-            ret[k] = next(c[k] for c in config if k in c)
+            ret[k] = next(c[k] for c in config[::-1] if k in c)
         except StopIteration:  # no matching key in config
             pass
 
@@ -69,7 +70,7 @@ def _load_config(config: List[dict], default: dict, format=CONFIG_FORMAT, path="
             try:
                 ret[k] = format[k](ret[k])
             except:
-                raise ValueError(f"config '{kpath}' value  '{ret[k]}' can't be cast to '{format[k].__name__}'")
+                raise ValueError(f"config '{kpath}' value '{ret[k]}' can't be cast to '{format[k].__name__}'")
 
     return ret
 
@@ -87,7 +88,7 @@ def load_file(config: Path):
     return ret
 
 
-def load_config(config: Union[CONFIG_TYPE, List[CONFIG_TYPE]], environ=True):
+def load_config(config: Union[CONFIG_TYPE, List[CONFIG_TYPE]] = None, environ=True):
     loaded = False
     if config is None or config == DEFAULT_CONFIG:
         # default config used as base configuration for _load_config
@@ -126,3 +127,7 @@ def load_config(config: Union[CONFIG_TYPE, List[CONFIG_TYPE]], environ=True):
     ret["_loaded"] = True
 
     return ret
+
+
+def get_config_set(config=DEFAULT_CONFIG):
+    return copy.deepcopy(CONFIG_SETS[config])
