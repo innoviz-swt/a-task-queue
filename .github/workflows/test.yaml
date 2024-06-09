@@ -75,6 +75,7 @@ jobs:
         run: |
           export ATASKQ_SERVER_CONNECTION=${PG_CONNECTION/postgresql/pg}
           echo ATASKQ_SERVER_CONNECTION $ATASKQ_SERVER_CONNECTION
+          echo ataskq_background_pulse_timeout_interval $ataskq_background_pulse_timeout_interval
           echo ataskq_monitor_pulse_interval $ataskq_monitor_pulse_interval
           echo ataskq_monitor_pulse_timeout $ataskq_monitor_pulse_timeout
           echo ataskq_run_wait_timeout $ataskq_run_wait_timeout
@@ -90,6 +91,7 @@ jobs:
           PG_CONNECTION: ${{ steps.postgres.outputs.connection-uri }}
           ATASKQ_CONFIG: "client"
           ATASKQ_SERVER_CONFIG: "server"
+          ataskq_background_pulse_timeout_interval: 2
           ataskq_monitor_pulse_interval: 2
           ataskq_monitor_pulse_timeout: 1.5
           ataskq_run_wait_timeout: 10
