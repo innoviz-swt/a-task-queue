@@ -1,8 +1,6 @@
 FROM python:3.12-alpine
 
-ENV ATASKQ_PORT 8080
-ENV ATASKQ_HOST 0.0.0.0
-ENV ATASKQ_SERVER_WORKERS 4
+RUN apk --no-cache add curl
 
 WORKDIR /app
 
