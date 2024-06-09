@@ -1,24 +1,14 @@
 import asyncio
 import logging
 
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+
 from ataskq.handler import DBHandler, from_config
 from ataskq.env import ATASKQ_SERVER_CONFIG
 
-
-def init_logger(level=logging.INFO):
-    logger = logging.getLogger("server-background")
-
-    handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter(logging.BASIC_FORMAT))
-    handler.setLevel(level)
-
-    logger.addHandler(handler)
-    logger.setLevel(level)
-
-    return logger
-
-
-logger = init_logger()
+logger = logging.getLogger("uvicorn")
 
 
 def db_handler() -> DBHandler:
@@ -34,18 +24,35 @@ async def set_timeout_tasks_task():
         i += 1
 
 
-async def main():
-    await asyncio.gather(
-        set_timeout_tasks_task(),
-    )
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("enter lifspan")
 
-
-def run():
-    dbh: DBHandler = db_handler()
     logger.info("init db")
-    dbh.init_db()
-    asyncio.run(main())
+    db_handler().init_db()
+
+    task = asyncio.create_task(set_timeout_tasks_task())
+
+    # Load the ML model
+    yield
+    # Clean up the ML models and release the resources
+    logger.info("cancel task")
+    task.cancel()
+    logger.info("exit lifspan")
 
 
-if __name__ == "__main__":
-    run()
+app = FastAPI(lifespan=lifespan)
+
+# allow all cors
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/health")
+async def health():
+    return "Background manager is running"

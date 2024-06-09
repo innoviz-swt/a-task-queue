@@ -1,2 +1,5 @@
 #!/bin/sh
-python -u -m ataskq.server.background
+# single worker task
+UVICORN_HOST=${UVICORN_HOST:-0.0.0.0} \
+    UVICORN_PORT=${UVICORN_PORT:-8081} \
+    python -m uvicorn ataskq.server.background:app --workers 1
