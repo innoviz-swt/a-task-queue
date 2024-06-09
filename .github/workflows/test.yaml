@@ -81,11 +81,10 @@ jobs:
           mkdir ataskq/server/www && touch ataskq/server/www/index.html  # server mocks
           python --version
           python -m pip install -r requirements.txt
-          python -m ataskq.server.background &
-          ataskq_connection=$ATASKQ_SERVER_CONNECTION python -m uvicorn ataskq.server.server:app --port 8080 &
-          ataskq_connection=$ATASKQ_SERVER_CONNECTION python -m ataskq.server.background &
+          ataskq_connection=$ATASKQ_SERVER_CONNECTION UVICORN_HOST=localhost ./scripts/run_server &
+          ataskq_connection=$ATASKQ_SERVER_CONNECTION UVICORN_HOST=localhost ./scripts/run_background &
           sleep 5
-          curl http://127.0.0.1:8080/health
+          curl http://localhost:8080/health
           python -m pytest . -v --junitxml=tmp/report-${{ matrix.py-version }}.xml
         env:
           PG_CONNECTION: ${{ steps.postgres.outputs.connection-uri }}
