@@ -75,22 +75,23 @@ jobs:
         run: |
           export ATASKQ_SERVER_CONNECTION=${PG_CONNECTION/postgresql/pg}
           echo ATASKQ_SERVER_CONNECTION $ATASKQ_SERVER_CONNECTION
+          echo ataskq_background_pulse_timeout_interval $ataskq_background_pulse_timeout_interval
           echo ataskq_monitor_pulse_interval $ataskq_monitor_pulse_interval
           echo ataskq_monitor_pulse_timeout $ataskq_monitor_pulse_timeout
           echo ataskq_run_wait_timeout $ataskq_run_wait_timeout
           mkdir ataskq/server/www && touch ataskq/server/www/index.html  # server mocks
           python --version
           python -m pip install -r requirements.txt
-          python -m ataskq.server.background &
-          ataskq_connection=$ATASKQ_SERVER_CONNECTION python -m uvicorn ataskq.server.server:app --port 8080 &
-          ataskq_connection=$ATASKQ_SERVER_CONNECTION python -m ataskq.server.background &
+          ataskq_connection=$ATASKQ_SERVER_CONNECTION UVICORN_HOST=localhost ./scripts/run_server &
+          ataskq_connection=$ATASKQ_SERVER_CONNECTION UVICORN_HOST=localhost ./scripts/run_background &
           sleep 5
-          curl http://127.0.0.1:8080/health
+          curl http://localhost:8080/health
           python -m pytest . -v --junitxml=tmp/report-${{ matrix.py-version }}.xml
         env:
           PG_CONNECTION: ${{ steps.postgres.outputs.connection-uri }}
           ATASKQ_CONFIG: "client"
           ATASKQ_SERVER_CONFIG: "server"
+          ataskq_background_pulse_timeout_interval: 2
           ataskq_monitor_pulse_interval: 2
           ataskq_monitor_pulse_timeout: 1.5
           ataskq_run_wait_timeout: 10

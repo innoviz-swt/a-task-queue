@@ -1,5 +1,9 @@
 # ChangeLog
 
+# 0.6.3
+- background task implemented as server
+- bugfix: Docker image update
+
 # 0.6.2
 - bugfix: Docker image update
 - db schema v5: state_kwargs removed from schema

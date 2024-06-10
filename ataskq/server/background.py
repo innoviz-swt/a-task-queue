@@ -18,10 +18,9 @@ def db_handler() -> DBHandler:
 async def set_timeout_tasks_task():
     dbh = db_handler()
     while True:
-        logger.info(f"Set Timeout Tasks")
+        logger.info(f"Set Timeout Tasks - {dbh.config['background']['pulse_timeout_interval']} sec interval")
         dbh.fail_pulse_timeout_tasks(dbh.config["monitor"]["pulse_timeout"])
         await asyncio.sleep(dbh.config["background"]["pulse_timeout_interval"])
-        i += 1
 
 
 @asynccontextmanager
