@@ -412,14 +412,17 @@ class DBHandler(Handler):
         self,
         c,
         job_id,
-        _order_by: str = None,
-        _limit: int = None,
-        _offset: int = 0,
+        **kwargs,
     ):
         from ..models import EStatus
 
-        if _limit is None:
-            _limit = self.config["api"]["limit"]
+        # todo add group by to get_query_kwargs
+
+        query_kwargs = get_query_kwargs(kwargs)
+        if query_kwargs.get("_limit") is None:
+            query_kwargs["_limit"] = self.config["api"]["limit"]
+        if query_kwargs.get("_order_by") is None:
+            query_kwargs["_order_by"] = "name ASC"
 
         query_str = (
             "SELECT level, name,"
@@ -428,11 +431,7 @@ class DBHandler(Handler):
             + f"FROM tasks WHERE job_id = {job_id} "
             "GROUP BY level, name"
         )
-
-        if _order_by is None:
-            _order_by = "name ASC"
-
-        query_str = expand_query_str(query_str, _order_by=_order_by, _limit=_limit, _offset=_offset)
+        query_str = expand_query_str(query_str, **query_kwargs)
 
         c.execute(query_str)
         rows = c.fetchall()
