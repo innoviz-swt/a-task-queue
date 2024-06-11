@@ -89,9 +89,9 @@ async def jobs_status(request: Request, dbh: DBHandler = Depends(db_handler)):
     return ret
 
 
-@app.get("/api/custom_query/tasks_status/{job_id}")
-async def tasks_status(job_id: int, request: Request, dbh: DBHandler = Depends(db_handler)):
-    ret = dbh.tasks_status(job_id=job_id, **request.query_params)
+@app.get("/api/custom_query/tasks_status")
+async def tasks_status(request: Request, dbh: DBHandler = Depends(db_handler)):
+    ret = dbh.tasks_status(**request.query_params)
 
     return ret
 

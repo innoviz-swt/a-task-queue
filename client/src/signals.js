@@ -40,7 +40,7 @@ const init_table = (tabledata) => {
             job_id.updateDefinition({ // Update the column definition
                 formatter: "link",
                 formatterParams: {
-                    urlPrefix: "/custom_query/tasks_status/",
+                    urlPrefix: "/custom_query/tasks_status?job_id=",
                 }
             });
         }
@@ -80,7 +80,7 @@ const myfetch = async (pathname, search) => {
 }
 
 (function () {
-    const { pathname, search, hash } = window.location;
+    const { pathname, search } = window.location;
     const searchParams = new URLSearchParams(search);
     console.table({ pathname, search })
     // update job id \ title
@@ -88,13 +88,13 @@ const myfetch = async (pathname, search) => {
     let mytitle;
     if (pathname.startsWith("/custom_query/tasks_status/")) {
         my_job_id = pathname.split("/custom_query/tasks_status/")[1];
-        mytitle = 'tasks_status - job ' + my_job_id
+        mytitle = `job ${my_job_id} - tasks_status`
     }
     else {
         my_job_id = searchParams.get('job_id');
         mytitle = pathname.replace('/custom_query/', '').replace('/db/', '').replace('/', ' ')
         if (my_job_id) {
-            mytitle += ` - job ${my_job_id}`
+            mytitle = `job ${my_job_id} - ${mytitle}`
         }
     }
     job_id.value = my_job_id;
