@@ -23,9 +23,9 @@ const Input = ({value, set}) => {
     )
 }
 
-const NAVItem = ({params, href}) => (
+const NAVItem = ({name, params, href}) => (
     <li class="nav-item">
-        <a class={`nav-link ${window.location.href.includes(href) ? 'active' : ''}`} aria-current="page" href={`${href}?${params.toString()}`}>Tasks Status</a>
+        <a class={`nav-link ${window.location.href.includes(href) ? 'active' : ''}`} aria-current="page" href={`${href}?${params.toString()}`}>{name}</a>
     </li>
 )
 
@@ -41,8 +41,7 @@ const NAV = () => {
         window.location.href = redirectUrl;
     }
 
-
-    const params = job_id ? new URLSearchParams({job_id: job_id}) : new URLSearchParams();
+    const params = job_id.value ? new URLSearchParams({job_id: job_id}) : new URLSearchParams();
 
     return (
         <nav id="navbar" class="navbar navbar-expand-lg bg-body-tertiary">
@@ -55,8 +54,8 @@ const NAV = () => {
                 </button>
                 <div class="collapse navbar-collapse" id="navbarScroll">
                     <ul class="navbar-nav me-auto my-2 my-lg-0 navbar-nav-scroll" style="--bs-scroll-height: 100px;">
-                        <NAVItem params={params} href='/custom_query/tasks_status'/>
-                        <NAVItem params={params} href='/db/tasks'/>
+                        <NAVItem name="Tasks Status" params={params} href='/custom_query/tasks_status'/>
+                        <NAVItem name="Tasks" params={params} href='/db/tasks'/>
                     </ul>
                     <form id="tasks-status-go" class="navbar-nav nav-form d-flex" action="/custom_query/tasks_status" method="GET" onSubmit={onSubmit}>
                         <Input value={job_id} set={(v) => job_id.value = v}/>

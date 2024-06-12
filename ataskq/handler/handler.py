@@ -21,7 +21,7 @@ def get_query_kwargs(kwargs):
     for k, v in kwargs.items():
         if k == "_where":
             continue
-        if k in ["_order_by", "_limit", "_offset"]:
+        if k in ["_group_by", "_order_by", "_limit", "_offset"]:
             ret[k] = v
             continue
         if v is None:
@@ -168,7 +168,7 @@ class Handler(IModelSerializer, Logger):
         pass
 
     @abstractmethod
-    def tasks_status(self, job_id, _order_by: str = None, _limit: int = None, _offset: int = 0) -> List[dict]:
+    def tasks_status(self, job_id=None, _order_by: str = None, _limit: int = None, _offset: int = 0) -> List[dict]:
         pass
 
     @abstractmethod

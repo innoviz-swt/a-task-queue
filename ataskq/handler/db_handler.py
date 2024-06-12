@@ -72,9 +72,14 @@ def order_query(order_by):
     return order_by
 
 
-def expand_query_str(query_str, _where=None, _order_by=None, _limit=None, _offset=None):
+def expand_query_str(query_str, _where=None, _group_by=None, _order_by=None, _limit=None, _offset=None):
     if _where is not None:
         query_str += f" WHERE {_where}"
+
+    if _group_by is not None:
+        if not isinstance(_group_by, (list, tuple)):
+            _group_by = [_group_by]
+        query_str += f" GROUP BY {', '.join(_group_by)}"
 
     if _order_by is not None:
         query_str += f" ORDER BY {order_query(_order_by)}"
@@ -411,25 +416,25 @@ class DBHandler(Handler):
     def tasks_status(
         self,
         c,
-        job_id,
         **kwargs,
     ):
         from ..models import EStatus
 
         # todo add group by to get_query_kwargs
 
+        if kwargs.get("_limit") is None:
+            kwargs["_limit"] = self.config["api"]["limit"]
+        if kwargs.get("_order_by") is None:
+            kwargs["_order_by"] = "name ASC"
+        if kwargs.get("_group_by") is None:
+            kwargs["_group_by"] = ("level", "name")
         query_kwargs = get_query_kwargs(kwargs)
-        if query_kwargs.get("_limit") is None:
-            query_kwargs["_limit"] = self.config["api"]["limit"]
-        if query_kwargs.get("_order_by") is None:
-            query_kwargs["_order_by"] = "name ASC"
 
         query_str = (
             "SELECT level, name,"
             "COUNT(*) as total, "
             + ",".join([f"SUM(CASE WHEN status = '{status}' THEN 1 ELSE 0 END) AS {status} " for status in EStatus])
-            + f"FROM tasks WHERE job_id = {job_id} "
-            "GROUP BY level, name"
+            + "FROM tasks"
         )
         query_str = expand_query_str(query_str, **query_kwargs)
 
