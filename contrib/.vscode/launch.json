@@ -45,18 +45,36 @@
             "type": "debugpy",
             "request": "launch",
             "module": "ataskq",
-            "args": ["run", "--job-id", "1"],
+            "args": ["run"],
+            // "args": ["run", "--job-id", "1"],
             "console": "integratedTerminal",
             "justMyCode": true
         },
         {
-            "name": "rest_server",
+            "name": "server",
             "type": "debugpy",
             "request": "launch",
             "module": "uvicorn",
             "args": ["ataskq.server.server:app", "--port", "8080", "--reload"], // "--host", "${env:HOSTNAME}",
             "console": "integratedTerminal",
-            "justMyCode": true
+            "justMyCode": true,
+            "env": {
+                "ATASKQ_CONFIG": "server",
+                "ataskq_connection": "pg://postgres:postgres@localhost:5432/postgres",
+            }
+        },
+        {
+            "name": "background",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": ["ataskq.server.background:app", "--port", "8081", "--reload"],
+            "console": "integratedTerminal",
+            "justMyCode": true,
+            "env": {
+                "ATASKQ_CONFIG": "server",
+                "ataskq_connection": "pg://postgres:postgres@localhost:5432/postgres",
+            }
         },
         {
             "name": "basic_task_queue",

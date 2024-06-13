@@ -9,4 +9,4 @@ fi
 # echo cmd $cmd
 
 cd $SCRIPTPATH
-MY_UID="$(id -u)" MY_GID="$(id -g)" docker compose -f ./docker-compose.yaml --env-file=./run_stack.env $cmd
+MY_NODE=$(node --version | sed 's/v//g') MY_UID="$(id -u)" MY_GID="$(id -g)" docker compose -f ./docker-compose.yaml --env-file=./run_stack.env $cmd
