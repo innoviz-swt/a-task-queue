@@ -1,4 +1,6 @@
 # ChangeLog
+# 0.6.4
+- bugfix: dashboard handling no job_id
 
 # 0.6.3
 - background task implemented as server
