@@ -2,6 +2,7 @@ from abc import abstractmethod
 from typing import Union, List, Dict
 from datetime import datetime
 from enum import Enum
+import copy
 
 from ..env import ATASKQ_CONFIG
 from ..logger import Logger
@@ -12,31 +13,24 @@ __STRTIME_FORMAT__ = "%Y-%m-%d %H:%M:%S.%f"
 
 
 def get_query_kwargs(kwargs):
+    # todo: the k=v for the kwargs should be interface dependent similar to insert
+    ret = {}
     _where = ""
-    _order_by = ""
     if "_where" in kwargs:
         _where += kwargs["_where"]
-
-    if "_order_by" in kwargs:
-        _order_by += kwargs["_order_by"]
-
-    # todo: the k=v for the kwargs should be interface dependent similar to insert
     for k, v in kwargs.items():
-        if k in ["_where", "_order_by"]:
+        if k == "_where":
+            continue
+        if k in ["_group_by", "_order_by", "_limit", "_offset"]:
+            ret[k] = v
+            continue
+        if v is None:
             continue
         _where += f"{_where and ' AND '}{k}={v}"
 
     _where = _where or None
-    _order_by = _order_by or None
-
-    ret = dict()
     if _where:
         ret["_where"] = _where
-    if _order_by:
-        ret["_order_by"] = _order_by
-
-    ret["_offset"] = kwargs.get("_offset")
-    ret["_limit"] = kwargs.get("_limit")
 
     return ret
 
@@ -174,7 +168,7 @@ class Handler(IModelSerializer, Logger):
         pass
 
     @abstractmethod
-    def tasks_status(self, job_id, _order_by: str = None, _limit: int = None, _offset: int = 0) -> List[dict]:
+    def tasks_status(self, job_id=None, _order_by: str = None, _limit: int = None, _offset: int = 0) -> List[dict]:
         pass
 
     @abstractmethod

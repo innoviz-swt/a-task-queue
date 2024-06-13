@@ -1,0 +1,12 @@
+#!/bin/bash
+set -e
+SCRIPTPATH=$(dirname $(readlink -f $0))
+
+cmd=${@:1}
+if [ -z "$cmd" ]; then
+    cmd=up
+fi
+# echo cmd $cmd
+
+cd $SCRIPTPATH
+MY_NODE=$(node --version | sed 's/v//g') MY_UID="$(id -u)" MY_GID="$(id -g)" docker compose -f ./docker-compose.yaml --env-file=./run_stack.env $cmd

@@ -52,6 +52,7 @@ app.add_middleware(
 )
 
 
+@app.get("/")
 @app.get("/health")
 async def health():
     return "Background manager is running"

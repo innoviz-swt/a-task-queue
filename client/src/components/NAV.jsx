@@ -23,16 +23,25 @@ const Input = ({value, set}) => {
     )
 }
 
+const NAVItem = ({name, params, href}) => (
+    <li class="nav-item">
+        <a class={`nav-link ${window.location.href.includes(href) ? 'active' : ''}`} aria-current="page" href={`${href}?${params.toString()}`}>{name}</a>
+    </li>
+)
+
 const NAV = () => {
     const onSubmit = (ev) => {
         // Prevent the default form submission behavior
         ev.preventDefault();
         const inputValue = new FormData(ev.target).get('job_id');
-        const redirectUrl = ev.target.action + "/" + encodeURIComponent(inputValue);
+        const params = inputValue ? new URLSearchParams({job_id: inputValue}) : new URLSearchParams();
+        const redirectUrl = ev.target.action + "?" + params.toString();
 
         // Perform the redirect
         window.location.href = redirectUrl;
     }
+
+    const params = job_id.value ? new URLSearchParams({job_id: job_id}) : new URLSearchParams();
 
     return (
         <nav id="navbar" class="navbar navbar-expand-lg bg-body-tertiary">
@@ -45,9 +54,8 @@ const NAV = () => {
                 </button>
                 <div class="collapse navbar-collapse" id="navbarScroll">
                     <ul class="navbar-nav me-auto my-2 my-lg-0 navbar-nav-scroll" style="--bs-scroll-height: 100px;">
-                        <li class="nav-item">
-                            <a class="nav-link active" aria-current="page" href={`/db/tasks/?job_id=${job_id}`}>Tasks</a>
-                        </li>
+                        <NAVItem name="Tasks Status" params={params} href='/custom_query/tasks_status'/>
+                        <NAVItem name="Tasks" params={params} href='/db/tasks'/>
                     </ul>
                     <form id="tasks-status-go" class="navbar-nav nav-form d-flex" action="/custom_query/tasks_status" method="GET" onSubmit={onSubmit}>
                         <Input value={job_id} set={(v) => job_id.value = v}/>

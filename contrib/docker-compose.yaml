@@ -1,0 +1,71 @@
+services:
+  atq-server:
+    image: ${BASE_IMAGE}
+    ports:
+      - 8080:8080
+    user: ${MY_UID}:${MY_GID}
+    environment:
+      ATASKQ_CONFIG: "server"
+      ataskq.connection: pg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/postgres
+      UVICORN_HOST: 0.0.0.0
+      UVICORN_PORT: 8080
+    volumes:
+      - ../:/app
+      - ./contrib/env:/app/env
+      - /home/$USER/.local:/.local
+    working_dir: /app
+    command: ["/bin/bash", "-c", "pip install -r requirements.txt && python -m uvicorn ataskq.server.server:app --reload"]
+    depends_on:
+      - atq-background
+    restart: unless-stopped
+
+  atq-background:
+    image: ${BASE_IMAGE}
+    ports:
+      - 8081:8081
+    user: ${MY_UID}:${MY_GID}
+    environment:
+      ATASKQ_CONFIG: "server"
+      ataskq.connection: pg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/postgres
+      PIP_NO_CACHE_DIR: 1
+      UVICORN_HOST: 0.0.0.0
+      UVICORN_PORT: 8081
+    volumes:
+      - ../:/app
+      - ./contrib/env:/app/env
+      - /home/$USER/.local:/.local
+    working_dir: /app
+    command: ["/bin/bash", "-c", "pip install -r requirements.txt && python -m uvicorn ataskq.server.background:app --reload"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16.1
+    # volumes:
+    #   - postgres:/var/lib/postgresql/data:Z
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d postgres -U $${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  www-dev:
+    image: node:${MY_NODE}
+    restart: unless-stopped
+    volumes:
+      - ~/.npm:/.npm
+      - ..:/app
+    working_dir: /app
+    user: ${MY_UID}:${MY_GID}
+    command: ["/bin/bash", "-c", "cd client && npm run dev"]
+
+# volumes:
+#   postgres:

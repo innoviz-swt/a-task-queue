@@ -70,7 +70,6 @@ CONFIG_SETS = {
         },
     },
     "server": {
-        "connection": "pg://postgres:postgres@localhost/postgres",
         "run": {
             "fail_pulse_timeout": False,
         },

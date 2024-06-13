@@ -133,12 +133,12 @@ class RESTHandler(Handler):
 
         return (action, task)
 
-    def tasks_status(self, job_id, **kwargs):
-        res = self.rest_get(f"custom_query/tasks_status/{job_id}", data=kwargs)
+    def tasks_status(self, **kwargs):
+        res = self.rest_get(f"custom_query/tasks_status", params=kwargs)
 
         return res
 
     def jobs_status(self, **kwargs):
-        res = self.rest_get(f"custom_query/jobs_status", data=kwargs)
+        res = self.rest_get(f"custom_query/jobs_status", params=kwargs)
 
         return res

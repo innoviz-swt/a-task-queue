@@ -38,7 +38,7 @@ def handler(config):
 
 def test_tasks_status(handler, job_ids):
     # job 1
-    status = handler.tasks_status(job_ids[0])
+    status = handler.tasks_status(job_id=job_ids[0])
 
     assert len(status) == 2
 
@@ -51,7 +51,7 @@ def test_tasks_status(handler, job_ids):
     assert status[1]["pending"] == 1
 
     # job 2
-    status = handler.tasks_status(job_ids[1])
+    status = handler.tasks_status(job_id=job_ids[1])
 
     assert len(status) == 2
 
