@@ -57,5 +57,15 @@ services:
       timeout: 5s
       retries: 5
 
+  www-dev:
+    image: node:${MY_NODE}
+    restart: unless-stopped
+    volumes:
+      - ~/.npm:/.npm
+      - ..:/app
+    working_dir: /app
+    user: ${MY_UID}:${MY_GID}
+    command: ["/bin/bash", "-c", "cd client && npm run dev"]
+
 # volumes:
 #   postgres:
