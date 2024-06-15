@@ -237,7 +237,7 @@ class DBHandler(Handler):
 
     @transaction_decorator(exclusive=True)
     def init_db(self, c):
-        from ..models import EStatus
+        from ..models import Object
 
         # Create schema version table if not exists
         c.execute("CREATE TABLE IF NOT EXISTS schema_version (" "version INTEGER PRIMARY KEY" ")")
@@ -263,23 +263,31 @@ class DBHandler(Handler):
         )
 
         # Create tasks table if not exists
-        statuses = ", ".join([f'"{a}"' for a in EStatus])
         c.execute(
             f"CREATE TABLE IF NOT EXISTS tasks ("
             f"task_id {self.primary_key}, "
             "name TEXT, "
+            "description TEXT, "
             "level REAL, "
             "entrypoint TEXT NOT NULL, "
-            f"targs {self.bytes_type}, "
-            f"status TEXT ,"  # CHECK(status in ({statuses})),
+            f"kwargs_oid INTEGER, "  # object id
+            f"status TEXT ,"
             f"take_time {self.timestamp_type}, "
             f"start_time {self.timestamp_type}, "
             f"done_time {self.timestamp_type}, "
             f"pulse_time {self.timestamp_type}, "
-            "description TEXT, "
-            #   "summary_cookie JSON, "
             "job_id INTEGER NOT NULL, "
             "CONSTRAINT fk_job_id FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE CASCADE"
+            ")"
+        )
+
+        # Create jobs tasks if not exists
+        c.execute(
+            f"CREATE TABLE IF NOT EXISTS objects ("
+            f"{Object.id_key()} {self.primary_key}, "
+            "serializer TEXT, "
+            "desrializer TEXT, "
+            f"blob {self.bytes_type}"
             ")"
         )
 

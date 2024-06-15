@@ -1,23 +1,17 @@
 import multiprocessing
-from typing import Union
-import pickle
+from typing import Union, List
 import logging
-from importlib import import_module
 from multiprocessing import Process
 import time
-from typing import List
 from datetime import datetime
 
 
 from .logger import Logger
-from .models import EStatus, Job, Task
+from .models import EStatus, Job, Task, Object
 from .monitor import MonitorThread
 from .handler import Handler, DBHandler, from_config, EAction
 from .config import load_config
-
-
-def targs(*args, **kwargs):
-    return (args, kwargs)
+from .utils.dynamic_import import import_callable
 
 
 class TaskQ(Logger):
@@ -140,31 +134,29 @@ class TaskQ(Logger):
         )
         return ret
 
+    def object(self, obj=None, serializer="pickle.dumps", desrializer=None):
+        if object is None:
+            return None
+        serializer_func = import_callable(serializer)
+        blob = serializer_func(obj)
+        ret = Object(
+            blob=blob,
+            serializer=serializer,
+            desrializer=desrializer,
+        ).create(_handler=self._handler)
+
+        return ret
+
     def _run_task(self, task: Task):
         self.info(f"Running task '{task}'")
 
         # get entry point func to execute
-        ep = task.entrypoint
-        if ep == "ataskq.skip_run_task":
-            self.info(f"task '{task}' is marked as 'skip_run_task', skipping run task.")
-            return
-
-        assert "." in ep, "entry point must be inside a module."
-        module_name, func_name = ep.rsplit(".", 1)
-        try:
-            m = import_module(module_name)
-        except ImportError as ex:
-            raise RuntimeError(f"Failed to load module '{module_name}'. Exception: '{ex}'")
-        assert hasattr(
-            m, func_name
-        ), f"failed to load entry point, module '{module_name}' doen't have func named '{func_name}'."
-        func = getattr(m, func_name)
-        assert callable(func), f"entry point is not callable, '{module_name},{func}'."
+        func = import_callable(task.entrypoint)
 
         # get targs
-        if task.targs is not None:
+        if task.kwargs is not None:
             try:
-                targs = pickle.loads(task.targs)
+                raise NotImplementedError()
             except Exception as ex:
                 if self.config["run"]["raise_exception"]:  # for debug purposes only
                     self.warning("Getting tasks args failed.")

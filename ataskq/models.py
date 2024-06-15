@@ -1,12 +1,12 @@
 from typing import Union, List, Dict
 from enum import Enum
 import pickle
-from importlib import import_module
 from datetime import datetime
 from copy import copy
 
 from .imodel import IModel, IModelSerializer
 from .handler import get_handler, Handler
+from .utils.dynamic_import import import_callable
 
 
 class EntryPointRuntimeError(RuntimeError):
@@ -49,52 +49,13 @@ class EntryPoint:
             assert isinstance(targs[1], dict)
             kwargs["targs"] = pickle.dumps(targs)
 
-    def get_targs(self):
-        if self.targs is not None:
-            try:
-                targs = pickle.loads(self.targs)
-                assert len(targs) == 2, "targs must be tuple of 2 elements"
-                assert isinstance(targs[0], tuple), "targs[0] must be args tuple"
-                assert isinstance(targs[1], dict), "targs[0] must be kwargs dict"
-            except Exception as ex:
-                raise TARGSLoadRuntimeError() from ex
-
-        else:
-            targs = ((), {})
-
-        return targs[0], targs[1]
-
     def get_entrypoint(self):
-        ep = self.entrypoint
-
         try:
-            assert "." in ep, "entry point must be inside a module."
-            module_name, func_name = ep.rsplit(".", 1)
-            m = import_module(module_name)
-            assert hasattr(
-                m, func_name
-            ), f"failed to load entry point, module '{module_name}' doen't have func named '{func_name}'."
-            func = getattr(m, func_name)
-            assert callable(func), f"entry point is not callable, '{module_name}.{func}'."
-        except ImportError as ex:
-            raise EntrypointLoadRuntimeError(f"Failed to load module '{module_name}'. Exception: '{ex}'")
+            func = import_callable(self.entrypoint)
         except Exception as ex:
-            raise EntrypointLoadRuntimeError(f"Failed to load entry point '{ep}'. Exception: '{ex}'") from ex
+            raise EntrypointLoadRuntimeError from ex
 
         return func
-
-    def call(self):
-        args, kwargs = self.get_targs()
-        entrypoint = self.get_entrypoint()
-
-        try:
-            ret = entrypoint(*args, **kwargs)
-        except Exception as ex:
-            raise EntrypointCallRuntimeError(
-                f"Failed while call entrypoint function '{self.entrypoint}'. Exception: '{ex}'"
-            ) from ex
-
-        return ret
 
 
 def _handle_union(cls_name, member, annotations, value, type_handlers=None):
@@ -127,6 +88,14 @@ def _handle_union(cls_name, member, annotations, value, type_handlers=None):
 
 
 class Model(IModel):
+    @classmethod
+    def table_key(cls):
+        return cls.__name__.lower() + "s"
+
+    @classmethod
+    def id_key(cls):
+        return cls.__name__.lower() + "_id"
+
     def __init__(self, _serialize=True, **kwargs) -> None:
         cls_annotations = self.__annotations__
         defaults = getattr(self, "__DEFAULTS__", dict())
@@ -416,30 +385,34 @@ class Model(IModel):
         return ret
 
 
+class Object(Model):
+    object_id: int
+    blob: bytes
+    serializer: str
+    desrializer: str
+    # created_at: datetime
+    # updated_at: datetime
+
+
 class Task(Model, EntryPoint):
     task_id: int
     name: str
+    description: str
     level: float
     entrypoint: str
-    targs: bytes
+    kwargs_oid: int
     status: EStatus
     take_time: datetime
     start_time: datetime
     done_time: datetime
     pulse_time: datetime
-    description: str
-    # summary_cookie = None,
     job_id: int
 
     __DEFAULTS__ = dict(status=EStatus.PENDING, entrypoint="", level=0.0)
 
-    @staticmethod
-    def id_key():
-        return "task_id"
-
-    @staticmethod
-    def table_key():
-        return "tasks"
+    @property
+    def kwargs(self):
+        return None
 
     def __init__(self, **kwargs) -> None:
         EntryPoint.init(kwargs)
@@ -479,4 +452,4 @@ class Job(Model):
         return self.add_children(Task, tasks, _handler=_handler)
 
 
-__MODELS__: Dict[str, Model] = {m.table_key(): m for m in [Task, Job]}
+__MODELS__: Dict[str, Model] = {m.table_key(): m for m in [Object, Task, Job]}
