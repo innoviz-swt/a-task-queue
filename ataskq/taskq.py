@@ -134,7 +134,7 @@ class TaskQ(Logger):
         )
         return ret
 
-    def object(self, obj=None, serializer="pickle.dumps", desrializer=None):
+    def create_object(self, obj, serializer="pickle.dumps", desrializer="pickle.loads"):
         if object is None:
             return None
         serializer_func = import_callable(serializer)
@@ -147,6 +147,28 @@ class TaskQ(Logger):
 
         return ret
 
+    def get_object(self, obj):
+        if isinstance(obj, int):  # object id
+            obj = Object.get(obj, _handler=self._handler)
+
+        deserializer_func = import_callable(obj.desrializer)
+        obj = deserializer_func(obj.blob)
+        return obj
+
+    def oid(self, obj, serializer="pickle.dumps", desrializer="pickle.loads") -> int:
+        """return object id if isinstance(obj, Object)
+        otherwise creates new object in db and returns its id
+
+        Returns:
+            int: Object id
+        """
+        if isinstance(obj, Object):
+            return obj.object_id
+
+        obj = self.create_object(obj=obj, serializer=serializer, _desrializer=desrializer)
+
+        return obj.object_id
+
     def _run_task(self, task: Task):
         self.info(f"Running task '{task}'")
 
@@ -154,16 +176,18 @@ class TaskQ(Logger):
         func = import_callable(task.entrypoint)
 
         # get targs
-        if task.kwargs is not None:
+        task_kwargs = dict()
+        if task.kwargs_oid is not None:
             try:
-                raise NotImplementedError()
+                task_kwargs = self.get_object(obj=task.kwargs_oid)
             except Exception as ex:
+                msg = f"Getting tasks '{task}' kwargs failed."
                 if self.config["run"]["raise_exception"]:  # for debug purposes only
-                    self.warning("Getting tasks args failed.")
+                    self.warning(msg)
                     self.update_task_status(task, EStatus.FAILURE)
                     raise ex
 
-                self.warning("Getting tasks args failed.", exc_info=True)
+                self.warning(msg, exc_info=True)
                 self.update_task_status(task, EStatus.FAILURE)
 
                 return
@@ -178,7 +202,7 @@ class TaskQ(Logger):
         monitor.start()
 
         try:
-            func(*targs[0], **targs[1])
+            func(**task_kwargs)
             status = EStatus.SUCCESS
         except Exception as ex:
             msg = f"Running task '{task}' failed with exception."

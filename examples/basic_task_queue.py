@@ -18,7 +18,7 @@ tr = TaskQ().create_job()
 tr.add_tasks(
     [
         Task(entrypoint=hello_world),
-        Task(entrypoint=task_with_args, kwargs_oid=tr.object(dict(arg1=10, arg2="this is kwarg2")).object_id),
+        Task(entrypoint=task_with_args, kwargs_oid=tr.create_object(dict(arg1=10, arg2="this is kwarg2")).object_id),
     ]
 )
 
