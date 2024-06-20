@@ -210,6 +210,17 @@ def test_take_next_task_sanity(jtaskq):
     _compare_tasks(in_task1, task)
 
 
+def test_take_next_task_exclusive(jtaskq):
+    jtaskq.add_tasks(
+        [
+            Task(entrypoint=dummy_args_task, level=1, name="task1"),
+        ]
+    )
+
+    action, task = jtaskq._take_next_task(level=None)
+    assert action == EAction.RUN_TASK
+
+
 def test_take_next_task(jtaskq):
     in_task1 = Task(entrypoint=dummy_args_task, level=1, name="task1")
     in_task2 = Task(entrypoint=dummy_args_task, level=2, name="task2")

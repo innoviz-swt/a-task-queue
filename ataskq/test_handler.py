@@ -20,8 +20,8 @@ class ForTestDBHandler:
         self._handler = handler
         self.error_msg = []
 
-    def connect(self):
-        return self._handler.connect()
+    def connect(self, exclusive=False):
+        return self._handler.connect(exclusive=exclusive)
 
     def __getattr__(self, name):
         return getattr(self._handler, name)

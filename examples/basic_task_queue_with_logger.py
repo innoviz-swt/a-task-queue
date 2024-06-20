@@ -7,12 +7,13 @@ import logging
 
 
 # init logger
+log_level = "INFO"
 logger = logging.getLogger("ataskq")
 handler = logging.StreamHandler()
 handler.setFormatter(logging.Formatter(logging.BASIC_FORMAT))
-handler.setLevel(os.environ.get("LOGLEVEL", "INFO"))
+handler.setLevel(log_level)
 logger.addHandler(handler)
-logger.setLevel(logging.INFO)
+logger.setLevel(log_level)
 
 # create  job
 tr = TaskQ(logger=logger).create_job()

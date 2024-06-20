@@ -81,15 +81,15 @@ class SQLite3DBHandler(DBHandler):
         return f"'{ts}'"
 
     @property
-    def begin_exclusive(self):
-        return "BEGIN EXCLUSIVE"
-
-    @property
     def for_update(self):
         return ""
 
-    def connect(self):
-        conn = sqlite3.connect(self.db_path)
+    def connect(self, exclusive: bool = False):
+        isolation_level = "DEFERRED"
+        # isolation_level = "EXCLUSIVE" if exclusive else "DEFERRED"  # "DEFERRED" is sqlite3 default isolation level
+        conn = sqlite3.connect(self.db_path, isolation_level=isolation_level)
+        conn.set_trace_callback(self.debug)
+
         return conn
 
     @transaction_decorator()
