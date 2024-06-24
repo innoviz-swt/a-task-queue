@@ -22,6 +22,10 @@ def transaction_decorator(exclusive=False):
                         c.execute(self.pragma_foreign_keys_on)
 
                     ret = func(self, c, *args, **kwargs)
+
+                    # debug plugin
+                    if self._transaction_end_cbk:
+                        self._transaction_end_cbk()
                 except Exception as e:
                     self.error(f"Failed to execute transaction '{type(e)}:{e}'. Rolling back")
                     conn.rollback()
@@ -80,12 +84,11 @@ def expand_query_str(query_str, _where=None, _group_by=None, _order_by=None, _li
 
 class DBHandler(Handler):
     def __init__(self, **kwargs) -> None:
+        self._transaction_end_cbk = None  # debug attribute to test exclusive mutal exclusion
+
         super().__init__(**kwargs)
         if self.config["handler"]["db_init"]:
             self.init_db()
-
-        self._conn = None
-        self._transaction_precommit_sleep = None  # debug attribute to test exclusive mutal exclusion
 
     @property
     def db_path(self):
