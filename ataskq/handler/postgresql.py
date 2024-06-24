@@ -96,7 +96,7 @@ class PostgresqlDBHandler(DBHandler):
     def for_update(self):
         return "FOR UPDATE"
 
-    def connect(self, **unused):
+    def connect(self):
         conn = psycopg2.connect(
             host=self.connection.host,
             database=self.connection.database,

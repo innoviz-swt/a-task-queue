@@ -229,14 +229,18 @@ def take_next_task_helper(config):
 
 
 def test_take_next_task_exclusive(jtaskq: TaskQ):
+    if not isinstance(jtaskq.handler, DBHandler):
+        pytest.skip()
+
     jtaskq.add_tasks(
         [
             Task(entrypoint=dummy_args_task, name="task1"),
         ]
     )
 
-    p = Pool(3)
-    vals = p.map(take_next_task_helper, [jtaskq.config] * 3)
+    with Pool(3) as p:
+        vals = p.map(take_next_task_helper, [jtaskq.config] * 3)
+
     assert sum([v[0] == EAction.RUN_TASK for v in vals]) == 1
 
 

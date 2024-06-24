@@ -11,21 +11,17 @@ from .. import __schema_version__
 def transaction_decorator(exclusive=False):
     def decorator(func):
         def wrapper(self, *args, **kwargs):
-            with self.connect(exclusive=exclusive) as conn:
+            with self.connect() as conn:
                 c = conn.cursor()
                 try:
-                    if self.pragma_foreign_keys_on:
-                        # enable foreign keys for each connection (sqlite default is off)
-                        # https://www.sqlite.org/foreignkeys.html
-                        # Foreign key constraints are disabled by default (for backwards
-                        # compatibility), so must be enabled separately for each database
-                        c.execute(self.pragma_foreign_keys_on)
-
+                    self.transaction_start(c, exclusive)
                     ret = func(self, c, *args, **kwargs)
 
                     # debug plugin
                     if self._transaction_end_cbk:
                         self._transaction_end_cbk()
+
+                    self.transaction_finalize(conn, exclusive)
                 except Exception as e:
                     self.error(f"Failed to execute transaction '{type(e)}:{e}'. Rolling back")
                     conn.rollback()
@@ -116,10 +112,6 @@ class DBHandler(Handler):
         return ret
 
     @property
-    def pragma_foreign_keys_on(self):
-        return None
-
-    @property
     @abstractmethod
     def format_symbol(self):
         pass
@@ -154,7 +146,13 @@ class DBHandler(Handler):
         pass
 
     @abstractmethod
-    def connect(self, exclusive: bool = False):
+    def connect(self):
+        pass
+
+    def transaction_start(self, c, exclusive=False):
+        pass
+
+    def transaction_finalize(self, conn, exclusive=False):
         pass
 
     def _create(self, model_cls: IModel, **ikwargs) -> int:
