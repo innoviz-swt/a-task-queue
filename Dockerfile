@@ -1,14 +1,25 @@
-FROM python:3.12-alpine
+FROM python:3.12-bookworm
 
-RUN apk --no-cache add curl
+# setup os env
+RUN apt-get upgrade -y
+RUN apt-get update && DEBIAN_FRONTEND="noninteractive" apt-get install -y --no-install-recommends \
+    # essentials
+    curl \
+    vim \
+    # cleanup
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
-
-COPY dist dist
+# setup python env
 COPY requirements.txt requirements.txt
-RUN pip install --upgrade pip && pip install -r requirements.txt
-RUN pip install dist/*.whl
-RUN rm -r dist requirements.txt
+RUN pip install --upgrade pip && pip install -r requirements.txt && \
+    rm -r requirements.txt
+
+# setup code
+COPY dist dist
+RUN pip install dist/*.whl && \
+    rm -r dist
+
+# setup run files
 COPY --chmod=+x scripts/run* .
 
 CMD [ "/bin/sh" ]

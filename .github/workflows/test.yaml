@@ -82,7 +82,7 @@ jobs:
           mkdir ataskq/server/www && touch ataskq/server/www/index.html  # server mocks
           python --version
           python -m pip install -r requirements.txt
-          ataskq_connection=$ATASKQ_SERVER_CONNECTION UVICORN_HOST=localhost ./scripts/run_server &
+          UVICORN_WORKERS=1 UVICORN_HOST=localhost ataskq_connection=$ATASKQ_SERVER_CONNECTION ./scripts/run_server &
           ataskq_connection=$ATASKQ_SERVER_CONNECTION UVICORN_HOST=localhost ./scripts/run_background &
           sleep 5
           curl http://localhost:8080/health

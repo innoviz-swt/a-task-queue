@@ -7,40 +7,26 @@ from .handler import Handler, get_query_kwargs
 from ..imodel import IModel
 from .. import __schema_version__
 
-CONNECTION_LOG = [None]
-
-
-def set_connection_log(log):
-    CONNECTION_LOG[0] = log
-
 
 def transaction_decorator(exclusive=False):
     def decorator(func):
         def wrapper(self, *args, **kwargs):
             with self.connect() as conn:
-                if CONNECTION_LOG[0] is not None:
-                    conn.set_trace_callback(CONNECTION_LOG[0])
-
                 c = conn.cursor()
                 try:
-                    if self.pragma_foreign_keys_on:
-                        c.execute(self.pragma_foreign_keys_on)
-
-                    if exclusive:
-                        c.execute(self.begin_exclusive)
-                    else:
-                        c.execute("BEGIN")
-                    # enable foreign keys for each connection (sqlite default is off)
-                    # https://www.sqlite.org/foreignkeys.html
-                    # Foreign key constraints are disabled by default (for backwards
-                    # compatibility), so must be enabled separately for each database
-                    # connection
+                    self.transaction_start(c, exclusive)
                     ret = func(self, c, *args, **kwargs)
-                    conn.commit()
+
+                    # debug plugin
+                    if self._transaction_end_cbk:
+                        self._transaction_end_cbk()
+
+                    self.transaction_finalize(conn, exclusive)
                 except Exception as e:
                     self.error(f"Failed to execute transaction '{type(e)}:{e}'. Rolling back")
                     conn.rollback()
                     raise e
+            conn.close()
 
             return ret
 
@@ -95,6 +81,8 @@ def expand_query_str(query_str, _where=None, _group_by=None, _order_by=None, _li
 
 class DBHandler(Handler):
     def __init__(self, **kwargs) -> None:
+        self._transaction_end_cbk = None  # debug attribute to test exclusive mutal exclusion
+
         super().__init__(**kwargs)
         if self.config["handler"]["db_init"]:
             self.init_db()
@@ -123,10 +111,6 @@ class DBHandler(Handler):
         ret = [dict(zip(col_names, row)) for row in rows][0]
 
         return ret
-
-    @property
-    def pragma_foreign_keys_on(self):
-        return None
 
     @property
     @abstractmethod
@@ -159,16 +143,17 @@ class DBHandler(Handler):
 
     @property
     @abstractmethod
-    def begin_exclusive(self):
-        pass
-
-    @property
-    @abstractmethod
     def for_update(self):
         pass
 
     @abstractmethod
     def connect(self):
+        pass
+
+    def transaction_start(self, c, exclusive=False):
+        pass
+
+    def transaction_finalize(self, conn, exclusive=False):
         pass
 
     def _create(self, model_cls: IModel, **ikwargs) -> int:

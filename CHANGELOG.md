@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Changed
 ### Fixed
 
+# 0.6.5
+### Added
+### Changed
+### Fixed
+- postgres transaction in progress error.
+
 # 0.6.4
 ### Added
 ### Changed

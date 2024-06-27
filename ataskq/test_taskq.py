@@ -1,7 +1,7 @@
 from pathlib import Path
 from datetime import datetime, timedelta
 from copy import copy
-from multiprocessing import Process
+from multiprocessing import Process, Pool
 import time
 
 import pytest
@@ -208,6 +208,40 @@ def test_take_next_task_sanity(jtaskq):
     action, task = jtaskq._take_next_task(level=None)
     assert action == EAction.RUN_TASK
     _compare_tasks(in_task1, task)
+
+
+def take_next_task_helper(config):
+    import logging
+
+    logger = logging.getLogger()
+    taskq = TaskQ(config=config)
+
+    def transaction_end_cbk():
+        logger.info("transaction end")
+        time.sleep(2)
+        logger.info("transaction end2")
+
+    taskq.handler._transaction_end_cbk = transaction_end_cbk
+    logger.info(f"start take_next_task")
+    ret = taskq._take_next_task()
+    logger.info(f"end take_next_task")
+    return ret
+
+
+def test_take_next_task_exclusive(jtaskq: TaskQ):
+    if not isinstance(jtaskq.handler, DBHandler):
+        pytest.skip()
+
+    jtaskq.add_tasks(
+        [
+            Task(entrypoint=dummy_args_task, name="task1"),
+        ]
+    )
+
+    with Pool(3) as p:
+        vals = p.map(take_next_task_helper, [jtaskq.config] * 3)
+
+    assert sum([v[0] == EAction.RUN_TASK for v in vals]) == 1
 
 
 def test_take_next_task(jtaskq):

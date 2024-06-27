@@ -8,7 +8,7 @@ from ataskq.imodel import IModel
 try:
     import requests
 except ImportError:
-    raise Exception("'requests' is required to use ataskq REST handler.")
+    raise Exception("install psycopg2 for using ataskq REST handler.")
 
 from .handler import Handler, EAction, from_datetime, get_query_kwargs, to_datetime
 

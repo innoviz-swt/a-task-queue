@@ -50,10 +50,6 @@ class SQLite3DBHandler(DBHandler):
         return type_handlers
 
     @property
-    def pragma_foreign_keys_on(self):
-        return "PRAGMA foreign_keys = ON"
-
-    @property
     def format_symbol(self):
         return "?"
 
@@ -81,19 +77,31 @@ class SQLite3DBHandler(DBHandler):
         return f"'{ts}'"
 
     @property
-    def begin_exclusive(self):
-        return "BEGIN EXCLUSIVE"
-
-    @property
     def for_update(self):
         return ""
 
     def connect(self):
         conn = sqlite3.connect(self.db_path)
+        conn.set_trace_callback(self.debug)
+
         return conn
 
+    def transaction_start(self, c: sqlite3.Cursor, exclusive=False):
+        # enable foreign keys for each connection (sqlite default is off)
+        # https://www.sqlite.org/foreignkeys.html
+        # Foreign key constraints are disabled by default (for backwards
+        # compatibility), so must be enabled separately for each database
+        c.execute("PRAGMA foreign_keys = ON")
+
+        if exclusive:
+            c.execute("BEGIN EXCLUSIVE")
+
+    def transaction_finalize(self, conn: sqlite3.Connection, exclusive=False):
+        if exclusive:
+            conn.commit()
+
     @transaction_decorator()
-    def _create_bulk(self, c, model_cls: IModel, ikwargs: List[dict]) -> List[int]:
+    def _create_bulk(self, c: sqlite3.Cursor, model_cls: IModel, ikwargs: List[dict]) -> List[int]:
         # todo: consolidate all ikwargs with same keys to single insert command
         model_ids = []
         for v in ikwargs:

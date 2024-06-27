@@ -108,5 +108,14 @@
             "console": "integratedTerminal",
             "justMyCode": true
         },
-    ]
+    ],
+    "compounds": [
+        {
+            "name": "server + background",
+            "configurations": [
+                "server",
+                "background"
+            ],
+        }
+    ],
 }

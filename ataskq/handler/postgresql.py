@@ -1,11 +1,14 @@
 import re
 from typing import NamedTuple, Union
 from datetime import datetime
+import logging
 
 try:
     import psycopg2
 except ModuleNotFoundError:
-    raise Exception("'psycopg2' is reuiqred for using atasgq postgresql adapter.")
+    raise Exception("install psycopg2 for using ataskq postgresql handler.")
+
+from psycopg2.extras import LoggingConnection
 
 from .db_handler import DBHandler
 from .handler import to_datetime, from_datetime
@@ -90,10 +93,6 @@ class PostgresqlDBHandler(DBHandler):
         return f"'{ts}'::timestamp"
 
     @property
-    def begin_exclusive(self):
-        return "BEGIN"
-
-    @property
     def for_update(self):
         return "FOR UPDATE"
 
@@ -103,5 +102,10 @@ class PostgresqlDBHandler(DBHandler):
             database=self.connection.database,
             user=self.connection.user,
             password=self.connection.password,
+            connection_factory=LoggingConnection,
         )
+        # intializing the logging of the PostgreSQL database inserted data
+        logger = logging.getLogger("ataskq")
+        conn.initialize(logger)
+
         return conn
