@@ -25,7 +25,9 @@ def transaction_decorator(exclusive=False):
                 except Exception as e:
                     self.error(f"Failed to execute transaction '{type(e)}:{e}'. Rolling back")
                     conn.rollback()
+                    conn.close()
                     raise e
+            conn.close()
 
             return ret
 
