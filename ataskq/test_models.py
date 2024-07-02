@@ -116,31 +116,3 @@ def test_delete(handler, model_cls):
 
     count = len(model_cls.get_all())
     assert count == 0
-
-
-MODEL_CHILD = [
-    (model_cls, child_cls, parent_key)
-    for model_cls in __MODELS__.values()
-    for child_cls, parent_key in model_cls.children().items()
-]
-
-
-@pytest.mark.parametrize("model_cls, child_cls, parent_key", MODEL_CHILD)
-def test_add_get_children(handler, model_cls: Model, child_cls, parent_key):
-    m1 = create(model_cls)
-    children = [init(child_cls, **{parent_key: None}) for i in range(3)]
-    m1.add_children(child_cls, children)
-
-    m2 = create(model_cls)
-    children = [init(child_cls, **{parent_key: None}) for i in range(4)]
-    m2.add_children(child_cls, children)
-
-    assert getattr(m1, model_cls.id_key()) != getattr(m2, model_cls.id_key())
-
-    rec_children = m1.get_children(child_cls)
-    assert len(rec_children) == 3
-    assert all([getattr(c, parent_key) == getattr(m1, model_cls.id_key()) for c in rec_children])
-
-    rec_children = m2.get_children(child_cls)
-    assert len(rec_children) == 4
-    assert all([getattr(c, parent_key) == getattr(m2, model_cls.id_key()) for c in rec_children])

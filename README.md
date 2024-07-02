@@ -3,7 +3,7 @@ Easily create and run tasks (=function calls) with almost seamless transition be
 
 ## Usage
 ```python
-from ataskq import TaskQ, Task, targs
+from ataskq import TaskQ, Task
 from ataskq.tasks_utils import hello_world, dummy_args_task
 
 

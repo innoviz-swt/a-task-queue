@@ -1,25 +1,8 @@
 from typing import List, Dict
 from enum import Enum
-import pickle
 from datetime import datetime
-from .utils.dynamic_import import import_callable
 from .model import Model
-
-
-class EntryPointRuntimeError(RuntimeError):
-    pass
-
-
-class TARGSLoadRuntimeError(EntryPointRuntimeError):
-    pass
-
-
-class EntrypointLoadRuntimeError(EntryPointRuntimeError):
-    pass
-
-
-class EntrypointCallRuntimeError(EntryPointRuntimeError):
-    pass
+from .object import Object
 
 
 class EStatus(str, Enum):
@@ -32,39 +15,7 @@ class EStatus(str, Enum):
         return self.value
 
 
-class EntryPoint:
-    @staticmethod
-    def init(kwargs) -> None:
-        entrypoint = kwargs.get("entrypoint")
-        if callable(entrypoint):
-            kwargs["entrypoint"] = f"{entrypoint.__module__}.{entrypoint.__name__}"
-
-        targs = kwargs.get("targs")
-        if targs is not None and isinstance(targs, tuple):
-            assert len(targs) == 2
-            assert isinstance(targs[0], tuple)
-            assert isinstance(targs[1], dict)
-            kwargs["targs"] = pickle.dumps(targs)
-
-    def get_entrypoint(self):
-        try:
-            func = import_callable(self.entrypoint)
-        except Exception as ex:
-            raise EntrypointLoadRuntimeError from ex
-
-        return func
-
-
-class Object(Model):
-    object_id: int
-    blob: bytes
-    serializer: str
-    desrializer: str
-    # created_at: datetime
-    # updated_at: datetime
-
-
-class Task(Model, EntryPoint):
+class Task(Model):
     task_id: int
     name: str
     description: str
@@ -81,8 +32,27 @@ class Task(Model, EntryPoint):
     __DEFAULTS__ = dict(status=EStatus.PENDING, entrypoint="", level=0.0)
 
     def __init__(self, **kwargs) -> None:
-        EntryPoint.init(kwargs)
+        self._kwargs = kwargs.pop("kwargs", None)
+        entrypoint = kwargs.get("entrypoint")
+        if callable(entrypoint):
+            kwargs["entrypoint"] = f"{entrypoint.__module__}.{entrypoint.__name__}"
         Model.__init__(self, **kwargs)
+
+    def get_kwargs(self, _handler=None):
+        if self._kwargs is not None:
+            return self._kwargs
+
+        ret = Object.get(self.kwargs_oid, _handler=_handler)
+        self._kwargs = ret
+
+        return ret
+
+    def set_kwargs(self, v: Object):
+        if self.kwargs_oid is not None:
+            raise Exception(f"kwargs already assign to task, object id - {self.kwargs_oid}")
+        if v.object_id:
+            self.kwargs_oid = v.object_id
+        self._kwargs = v
 
     def __str__(self):
         return f"{self.name}({self.task_id})" if self.name else f"{self.task_id}"
@@ -112,10 +82,18 @@ class Job(Model):
         super().__init__(**kwargs)
 
     def get_tasks(self, _handler=None) -> List[Task]:
-        return self.get_children(Task, _handler=_handler)
+        ret = Task.get_all(job_id=self.job_id, _handler=_handler)
+        return ret
 
     def add_tasks(self, tasks: List[Task], _handler=None):
-        return self.add_children(Task, tasks, _handler=_handler)
+        for t in tasks:
+            t.job_id = self.job_id
+        # create bulk objects
+        tasks_kwargs = [t._kwargs for t in tasks if t._kwargs and t._kwargs.object_id is None]
+        indices = [i for i, t in enumerate(tasks) if t._kwargs and t._kwargs.object_id is None]
+        Object.create_bulk(tasks_kwargs, _handler=_handler)
+        for i in indices:
+            tasks[i].kwargs_oid = tasks[i]._kwargs.object_id
+        Task.create_bulk(tasks, _handler=_handler)
 
-
-__MODELS__: Dict[str, Model] = {m.table_key(): m for m in [Object, Task, Job]}
+        return tasks

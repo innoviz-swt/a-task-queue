@@ -73,6 +73,9 @@ class Model(IModel):
         cls_annotations = cls.__annotations__
         cls_name = cls.__name__
         for k, v in kwargs.items():
+            if k.startswith("_"):
+                continue
+
             if k not in cls_annotations:
                 raise Exception(f"interface key '{k}' not in model annotations.")
 
@@ -183,20 +186,6 @@ class Model(IModel):
         return ret
 
     @classmethod
-    def create_bulk(cls, models: List[IModel], _handler: Handler = None) -> List[int]:
-        if _handler is None:
-            _handler = get_handler(assert_registered=True)
-        if models is None:
-            models = []
-
-        ids = _handler.create_bulk(cls, models)
-
-        for mid, m in zip(ids, models):
-            setattr(m, cls.id_key(), mid)
-
-        return models
-
-    @classmethod
     def get_dict(cls, model_id: int, _handler: Handler = None):
         if _handler is None:
             _handler = get_handler(assert_registered=True)
@@ -212,6 +201,29 @@ class Model(IModel):
         ret = cls(**mkwargs, _serialize=False)
 
         return ret
+
+    @classmethod
+    def create_bulk(cls, models: List[IModel], _handler: Handler = None) -> List[int]:
+        if _handler is None:
+            _handler = get_handler(assert_registered=True)
+        if models is None:
+            models = []
+
+        mkwargs = [m.__dict__ for m in models]
+        for i in range(len(mkwargs)):
+            assert (
+                mkwargs[i][cls.id_key()] is None
+            ), f"id '{cls.id_key()}' can't be assigned when creating '{cls.__name__}({cls.table_key()})'"
+            mkwargs[i] = copy(mkwargs[i])
+            mkwargs[i].pop(cls.id_key())
+
+        ikwargs = cls.m2i(mkwargs, serializer=_handler)
+        ids = _handler.create_bulk(cls, ikwargs)
+
+        for mid, m in zip(ids, models):
+            setattr(m, cls.id_key(), mid)
+
+        return models
 
     def create(self, _handler: Handler = None, **mkwargs):
         if not mkwargs:

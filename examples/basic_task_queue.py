@@ -1,6 +1,6 @@
 import context
-from ataskq import TaskQ, Task, Object
-from ataskq.tasks_utils import hello_world, dummy_args_task
+from ataskq import TaskQ, Task
+from ataskq.object import pickle_dict as pdict
 
 
 def hello_world():
@@ -18,7 +18,7 @@ tr = TaskQ().create_job()
 tr.add_tasks(
     [
         Task(entrypoint=hello_world),
-        Task(entrypoint=task_with_args, kwargs_oid=tr.create_object(dict(arg1=10, arg2="this is kwarg2")).object_id),
+        Task(entrypoint=task_with_args, kwargs=pdict(arg1=10, arg2="this is kwarg2")),
     ]
 )
 

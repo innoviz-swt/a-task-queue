@@ -100,8 +100,11 @@ class TaskQ(Logger):
         self.job.delete(_handler=self.handler)
         self._job = None
 
-    def get_tasks(self) -> List[Task]:
-        return self.job.get_tasks(self._handler)
+    def get_tasks(self, **kwargs) -> List[Task]:
+        if self.job:
+            return self.job.get_tasks(_handler=self._handler, **kwargs)
+        else:
+            return Task.get_all(**kwargs)
 
     def add_tasks(self, tasks):
         self.job.add_tasks(tasks, _handler=self._handler)
@@ -134,26 +137,13 @@ class TaskQ(Logger):
         )
         return ret
 
-    def create_object(self, obj, serializer="pickle.dumps", desrializer="pickle.loads"):
-        if object is None:
-            return None
-        serializer_func = import_callable(serializer)
-        blob = serializer_func(obj)
-        ret = Object(
-            blob=blob,
-            serializer=serializer,
-            desrializer=desrializer,
-        ).create(_handler=self._handler)
-
-        return ret
-
     def get_object(self, obj):
         if isinstance(obj, int):  # object id
             obj = Object.get(obj, _handler=self._handler)
 
-        deserializer_func = import_callable(obj.desrializer)
-        obj = deserializer_func(obj.blob)
-        return obj
+        ret = obj.deserialize()
+
+        return ret
 
     def oid(self, obj, serializer="pickle.dumps", desrializer="pickle.loads") -> int:
         """return object id if isinstance(obj, Object)
@@ -175,11 +165,12 @@ class TaskQ(Logger):
         # get entry point func to execute
         func = import_callable(task.entrypoint)
 
-        # get targs
+        # get task kwargs
         task_kwargs = dict()
         if task.kwargs_oid is not None:
             try:
-                task_kwargs = self.get_object(obj=task.kwargs_oid)
+                task_kwargs_obj = task.get_kwargs(self._handler)
+                task_kwargs = task_kwargs_obj.deserialize()
             except Exception as ex:
                 msg = f"Getting tasks '{task}' kwargs failed."
                 if self.config["run"]["raise_exception"]:  # for debug purposes only
@@ -191,8 +182,6 @@ class TaskQ(Logger):
                 self.update_task_status(task, EStatus.FAILURE)
 
                 return
-        else:
-            targs = ((), {})
 
         # update task start time
         self.update_task_start_time(task)

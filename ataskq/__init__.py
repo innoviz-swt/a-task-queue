@@ -7,4 +7,4 @@ except Exception:
 __schema_version__ = 6
 
 from .taskq import TaskQ
-from .models import Job, Task, Object, EStatus
+from .models import Job, Task, EStatus, Object
