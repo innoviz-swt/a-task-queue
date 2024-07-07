@@ -270,7 +270,7 @@ class DBHandler(Handler):
             "description TEXT, "
             "level REAL, "
             "entrypoint TEXT NOT NULL, "
-            f"kwargs_oid INTEGER, "  # object id
+            f"kwargs_id INTEGER, "  # object id
             f"status TEXT ,"
             f"take_time {self.timestamp_type}, "
             f"start_time {self.timestamp_type}, "

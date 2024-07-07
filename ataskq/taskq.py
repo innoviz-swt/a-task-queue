@@ -167,7 +167,7 @@ class TaskQ(Logger):
 
         # get task kwargs
         task_kwargs = dict()
-        if task.kwargs_oid is not None:
+        if task.kwargs_id is not None:
             try:
                 task_kwargs_obj = task.get_kwargs(self._handler)
                 task_kwargs = task_kwargs_obj.deserialize()

@@ -1,11 +1,11 @@
-from typing import List, Dict
-from enum import Enum
+from typing import List
 from datetime import datetime
-from .model import Model
+from .model import Model, PrimaryKey, Str, Int, Float, DateTime, Child
 from .object import Object
+from enum import Enum
 
 
-class EStatus(str, Enum):
+class EStatus(Str, Enum):
     PENDING = "pending"
     RUNNING = "running"
     SUCCESS = "success"
@@ -16,20 +16,19 @@ class EStatus(str, Enum):
 
 
 class Task(Model):
-    task_id: int
-    name: str
-    description: str
-    level: float
-    entrypoint: str
-    kwargs_oid: int
-    status: EStatus
-    take_time: datetime
-    start_time: datetime
-    done_time: datetime
-    pulse_time: datetime
-    job_id: int
-
-    __DEFAULTS__ = dict(status=EStatus.PENDING, entrypoint="", level=0.0)
+    task_id: PrimaryKey
+    name: Str
+    description: Str
+    level: Float = 0.0
+    entrypoint: Str = ""
+    kwargs_id: Int
+    status: EStatus = EStatus.PENDING
+    start_time: DateTime
+    take_time: DateTime
+    done_time: DateTime
+    pulse_time: DateTime
+    job_id: Int
+    kwargs: Object = Child(key="kwargs_id")
 
     def __init__(self, **kwargs) -> None:
         self._kwargs = kwargs.pop("kwargs", None)
@@ -42,16 +41,16 @@ class Task(Model):
         if self._kwargs is not None:
             return self._kwargs
 
-        ret = Object.get(self.kwargs_oid, _handler=_handler)
+        ret = Object.get(self.kwargs_id, _handler=_handler)
         self._kwargs = ret
 
         return ret
 
     def set_kwargs(self, v: Object):
-        if self.kwargs_oid is not None:
-            raise Exception(f"kwargs already assign to task, object id - {self.kwargs_oid}")
+        if self.kwargs_id is not None:
+            raise Exception(f"kwargs already assign to task, object id - {self.kwargs_id}")
         if v.object_id:
-            self.kwargs_oid = v.object_id
+            self.kwargs_id = v.object_id
         self._kwargs = v
 
     def __str__(self):
@@ -59,24 +58,10 @@ class Task(Model):
 
 
 class Job(Model):
-    job_id: int
+    job_id: PrimaryKey
     name: str
     priority: float
     description: str
-
-    @staticmethod
-    def id_key():
-        return "job_id"
-
-    @staticmethod
-    def table_key():
-        return "jobs"
-
-    @staticmethod
-    def children():
-        return {
-            Task: "job_id",
-        }
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -93,7 +78,7 @@ class Job(Model):
         indices = [i for i, t in enumerate(tasks) if t._kwargs and t._kwargs.object_id is None]
         Object.create_bulk(tasks_kwargs, _handler=_handler)
         for i in indices:
-            tasks[i].kwargs_oid = tasks[i]._kwargs.object_id
+            tasks[i].kwargs_id = tasks[i]._kwargs.object_id
         Task.create_bulk(tasks, _handler=_handler)
 
         return tasks

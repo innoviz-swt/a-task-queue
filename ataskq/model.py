@@ -1,8 +1,9 @@
 from copy import copy
 from typing import Union, List
+
 from enum import Enum
 
-from .imodel import IModel, IModelSerializer
+from .imodel import *
 from .handler import get_handler, Handler
 
 
@@ -37,16 +38,15 @@ def _handle_union(cls_name, member, annotations, value, type_handlers=None):
 
 class Model(IModel):
     @classmethod
-    def table_key(cls):
-        return cls.__name__.lower() + "s"
-
-    @classmethod
     def id_key(cls):
         return cls.__name__.lower() + "_id"
 
+    @classmethod
+    def table_key(cls):
+        return cls.__name__.lower() + "s"
+
     def __init__(self, _serialize=True, **kwargs) -> None:
         cls_annotations = self.__annotations__
-        defaults = getattr(self, "__DEFAULTS__", dict())
 
         # check a kwargs are class members
         for k in kwargs.keys():
@@ -57,7 +57,7 @@ class Model(IModel):
         for member in cls_annotations.keys():
             # default None to members not passed
             if member not in kwargs:
-                kwargs[member] = defaults.get(member)
+                kwargs[member] = getattr(self.__class__, member, None)
 
         # annotate kwargs
         if _serialize:
