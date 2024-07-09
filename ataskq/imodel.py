@@ -24,11 +24,15 @@ class DateTime(datetime):
     pass
 
 
+class Bytes(bytes):
+    pass
+
+
 class PrimaryKey(int):
     pass
 
 
-__DBFields__ = (Int, Float, Str, DateTime)
+__DBFields__ = (Int, Float, Str, DateTime, Bytes)
 
 
 class Child:

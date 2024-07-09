@@ -1,6 +1,5 @@
 from typing import List
-from datetime import datetime
-from .model import Model, PrimaryKey, Str, Int, Float, DateTime, Child
+from .model import Model, PrimaryKey, Str, Int, Float, DateTime, Child, Bytes
 from .object import Object
 from enum import Enum
 
@@ -59,9 +58,9 @@ class Task(Model):
 
 class Job(Model):
     job_id: PrimaryKey
-    name: str
-    priority: float
-    description: str
+    name: Str
+    priority: Float
+    description: Str
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

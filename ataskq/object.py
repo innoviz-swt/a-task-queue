@@ -1,4 +1,4 @@
-from .models import Model
+from .model import Model, Str, Bytes, PrimaryKey
 from .utils.dynamic_import import import_callable
 
 
@@ -8,10 +8,10 @@ def pickle_dict(**obj):
 
 
 class Object(Model):
-    object_id: int
-    blob: bytes
-    serializer: str
-    desrializer: str
+    object_id: PrimaryKey
+    blob: Bytes
+    serializer: Str
+    desrializer: Str
 
     def deserialize(self):
         deserializer_func = import_callable(self.desrializer)

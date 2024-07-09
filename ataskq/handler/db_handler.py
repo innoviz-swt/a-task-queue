@@ -181,7 +181,7 @@ class DBHandler(Handler):
         # todo: consolidate all ikwargs with same keys to single insert command
         model_ids = []
         for v in ikwargs:
-            d = {k: v for k, v in v.items() if model_cls.id_key() not in k}
+            d = {k: v for k, v in v.items() if k in model_cls.members()}
             keys = list(d.keys())
             values = list(d.values())
             c.execute(

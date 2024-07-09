@@ -96,9 +96,14 @@ class Model(IModel):
             ann = cls_annotations[k]
 
             ann_name = None
-            if ann in type_handlers:
+            ann_handlers = {k: v for k, v in type_handlers.items() if issubclass(ann, k)}
+            if ann_handlers:
+                priority = [str, Enum]
+                if p_ann := next((p for p in priority if issubclass(ann, p)), None):
+                    ann = ann_handlers[p_ann]
+                else:
+                    ann = next(v for v in ann_handlers.values())
                 ann_name = f"type_handler[{ann.__name__}]"
-                ann = type_handlers[ann]
             elif issubclass(ann, str) and str in type_handlers:
                 # string subclasses
                 ann_name = f"type_handler[{ann.__name__} - str sublcass]"
@@ -252,12 +257,10 @@ class Model(IModel):
             assert (
                 getattr(self, self.id_key()) is not None
             ), f"id '{self.id_key()}' must be assigned when updating '{self.__class__.__name__}({self.table_key()})'"
-            mkwargs = copy(self.__dict__)
-            mkwargs.pop(self.id_key())
-
-        assert (
-            self.id_key() not in mkwargs
-        ), f"id '{self.id_key()}' can't be passed to update '{self.__class__.__name__}({self.table_key()})'"
+            mkwargs = {k: v for k, v in mkwargs.items() if k in self.__class__.members()}
+        else:
+            pk = [k for k in mkwargs.keys() if k in self.__class__.primary_keys()]
+            assert len(pk) == 0, f"primary keys {pk} found in update mwargs."
 
         if _handler is None:
             _handler = get_handler(assert_registered=True)
