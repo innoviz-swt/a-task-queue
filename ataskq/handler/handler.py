@@ -7,7 +7,7 @@ import copy
 from ..env import ATASKQ_CONFIG
 from ..logger import Logger
 from ..config import load_config
-from ..imodel import IModel, IModelSerializer
+from ..imodel import IModel, IModelSerializer, DateTime
 
 __STRTIME_FORMAT__ = "%Y-%m-%d %H:%M:%S.%f"
 
@@ -35,16 +35,20 @@ def get_query_kwargs(kwargs):
     return ret
 
 
-def to_datetime(string: Union[str, datetime, None]):
-    if string is None:
+def to_datetime(val: Union[str, DateTime, datetime, None]):
+    if val is None:
         return None
-    elif isinstance(string, datetime):
-        return string
+    elif isinstance(val, (DateTime)):
+        return val
+    elif isinstance(val, datetime):
+        return DateTime.fromtimestamp(val.timestamp())
 
-    return datetime.strptime(string, __STRTIME_FORMAT__)
+    ret = datetime.strptime(val, __STRTIME_FORMAT__)
+    ret = DateTime.fromtimestamp(ret.timestamp())
+    return ret
 
 
-def from_datetime(time: datetime):
+def from_datetime(time: DateTime):
     return time.strftime(__STRTIME_FORMAT__)
 
 
@@ -113,7 +117,7 @@ class Handler(IModelSerializer, Logger):
         pass
 
     @abstractmethod
-    def delete(self, model_cls: IModel, model_id: int):
+    def delete(self, modl_cls: IModel, model_id: int):
         pass
 
     @abstractmethod

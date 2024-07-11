@@ -3,7 +3,7 @@ from typing import NamedTuple, List
 import sqlite3
 from datetime import datetime
 
-from ..imodel import IModel
+from ..imodel import IModel, DateTime
 from .handler import to_datetime, from_datetime
 from .db_handler import DBHandler, transaction_decorator
 
@@ -36,8 +36,7 @@ class SQLite3DBHandler(DBHandler):
     @staticmethod
     def m2i_serialize():
         type_handlers = {
-            datetime: lambda v: from_datetime(v),
-            str: str,
+            DateTime: lambda v: from_datetime(v),
         }
 
         return type_handlers
@@ -45,7 +44,7 @@ class SQLite3DBHandler(DBHandler):
     @staticmethod
     def i2m_serialize():
         type_handlers = {
-            datetime: lambda v: to_datetime(v),
+            DateTime: lambda v: to_datetime(v),
         }
 
         return type_handlers
@@ -101,10 +100,14 @@ class SQLite3DBHandler(DBHandler):
             d = {k: v for k, v in v.items() if k in model_cls.members()}
             keys = list(d.keys())
             values = list(d.values())
-            c.execute(
-                f'INSERT INTO {model_cls.table_key()} ({", ".join(keys)}) VALUES ({", ".join([self.format_symbol] * len(keys))})',
-                values,
-            )
+            if keys:
+                c.execute(
+                    f'INSERT INTO {model_cls.table_key()} ({", ".join(keys)}) VALUES ({", ".join([self.format_symbol] * len(keys))})',
+                    values,
+                )
+            else:
+                c.execute(f"INSERT INTO {model_cls.table_key()} DEFAULT VALUES"),
+
             model_id = c.lastrowid
             model_ids.append(model_id)
 

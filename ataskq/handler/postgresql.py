@@ -8,7 +8,7 @@ except ModuleNotFoundError:
     raise Exception("'psycopg2' is reuiqred for using atasgq postgresql adapter.")
 
 from .db_handler import DBHandler
-from .handler import to_datetime, from_datetime
+from .handler import to_datetime, from_datetime, DateTime
 
 
 class PostgresConnection(NamedTuple):
@@ -53,7 +53,7 @@ class PostgresqlDBHandler(DBHandler):
     @staticmethod
     def m2i_serialize():
         type_handlers = {
-            datetime: lambda v: from_datetime(v),
+            DateTime: lambda v: from_datetime(v),
         }
 
         return type_handlers
@@ -61,7 +61,7 @@ class PostgresqlDBHandler(DBHandler):
     @staticmethod
     def i2m_serialize():
         type_handlers = {
-            datetime: lambda v: to_datetime(v),
+            DateTime: lambda v: to_datetime(v),
         }
 
         return type_handlers

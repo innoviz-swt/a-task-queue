@@ -1,39 +1,10 @@
 from copy import copy
-from typing import Union, List
+from typing import Union, List, overload
 
 from enum import Enum
 
 from .imodel import *
 from .handler import get_handler, Handler
-
-
-def _handle_union(cls_name, member, annotations, value, type_handlers=None):
-    if type_handlers is None:
-        type_handlers = dict()
-
-    # check if value is of supported types
-    for ann in annotations:
-        if isinstance(value, ann):
-            return value
-
-    # attemp cast value
-    success = False
-    value = None
-    for ann in annotations:
-        try:
-            if ann in type_handlers:
-                value = type_handlers[ann](value)
-            else:
-                value = ann(value)
-            success = True
-            break
-        except Exception:
-            continue
-
-    if not success:
-        raise Exception(f"{cls_name}::{member}({annotations}) failed casting {type(value)} - '{value}'.")
-
-    return value
 
 
 class Model(IModel):
@@ -45,7 +16,7 @@ class Model(IModel):
     def table_key(cls):
         return cls.__name__.lower() + "s"
 
-    def __init__(self, _serialize=True, **kwargs) -> None:
+    def __init__(self, **kwargs) -> None:
         cls_annotations = self.__annotations__
 
         # check a kwargs are class members
@@ -54,28 +25,27 @@ class Model(IModel):
                 raise Exception(f"'{k}' not a possible class '{self.__class__.__name__}' member.")
 
         # set defaults
-        for member in cls_annotations.keys():
+        for member in self.members(primary=True):
             # default None to members not passed
             if member not in kwargs:
                 kwargs[member] = getattr(self.__class__, member, None)
 
-        # annotate kwargs
-        if _serialize:
-            kwargs = self._serialize(kwargs, dict())  # flag passed on constructor with no interface handlers
+        for child in self.childs():
+            if child not in kwargs:
+                kwargs[child] = None
 
+        # annotate kwargs
+        kwargs = self._serialize(kwargs, dict())  # flag passed on constructor with no interface handlers
         # set kwargs as class members
         for k, v in kwargs.items():
             setattr(self, k, v)
 
     @classmethod
-    def _serialize(cls, kwargs: dict, type_handlers: dict):
+    def _serialize(cls, kwargs: dict, serializers: dict):
         ret = dict()
         cls_annotations = cls.__annotations__
         cls_name = cls.__name__
         for k, v in kwargs.items():
-            if k.startswith("_"):
-                continue
-
             if k not in cls_annotations:
                 raise Exception(f"interface key '{k}' not in model annotations.")
 
@@ -84,34 +54,32 @@ class Model(IModel):
                 ret[k] = None
                 continue
 
-            # get member annotation
-            annotation = cls_annotations[k]
-
-            # handle union
-            if getattr(annotation, "__origin__", None) is Union:
-                ret[k] = _handle_union(cls_name, k, annotation.__args__, v, type_handlers)
+            if k in cls.childs():
+                assert isinstance(v, IModel), "child members must be Models instances."
+                ret[k] = v
                 continue
 
-            # Single annotation cast
+            # get member annotation
             ann = cls_annotations[k]
 
+            if isinstance(v, ann):
+                ret[k] = v
+                continue
+
+            # handle union
+            if getattr(ann, "__origin__", None) is Union:
+                raise RuntimeError(f"{cls.__name__}::{k} Union type member not supported.")
+
+            # serializer
             ann_name = None
-            ann_handlers = {k: v for k, v in type_handlers.items() if issubclass(ann, k)}
-            if ann_handlers:
+            ann_serailizers = {k: v for k, v in serializers.items() if issubclass(ann, k)}
+            if ann_serailizers:
                 priority = [str, Enum]
                 if p_ann := next((p for p in priority if issubclass(ann, p)), None):
-                    ann = ann_handlers[p_ann]
+                    serializer = ann_serailizers[p_ann]
                 else:
-                    ann = next(v for v in ann_handlers.values())
-                ann_name = f"type_handler[{ann.__name__}]"
-            elif issubclass(ann, str) and str in type_handlers:
-                # string subclasses
-                ann_name = f"type_handler[{ann.__name__} - str sublcass]"
-                ann = type_handlers[str]
-            elif issubclass(ann, Enum) and Enum in type_handlers:
-                # string subclasses
-                ann_name = f"type_handler[{ann.__name__} - Enum sublcass]"
-                ann = type_handlers[Enum]
+                    serializer = next(v for v in ann_serailizers.values())
+                ann_name = f"serializers[{ann.__name__}]"
             else:
                 # check if already in relevant type
                 if isinstance(v, ann):
@@ -119,12 +87,12 @@ class Model(IModel):
                     continue
 
                 ann_name = f"{ann.__name__}"
-                ann = ann
+                serializer = ann
 
             try:
-                ret[k] = ann(v)
+                ret[k] = serializer(v)
             except Exception as ex:
-                raise Exception(f"{cls_name}::{k}({ann_name}) failed cast from '{v}'({type(v).__name__})") from ex
+                raise Exception(f"{cls_name}::{k}({ann_name}) failed to serilize '{v}'({type(v).__name__})") from ex
 
         return ret
 
@@ -143,9 +111,9 @@ class Model(IModel):
         """interface to model"""
         mkwargs = cls.i2m(kwargs, serializer)
         if isinstance(kwargs, list):
-            ret = [cls(_serialize=False, **kw) for kw in mkwargs]
+            ret = [cls(**kw) for kw in mkwargs]
         else:
-            ret = cls(_serialize=False, **mkwargs)
+            ret = cls(**mkwargs)
 
         return ret
 
@@ -186,7 +154,7 @@ class Model(IModel):
     @classmethod
     def get_all(cls, _handler: Handler = None, **kwargs):
         ret = cls.get_all_dict(_handler=_handler, **kwargs)
-        ret = [cls(**r, _serialize=False) for r in ret]
+        ret = [cls(**r) for r in ret]
 
         return ret
 
@@ -203,7 +171,7 @@ class Model(IModel):
     @classmethod
     def get(cls, model_id: int, _handler: Handler = None):
         mkwargs = cls.get_dict(model_id, _handler)
-        ret = cls(**mkwargs, _serialize=False)
+        ret = cls(**mkwargs)
 
         return ret
 
@@ -230,24 +198,27 @@ class Model(IModel):
 
         return models
 
-    def create(self, _handler: Handler = None, **mkwargs):
-        if not mkwargs:
-            assert (
-                getattr(self, self.id_key()) is None
-            ), f"id '{self.id_key()}' can't be assigned when creating '{self.__class__.__name__}({self.table_key()})'"
-            mkwargs = copy(self.__dict__)
-            mkwargs.pop(self.id_key())
-
+    @classmethod
+    def create(cls, _handler: Handler = None, **mkwargs):
         assert (
-            self.id_key() not in mkwargs
-        ), f"id '{self.id_key()}' can't be passed to create '{self.__class__.__name__}({self.table_key()})'"
+            cls.id_key() not in mkwargs
+        ), f"id '{cls.id_key()}' can't be passed to create '{cls.__class__.__name__}({cls.table_key()})'"
 
         if _handler is None:
             _handler = get_handler(assert_registered=True)
 
-        ikwargs = self.m2i(mkwargs, _handler)
-        model_id = _handler._create(self.__class__, **ikwargs)
+        ikwargs = cls.m2i(mkwargs, _handler)
+        model_id = _handler._create(cls, **ikwargs)
 
+        return model_id
+
+    def screate(self, _handler: Handler = None):
+        assert (
+            getattr(self, self.id_key()) is None
+        ), f"id '{self.id_key()}' can't be assigned when creating '{self.__class__.__name__}({self.table_key()})'"
+        mkwargs = {k: v for k, v in self.__dict__.items() if k in self.members()}
+
+        model_id = self.create(_handler=_handler, **mkwargs)
         setattr(self, self.id_key(), model_id)
 
         return self
@@ -357,6 +328,6 @@ class Model(IModel):
 
     def get_children(self, child_cls: IModel, _handler: Handler = None):
         mkwargs = self.get_children_dict(child_cls, _handler)
-        ret = [child_cls(**kw, _serialize=False) for kw in mkwargs]
+        ret = [child_cls(**kw) for kw in mkwargs]
 
         return ret

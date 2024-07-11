@@ -84,7 +84,7 @@ class TaskQ(Logger):
     def create_job(self, name=None, description=None):
         assert self._job is None, "job already assigned to current taskq, run clear_job to create new job."
 
-        job = Job(name=name, description=description).create(_handler=self._handler)
+        job = Job(name=name, description=description).screate(_handler=self._handler)
         self._job = job
 
         if self.config["db"]["max_jobs"] is not None:
@@ -100,13 +100,18 @@ class TaskQ(Logger):
         self.job.delete(_handler=self.handler)
         self._job = None
 
+    def assert_job(self):
+        if self._job is None:
+            raise RuntimeError(
+                "Job is not yet assigned to taskq. pass job_id to __init__ or create_job() before adding tasks."
+            )
+
     def get_tasks(self, **kwargs) -> List[Task]:
-        if self.job:
-            return self.job.get_tasks(_handler=self._handler, **kwargs)
-        else:
-            return Task.get_all(**kwargs)
+        self.assert_job()
+        return self.job.get_tasks(_handler=self._handler, **kwargs)
 
     def add_tasks(self, tasks):
+        self.assert_job()
         self.job.add_tasks(tasks, _handler=self._handler)
 
         return self
@@ -169,7 +174,7 @@ class TaskQ(Logger):
         task_kwargs = dict()
         if task.kwargs_id is not None:
             try:
-                task_kwargs_obj = task.get_kwargs(self._handler)
+                task_kwargs_obj = Object.get(task.kwargs_id, self._handler)
                 task_kwargs = task_kwargs_obj.deserialize()
             except Exception as ex:
                 msg = f"Getting tasks '{task}' kwargs failed."
