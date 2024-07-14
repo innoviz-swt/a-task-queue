@@ -30,9 +30,9 @@ class Model(IModel):
             if member not in kwargs:
                 kwargs[member] = getattr(self.__class__, member, None)
 
-        for child in self.childs():
-            if child not in kwargs:
-                kwargs[child] = None
+        for rel in self.parents():
+            if rel not in kwargs:
+                kwargs[rel] = None
 
         # annotate kwargs
         kwargs = self._serialize(kwargs, dict())  # flag passed on constructor with no interface handlers
@@ -54,8 +54,8 @@ class Model(IModel):
                 ret[k] = None
                 continue
 
-            if k in cls.childs():
-                assert isinstance(v, IModel), "child members must be Models instances."
+            if k in cls.parents():
+                assert isinstance(v, IModel), "relationship members must be Models instances."
                 ret[k] = v
                 continue
 
@@ -74,11 +74,7 @@ class Model(IModel):
             ann_name = None
             ann_serailizers = {k: v for k, v in serializers.items() if issubclass(ann, k)}
             if ann_serailizers:
-                priority = [str, Enum]
-                if p_ann := next((p for p in priority if issubclass(ann, p)), None):
-                    serializer = ann_serailizers[p_ann]
-                else:
-                    serializer = next(v for v in ann_serailizers.values())
+                serializer = next(v for v in ann_serailizers.values())
                 ann_name = f"serializers[{ann.__name__}]"
             else:
                 # check if already in relevant type
@@ -266,68 +262,3 @@ class Model(IModel):
         setattr(self, self.id_key(), None)
 
         return self
-
-    def add_children(
-        self,
-        child_cls: IModel,
-        children: Union[Union[IModel, dict], List[Union[IModel, dict]]],
-        _handler: Handler = None,
-    ):
-        if not children:
-            return
-
-        if not isinstance(children, list):
-            children = [children]
-
-        assert child_cls in self.children(), f"no children association defined for '{child_cls}'"
-        parent_key = self.children()[child_cls]
-        parent_key_val = getattr(self, self.id_key())
-
-        children_mkwargs = []
-        for i, c in enumerate(children):
-            if isinstance(c, child_cls):
-                assert (
-                    getattr(c, c.id_key()) is None
-                ), f"id '{child_cls.id_key()}' can't be assigned when creating '{child_cls.__name__}({child_cls.table_key()})'"
-                mkwargs = copy(c.__dict__)
-                mkwargs.pop(c.id_key())
-            elif isinstance(c, dict):
-                mkwargs = c
-            else:
-                raise Exception(f"item [{i}]: Unsupported child type '{type(c)}'")
-
-            # assign parent key to child
-            assert (
-                mkwargs.get(parent_key) is None
-            ), f"child '{child_cls.__name__}[{i}]' can't have parent key '{self.__class__.__name__}->{parent_key}' assigned"
-            mkwargs[parent_key] = parent_key_val
-            children_mkwargs.append(mkwargs)
-
-        if _handler is None:
-            _handler = get_handler(assert_registered=True)
-
-        child_ids = _handler.create_bulk(child_cls, children_mkwargs)
-        for cid, c in zip(child_ids, children):
-            setattr(c, parent_key, parent_key_val)
-            setattr(c, child_cls.id_key(), cid)
-
-        return children
-
-    def get_children_dict(self, child_cls: IModel, _handler: Handler = None):
-        assert child_cls in self.children(), f"no children association defined for '{child_cls}'"
-        parent_key = self.children()[child_cls]
-        primary_key_val = getattr(self, self.id_key())
-
-        if _handler is None:
-            _handler = get_handler(assert_registered=True)
-
-        ikwargs = _handler.get_all(child_cls, **{f"{parent_key}": primary_key_val})
-        mkwargs = child_cls.i2m(ikwargs, _handler)
-
-        return mkwargs
-
-    def get_children(self, child_cls: IModel, _handler: Handler = None):
-        mkwargs = self.get_children_dict(child_cls, _handler)
-        ret = [child_cls(**kw) for kw in mkwargs]
-
-        return ret

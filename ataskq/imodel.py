@@ -35,7 +35,7 @@ class PrimaryKey(int):
 __DBFields__ = (Int, Float, Str, DateTime, Bytes)
 
 
-class Child:
+class Parent:
     def __init__(self, key=None) -> None:
         self.key = key
 
@@ -77,8 +77,8 @@ class IModel(ABC):
         return ret
 
     @classmethod
-    def childs(cls) -> str:
-        ret = [ann for ann, klass in cls.__annotations__.items() if isinstance(getattr(cls, ann, None), Child)]
+    def parents(cls) -> str:
+        ret = [ann for ann, klass in cls.__annotations__.items() if isinstance(getattr(cls, ann, None), Parent)]
         return ret
 
     @staticmethod
