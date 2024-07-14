@@ -175,38 +175,14 @@ class Model(IModel):
     def create_bulk(cls, models: List[IModel], _handler: Handler = None) -> List[int]:
         if _handler is None:
             _handler = get_handler(assert_registered=True)
-        if models is None:
-            models = []
 
-        mkwargs = [m.__dict__ for m in models]
-        for i in range(len(mkwargs)):
-            assert (
-                mkwargs[i][cls.id_key()] is None
-            ), f"id '{cls.id_key()}' can't be assigned when creating '{cls.__name__}({cls.table_key()})'"
-            mkwargs[i] = copy(mkwargs[i])
-            mkwargs[i].pop(cls.id_key())
-
-        ikwargs = cls.m2i(mkwargs, serializer=_handler)
-        ids = _handler.create_bulk(cls, ikwargs)
-
-        for mid, m in zip(ids, models):
-            setattr(m, cls.id_key(), mid)
-
-        return models
+        ret = _handler.create_bulk(cls, models)
+        return ret
 
     @classmethod
     def create(cls, _handler: Handler = None, **mkwargs):
-        assert (
-            cls.id_key() not in mkwargs
-        ), f"id '{cls.id_key()}' can't be passed to create '{cls.__class__.__name__}({cls.table_key()})'"
-
-        if _handler is None:
-            _handler = get_handler(assert_registered=True)
-
-        ikwargs = cls.m2i(mkwargs, _handler)
-        model_id = _handler._create(cls, **ikwargs)
-
-        return model_id
+        ret = cls.create_bulk([mkwargs], _handler=_handler)[0]
+        return ret
 
     def screate(self, _handler: Handler = None):
         assert (

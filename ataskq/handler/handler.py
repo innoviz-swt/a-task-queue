@@ -133,23 +133,54 @@ class Handler(IModelSerializer, Logger):
         pass
 
     def create(self, model_cls: IModel, **mkwargs) -> int:
-        assert (
-            model_cls.id_key() not in mkwargs
-        ), f"id '{model_cls.id_key()}' can't be passed to create '{model_cls.__name__}({model_cls.table_key()})'"
-        ikwargs = self.m2i(model_cls, mkwargs)
-        model_id = self._create(model_cls, **ikwargs)
+        ret = self.create_bulk(model_cls, mkwargs)[0]
+        return ret
 
-        return model_id
+    @staticmethod
+    def members_attrs(model_cls: IModel, models: Union[IModel, List[IModel]], primary=False):
+        if isinstance(models, list):
+            is_list = True
+        else:
+            is_list = False
+            models = [models]
 
-    def create_bulk(self, model_cls: IModel, mkwargs: List[dict]) -> List[int]:
-        for i, v in enumerate(mkwargs):
+        ret = [{k: v for k, v in m.__dict__.items() if k in model_cls.members(primary=primary)} for m in models]
+
+        if not is_list:
+            ret = ret[0]
+
+        return ret
+
+    def create_models_bulk(self, model_cls: IModel, models: List[IModel]) -> List[IModel]:
+        models_attrs = self.members_attrs(model_cls, models)
+        ikwargs = self.m2i(model_cls, models_attrs)
+        model_ids = self._create_bulk(model_cls, ikwargs)
+        for i, mi in enumerate(model_ids):
+            setattr(models[i], model_cls.id_key(), mi)
+
+        return models
+
+    def create_dict_bulk(self, model_cls: IModel, models_attrs: List[dict]) -> List[int]:
+        for i, v in enumerate(models_attrs):
             assert (
                 model_cls.id_key() not in v
             ), f"item [{i}]: id '{model_cls.id_key()}' can't be passed to create '{model_cls.__name__}({model_cls.table_key()})'"
-        ikwargs = self.m2i(model_cls, mkwargs)
-        model_ids = self._create_bulk(model_cls, ikwargs)
+        interface_models_attrs = self.m2i(model_cls, models_attrs)
+        model_ids = self._create_bulk(model_cls, interface_models_attrs)
 
         return model_ids
+
+    def create_bulk(self, model_cls: IModel, models: Union[List[dict], List[IModel]]) -> List[int]:
+        if not models:
+            ret = []
+        elif isinstance(models[0], IModel):
+            ret = self.create_models_bulk(model_cls, models)
+        elif isinstance(models[0], dict):
+            ret = self.create_dict_bulk(model_cls, models)
+        else:
+            raise RuntimeError("Unexpected models type, expected List[IModel] or List[dict]")
+
+        return ret
 
     @abstractmethod
     def _update(self, model_cls: IModel, model_id: int, **ikwargs):
