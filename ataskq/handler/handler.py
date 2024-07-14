@@ -7,7 +7,7 @@ import copy
 from ..env import ATASKQ_CONFIG
 from ..logger import Logger
 from ..config import load_config
-from ..imodel import IModel, IModelSerializer, DateTime
+from ..imodel import IModel, IModelSerializer, DateTime, Parent
 
 __STRTIME_FORMAT__ = "%Y-%m-%d %H:%M:%S.%f"
 
@@ -152,6 +152,32 @@ class Handler(IModelSerializer, Logger):
         return ret
 
     def create_models_bulk(self, model_cls: IModel, models: List[IModel]) -> List[IModel]:
+        # parents mapping
+        parents = {}
+        for mi, m in enumerate(models):
+            for p_key in m.parents():
+                if (parent := getattr(m, p_key)) is not None:
+                    # parent create is required
+                    parent_mapping: Parent = getattr(m.__class__, p_key)
+                    p_id_key = parent_mapping.key
+                    assert getattr(m, p_id_key) is None, ""
+                    parent_class = m.__annotations__[p_key]
+                    if parent_class not in parents:
+                        parents[parent_class] = {"models": [], "indices": [], "id_keys": []}
+                    parents[parent_class]["models"].append(parent)
+                    parents[parent_class]["indices"].append(mi)
+                    parents[parent_class]["id_keys"].append(p_id_key)
+
+        # parents bulk create
+        for p_cls, parent_models_data in parents.items():
+            parent_models = parent_models_data["models"]
+            self.create_bulk(p_cls, parent_models)
+            for p_m, p_i, p_id_key in zip(
+                parent_models_data["models"], parent_models_data["indices"], parent_models_data["id_keys"]
+            ):
+                setattr(models[p_i], p_id_key, getattr(p_m, p_m.id_key()))
+
+        # model create
         models_attrs = self.members_attrs(model_cls, models)
         ikwargs = self.m2i(model_cls, models_attrs)
         model_ids = self._create_bulk(model_cls, ikwargs)
@@ -173,7 +199,8 @@ class Handler(IModelSerializer, Logger):
     def create_bulk(self, model_cls: IModel, models: Union[List[dict], List[IModel]]) -> List[int]:
         if not models:
             ret = []
-        elif isinstance(models[0], IModel):
+
+        if isinstance(models[0], IModel):
             ret = self.create_models_bulk(model_cls, models)
         elif isinstance(models[0], dict):
             ret = self.create_dict_bulk(model_cls, models)

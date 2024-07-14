@@ -57,12 +57,7 @@ class Job(Model):
     def add_tasks(self, tasks: List[Task], _handler=None):
         for t in tasks:
             t.job_id = self.job_id
-        # create bulk objects
-        tasks_kwargs = [t.kwargs for t in tasks if t.kwargs and t.kwargs.object_id is None]
-        indices = [i for i, t in enumerate(tasks) if t.kwargs and t.kwargs.object_id is None]
-        Object.create_bulk(tasks_kwargs, _handler=_handler)
-        for i in indices:
-            tasks[i].kwargs_id = tasks[i].kwargs.object_id
+
         Task.create_bulk(tasks, _handler=_handler)
 
         return tasks
