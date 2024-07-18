@@ -72,23 +72,23 @@ def order_query(order_by):
     return order_by
 
 
-def expand_query_str(query_str, _where=None, _group_by=None, _order_by=None, _limit=None, _offset=None):
-    if _where is not None:
-        query_str += f" WHERE {_where}"
+def expand_query_str(query_str, where=None, group_by=None, order_by=None, limit=None, offset=None):
+    if where is not None:
+        query_str += f" WHERE {where}"
 
-    if _group_by is not None:
-        if not isinstance(_group_by, (list, tuple)):
-            _group_by = [_group_by]
-        query_str += f" GROUP BY {', '.join(_group_by)}"
+    if group_by is not None:
+        if not isinstance(group_by, (list, tuple)):
+            group_by = [group_by]
+        query_str += f" GROUP BY {', '.join(group_by)}"
 
-    if _order_by is not None:
-        query_str += f" ORDER BY {order_query(_order_by)}"
+    if order_by is not None:
+        query_str += f" ORDER BY {order_query(order_by)}"
 
-    if _limit is not None:
-        query_str += f" LIMIT {_limit}"
+    if limit is not None:
+        query_str += f" LIMIT {limit}"
 
-    if _offset is not None:
-        query_str += f" OFFSET {_offset}"
+    if offset is not None:
+        query_str += f" OFFSET {offset}"
 
     return query_str
 
@@ -117,7 +117,7 @@ class DBHandler(Handler):
         return ret
 
     def get(self, model_cls: IModel, model_id) -> dict:
-        rows, col_names, query_str = self.select_query(model_cls, _where=f"{model_cls.id_key()} = {model_id}")
+        rows, col_names, query_str = self.select_query(model_cls, where=f"{model_cls.id_key()} = {model_id}")
         assert len(rows) != 0, f"no match found for '{model_cls.__name__}', query: '{query_str}'."
         assert len(rows) == 1, f"more than 1 row found for '{model_cls.__name__}', query: '{query_str}'."
         ret = [dict(zip(col_names, row)) for row in rows][0]
@@ -171,8 +171,8 @@ class DBHandler(Handler):
     def connect(self):
         pass
 
-    def _create(self, model_cls: IModel, **ikwargs) -> int:
-        model_id = self.create_bulk(model_cls, [ikwargs])[0]
+    def _create(self, model_cls: IModel, model: dict) -> int:
+        model_id = self.create_bulk(model_cls, [model])[0]
 
         return model_id
 
@@ -226,8 +226,8 @@ class DBHandler(Handler):
         query_kwargs = get_query_kwargs(kwargs)
         query_str = f"DELETE FROM {model_cls.table_key()}"
 
-        if "_where" in query_kwargs:
-            query_str += f" WHERE {query_kwargs['_where']}"
+        if "where" in query_kwargs:
+            query_str += f" WHERE {query_kwargs['where']}"
 
         c.execute(query_str)
 
@@ -292,11 +292,11 @@ class DBHandler(Handler):
         )
 
     @transaction_decorator()
-    def count_query(self, c, model_cls: IModel, _where: str = None, _limit: int = None, _offset: int = 0):
-        if _limit is None:
-            _limit = self.config["api"]["limit"]
+    def count_query(self, c, model_cls: IModel, where: str = None, limit: int = None, offset: int = 0):
+        if limit is None:
+            limit = self.config["api"]["limit"]
         query_str = f"SELECT COUNT(*) FROM {model_cls.table_key()}"
-        query_str = expand_query_str(query_str, _where=_where, _limit=_limit, _offset=_offset)
+        query_str = expand_query_str(query_str, where=where, limit=limit, offset=offset)
 
         c.execute(query_str)
 
@@ -308,17 +308,17 @@ class DBHandler(Handler):
         self,
         c,
         model_cls: IModel,
-        _where: str = None,
-        _order_by=None,
-        _limit: int = None,
-        _offset: int = 0,
+        where: str = None,
+        order_by=None,
+        limit: int = None,
+        offset: int = 0,
     ):
-        if _limit is None:
-            _limit = self.config["api"]["limit"]
+        if limit is None:
+            limit = self.config["api"]["limit"]
         query_str = f"SELECT * FROM {model_cls.table_key()}"
-        if _order_by is None:
-            _order_by = f"{model_cls.table_key()}.{model_cls.id_key()} ASC"
-        query_str = expand_query_str(query_str, _where=_where, _order_by=_order_by, _limit=_limit, _offset=_offset)
+        if order_by is None:
+            order_by = f"{model_cls.table_key()}.{model_cls.id_key()} ASC"
+        query_str = expand_query_str(query_str, where=where, order_by=order_by, limit=limit, offset=offset)
 
         c.execute(query_str)
         rows = c.fetchall()
@@ -430,12 +430,12 @@ class DBHandler(Handler):
 
         # todo add group by to get_query_kwargs
 
-        if kwargs.get("_limit") is None:
-            kwargs["_limit"] = self.config["api"]["limit"]
-        if kwargs.get("_order_by") is None:
-            kwargs["_order_by"] = "name ASC"
-        if kwargs.get("_group_by") is None:
-            kwargs["_group_by"] = ("level", "name")
+        if kwargs.get("limit") is None:
+            kwargs["limit"] = self.config["api"]["limit"]
+        if kwargs.get("order_by") is None:
+            kwargs["order_by"] = "name ASC"
+        if kwargs.get("group_by") is None:
+            kwargs["group_by"] = ("level", "name")
         query_kwargs = get_query_kwargs(kwargs)
 
         query_str = (
@@ -454,11 +454,11 @@ class DBHandler(Handler):
         return ret
 
     @transaction_decorator()
-    def jobs_status(self, c, _order_by: str = None, _limit: int = None, _offset: int = 0):
+    def jobs_status(self, c, order_by: str = None, limit: int = None, offset: int = 0):
         from ..models import EStatus
 
-        if _limit is None:
-            _limit = self.config["api"]["limit"]
+        if limit is None:
+            limit = self.config["api"]["limit"]
 
         query_str = (
             "SELECT jobs.job_id, jobs.name, jobs.description, jobs.priority, "
@@ -469,10 +469,10 @@ class DBHandler(Handler):
             "GROUP BY jobs.job_id"
         )
 
-        if _order_by is None:
-            _order_by = "jobs.job_id DESC"
+        if order_by is None:
+            order_by = "jobs.job_id DESC"
 
-        query_str = expand_query_str(query_str, _order_by=_order_by, _limit=_limit, _offset=_offset)
+        query_str = expand_query_str(query_str, order_by=order_by, limit=limit, offset=offset)
 
         c.execute(query_str)
         rows = c.fetchall()

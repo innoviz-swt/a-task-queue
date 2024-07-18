@@ -15,22 +15,22 @@ __STRTIME_FORMAT__ = "%Y-%m-%d %H:%M:%S.%f"
 def get_query_kwargs(kwargs):
     # todo: the k=v for the kwargs should be interface dependent similar to insert
     ret = {}
-    _where = ""
-    if "_where" in kwargs:
-        _where += kwargs["_where"]
+    where = ""
+    if "where" in kwargs:
+        where += kwargs["where"]
     for k, v in kwargs.items():
-        if k == "_where":
+        if k == "where":
             continue
-        if k in ["_group_by", "_order_by", "_limit", "_offset"]:
+        if k in ["group_by", "order_by", "limit", "offset"]:
             ret[k] = v
             continue
         if v is None:
             continue
-        _where += f"{_where and ' AND '}{k}={v}"
+        where += f"{where and ' AND '}{k}={v}"
 
-    _where = _where or None
-    if _where:
-        ret["_where"] = _where
+    where = where or None
+    if where:
+        ret["where"] = where
 
     return ret
 
@@ -105,11 +105,11 @@ class Handler(IModelSerializer, Logger):
     ########
 
     @abstractmethod
-    def _create(self, model_cls: IModel, **ikwargs: dict):
+    def _create(self, model_cls: IModel, model: dict) -> int:
         pass
 
     @abstractmethod
-    def _create_bulk(self, model_cls: IModel, ikwargs: List[dict]):
+    def _create_bulk(self, model_cls: IModel, models: List[dict]):
         pass
 
     @abstractmethod
@@ -230,11 +230,11 @@ class Handler(IModelSerializer, Logger):
         pass
 
     @abstractmethod
-    def tasks_status(self, job_id=None, _order_by: str = None, _limit: int = None, _offset: int = 0) -> List[dict]:
+    def tasks_status(self, job_id=None, order_by: str = None, limit: int = None, offset: int = 0) -> List[dict]:
         pass
 
     @abstractmethod
-    def jobs_status(self, _order_by: str = None, _limit: int = None, _offset: int = 0) -> List[dict]:
+    def jobs_status(self, order_by: str = None, limit: int = None, offset: int = 0) -> List[dict]:
         pass
 
 

@@ -86,7 +86,7 @@ def test_create(handler, test_data):
 #     m2 = create(model_cls, name="test 2")
 #     m3 = create(model_cls, name="test 3")
 
-#     m_all = model_cls.get_all(_where="name='test 1'")
+#     m_all = model_cls.get_all(where="name='test 1'")
 #     assert len(m_all) == 1
 
 #     m_rec = m_all[0]

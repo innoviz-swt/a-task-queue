@@ -96,8 +96,8 @@ class RESTHandler(Handler):
         res = self.rest_get(f"{model_cls.table_key()}/count", params=query_kwargs)
         return res
 
-    def _create(self, model_cls: IModel, **ikwargs: dict) -> int:
-        res = self.rest_post(model_cls.table_key(), json=ikwargs)
+    def _create(self, model_cls: IModel, model: dict) -> int:
+        res = self.rest_post(model_cls.table_key(), json=model)
 
         return res
 

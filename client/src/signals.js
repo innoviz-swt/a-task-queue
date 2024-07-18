@@ -101,8 +101,8 @@ const myfetch = async (pathname, search) => {
     title.value = mytitle;
 
     // update pagination
-    const mylimit = searchParams.get('_limit') || limitDefault;
-    const myoffset = searchParams.get('_offset') || offsetDefault;
+    const mylimit = searchParams.get('limit') || limitDefault;
+    const myoffset = searchParams.get('offset') || offsetDefault;
     batch(() => {
         limit.value = mylimit;
         offset.value = myoffset;
@@ -113,8 +113,8 @@ effect(() => {
     const { pathname, search, hash } = window.location;
     const searchParams = new URLSearchParams(search);
 
-    searchParams.set('_offset', offset);
-    searchParams.set('_limit', limit);
+    searchParams.set('offset', offset);
+    searchParams.set('limit', limit);
 
     // fetch table from api
     myfetch(pathname, searchParams.toString()).catch(error => {
