@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from ataskq.handler import DBHandler, from_config
 from ataskq.handler.rest_handler import RESTHandler as rh
 from ataskq.models import Model, __MODELS__
-from ataskq.env import ATASKQ_SERVER_CONFIG
+from ataskq.env import SERVER_CONFIG
 
 # from .form_utils import form_data_array
 
@@ -20,7 +20,7 @@ logger = logging.getLogger("uvicorn")
 
 # DB Handler
 def db_handler() -> DBHandler:
-    return from_config(ATASKQ_SERVER_CONFIG or "server")
+    return from_config(SERVER_CONFIG or "server")
 
 
 app = FastAPI()

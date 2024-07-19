@@ -4,7 +4,7 @@ import pytest
 import copy
 
 from .config import load_config
-from .env import ATASKQ_CONFIG
+from .env import CONFIG
 
 if os.getenv("_PYTEST_RAISE", "0") != "0":
 
@@ -45,7 +45,7 @@ def drop_pg_tables(conn):
 
 @fixture
 def config(tmp_path):
-    config = load_config(ATASKQ_CONFIG or "test")
+    config = load_config(CONFIG or "test")
     conn = config["connection"]
     if "sqlite" in conn:
         config["connection"] = conn.format(tmp_path=tmp_path)

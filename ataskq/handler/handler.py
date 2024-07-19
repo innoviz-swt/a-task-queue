@@ -2,9 +2,8 @@ from abc import abstractmethod
 from typing import Union, List, Dict
 from datetime import datetime
 from enum import Enum
-import copy
 
-from ..env import ATASKQ_CONFIG
+from ..env import CONFIG
 from ..logger import Logger
 from ..config import load_config
 from ..imodel import IModel, IModelSerializer, DateTime, Parent
@@ -62,7 +61,7 @@ class EAction(str, Enum):
 
 
 class Handler(IModelSerializer, Logger):
-    def __init__(self, config=ATASKQ_CONFIG, logger: Logger = None):
+    def __init__(self, config=CONFIG, logger: Logger = None):
         Logger.__init__(self, logger)
 
         # init config
@@ -270,7 +269,7 @@ def get_handler(name=None, assert_registered=False):
         return __HANDLERS__[name]
 
 
-def from_config(config=ATASKQ_CONFIG, **kwargs) -> Handler:
+def from_config(config=CONFIG, **kwargs) -> Handler:
     # expand config in factory and not inside handler
     config = load_config(config)
     conn = config["connection"]

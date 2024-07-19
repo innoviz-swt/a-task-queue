@@ -1,5 +1,5 @@
 import context
-from ataskq import TaskQ, Task
+from ataskq import TaskQ, Job, Task
 
 
 def hello_world():
@@ -11,14 +11,13 @@ def task_with_args(**kwargs):
 
 
 # create  job
-tr = TaskQ().create_job()
-# add tasks (functions to run)
-tr.add_tasks(
+tq = TaskQ()
+job = Job().screate(_handler=tq.handler)
+job.add_tasks(
     [
         Task(entrypoint=hello_world),
         Task(entrypoint=task_with_args, kwargs=dict(arg1=10, arg2="this is kwarg2")),
-    ]
+    ],
+    _handler=tq.handler,
 )
-
-# run the tasks
-tr.run()  # to run in parallel add concurrency=N
+TaskQ().run(job)

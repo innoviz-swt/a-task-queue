@@ -1,5 +1,6 @@
 import os
 
-ATASKQ_CONFIG = os.getenv("ATASKQ_CONFIG")
+CONFIG = os.getenv("ATASKQ_CONFIG")
+DEFAULT_HANDLER = os.getenv("sqlite")
 # for dev purposes add additional config for server defaulted to normal config
-ATASKQ_SERVER_CONFIG = os.getenv("ATASKQ_SERVER_CONFIG", ATASKQ_CONFIG)
+SERVER_CONFIG = os.getenv("ATASKQ_SERVER_CONFIG", CONFIG)

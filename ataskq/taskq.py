@@ -17,7 +17,6 @@ from .utils.dynamic_import import import_callable
 class TaskQ(Logger):
     def __init__(
         self,
-        job_id=None,
         handler: Handler = None,
         logger: Union[str, logging.Logger, None] = None,
         config=None,
@@ -37,29 +36,11 @@ class TaskQ(Logger):
         else:
             self._handler = handler
 
-        # get job
-        if job_id is not None:
-            try:
-                job = Job.get(job_id, _handler=self._handler)
-            except Exception as ex:
-                raise Exception(f"Failed to fetch job (job_id={job_id}).") from ex
-        else:
-            job = None
-        self._job = job
-
         self._running = False
 
     @property
     def config(self):
         return self._config
-
-    @property
-    def job(self):
-        return self._job
-
-    @property
-    def job_id(self):
-        return self._job.job_id
 
     @property
     def handler(self):
@@ -72,49 +53,6 @@ class TaskQ(Logger):
     @property
     def monitor_pulse_interval(self):
         return self._monitor_pulse_interval
-
-    def clear_job(self):
-        self._job = None
-
-    def set_job(self, job_id):
-        job = Job.get(job_id, self._handler)
-        self._handler.set_job_id(job.job_id)  # todo remove - handler should need job id ...
-        self._job = job
-
-    def create_job(self, name=None, description=None):
-        assert self._job is None, "job already assigned to current taskq, run clear_job to create new job."
-
-        job = Job(name=name, description=description).screate(_handler=self._handler)
-        self._job = job
-
-        if self.config["db"]["max_jobs"] is not None:
-            # keep max jbos
-            Job.delete_all(
-                where=f"job_id NOT IN (SELECT job_id FROM jobs ORDER BY job_id DESC limit {self.config['db']['max_jobs']})",
-                _handler=self.handler,
-            )
-
-        return self
-
-    def delete_job(self):
-        self.job.delete(_handler=self.handler)
-        self._job = None
-
-    def assert_job(self):
-        if self._job is None:
-            raise RuntimeError(
-                "Job is not yet assigned to taskq. pass job_id to __init__ or create_job() before adding tasks."
-            )
-
-    def get_tasks(self, **kwargs) -> List[Task]:
-        self.assert_job()
-        return self.job.get_tasks(_handler=self._handler, **kwargs)
-
-    def add_tasks(self, tasks):
-        self.assert_job()
-        self.job.add_tasks(tasks, _handler=self._handler)
-
-        return self
 
     def update_task_start_time(self, task: Task, start_time: datetime = None):
         if start_time is None:
@@ -140,14 +78,6 @@ class TaskQ(Logger):
             where=f"job_id = {self.job_id} AND level < {level} AND status in ('{EStatus.PENDING}')",
             _handler=self._handler,
         )
-        return ret
-
-    def get_object(self, obj):
-        if isinstance(obj, int):  # object id
-            obj = Object.get(obj, _handler=self._handler)
-
-        ret = obj.deserialize()
-
         return ret
 
     def oid(self, obj, serializer="pickle.dumps", desrializer="pickle.loads") -> int:
@@ -214,14 +144,14 @@ class TaskQ(Logger):
         monitor.join()
         self.update_task_status(task, status)
 
-    def _take_next_task(self, level=None):
+    def _take_next_task(self, job_id=None, level=None):
         level_start = level.start if level is not None else None
         level_stop = level.stop if level is not None else None
+        ret = self._handler.take_next_task(job_id=job_id, level_start=level_start, level_stop=level_stop)
 
-        job_id = self.job_id if self.job is not None else None
-        return self._handler.take_next_task(job_id=job_id, level_start=level_start, level_stop=level_stop)
+        return ret
 
-    def _run(self, level):
+    def _run(self, job_id, level):
         self.info(f"Started task pulling loop.")
 
         # check for error code
@@ -231,7 +161,7 @@ class TaskQ(Logger):
             if self.config["run"]["fail_pulse_timeout"] and isinstance(self._handler, DBHandler):
                 self._handler.fail_pulse_timeout_tasks(self.config["monitor"]["pulse_timeout"])
             # grab tasks and set them in Q
-            action, task = self._take_next_task(level)
+            action, task = self._take_next_task(job_id, level)
 
             # handle no task available
             if not self.config["run"]["run_forever"] and action == EAction.STOP:
@@ -264,7 +194,14 @@ class TaskQ(Logger):
 
         return level
 
-    def run(self, concurrency=None, level=None):
+    def run(self, job: Job, concurrency=None, level=None):
+        if self.config["db"]["max_jobs"] is not None:
+            # keep max jbos
+            Job.delete_all(
+                where=f"job_id NOT IN (SELECT job_id FROM jobs ORDER BY job_id DESC limit {self.config['db']['max_jobs']})",
+                _handler=self.handler,
+            )
+
         self.info(f"Start running with connection {self.config['connection']}")
         if level is not None:
             level = self.assert_level(level)
@@ -273,7 +210,7 @@ class TaskQ(Logger):
 
         # default to run in current process
         if concurrency is None:
-            self._run(level)
+            self._run(job.job_id, level)
             self._running = False
             return
 
@@ -288,7 +225,16 @@ class TaskQ(Logger):
             nprocesses = concurrency
 
         # set processes and Q
-        processes = [Process(target=self._run, args=(level,)) for i in range(nprocesses)]
+        processes = [
+            Process(
+                target=self._run,
+                args=(
+                    job.job_id,
+                    level,
+                ),
+            )
+            for i in range(nprocesses)
+        ]
         [p.start() for p in processes]
 
         # join all processes
