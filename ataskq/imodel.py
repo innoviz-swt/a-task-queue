@@ -36,7 +36,12 @@ __DBFields__ = (Int, Float, Str, DateTime, Bytes)
 
 
 class Parent:
-    def __init__(self, key=None) -> None:
+    def __init__(self, key) -> None:
+        self.key = key
+
+
+class Child:
+    def __init__(self, key) -> None:
         self.key = key
 
 
@@ -53,34 +58,6 @@ class IModelSerializer(ABC):
 
 
 class IModel(ABC):
-    @staticmethod
-    @abstractmethod
-    def id_key() -> str:
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def table_key() -> str:
-        pass
-
-    @classmethod
-    def primary_keys(cls) -> str:
-        ret = [ann for ann, klass in cls.__annotations__.items() if issubclass(klass, PrimaryKey)]
-        return ret
-
-    @classmethod
-    def members(cls, primary=False) -> str:
-        if primary:
-            ret = [ann for ann, klass in cls.__annotations__.items() if issubclass(klass, (*__DBFields__, PrimaryKey))]
-        else:
-            ret = [ann for ann, klass in cls.__annotations__.items() if issubclass(klass, __DBFields__)]
-        return ret
-
-    @classmethod
-    def parents(cls) -> str:
-        ret = [ann for ann, klass in cls.__annotations__.items() if isinstance(getattr(cls, ann, None), Parent)]
-        return ret
-
     @staticmethod
     @abstractmethod
     def i2m(cls, kwargs: Union[dict, List[dict]], serializer: IModelSerializer) -> Union[dict, List[dict]]:

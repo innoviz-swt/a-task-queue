@@ -6,7 +6,9 @@ from enum import Enum
 from ..env import CONFIG
 from ..logger import Logger
 from ..config import load_config
-from ..imodel import IModel, IModelSerializer, DateTime, Parent
+
+# from ..model import IModel, IModelSerializer, DateTime, Parent
+from ..model import Model, DateTime, Parent, EState
 
 __STRTIME_FORMAT__ = "%Y-%m-%d %H:%M:%S.%f"
 
@@ -34,20 +36,13 @@ def get_query_kwargs(kwargs):
     return ret
 
 
-def to_datetime(val: Union[str, DateTime, datetime, None]):
-    if val is None:
-        return None
-    elif isinstance(val, (DateTime)):
-        return val
-    elif isinstance(val, datetime):
-        return DateTime.fromtimestamp(val.timestamp())
-
+def to_datetime(val: str) -> datetime:
     ret = datetime.strptime(val, __STRTIME_FORMAT__)
     ret = DateTime.fromtimestamp(ret.timestamp())
     return ret
 
 
-def from_datetime(time: DateTime):
+def from_datetime(time: DateTime) -> str:
     return time.strftime(__STRTIME_FORMAT__)
 
 
@@ -60,7 +55,7 @@ class EAction(str, Enum):
         return self.value
 
 
-class Handler(IModelSerializer, Logger):
+class Handler(Logger):
     def __init__(self, config=CONFIG, logger: Logger = None):
         Logger.__init__(self, logger)
 
@@ -80,63 +75,60 @@ class Handler(IModelSerializer, Logger):
     ######################
     # interface handlers #
     ######################
+    @classmethod
+    def from_interface(cls, model_cls: Model, ikwargs: dict) -> Model:
+        for k in ikwargs.keys():
+            ikwargs[k] = cls.encode(ikwargs[k], model_cls, k, model_cls.__annotations__[k])
+
+        ret = model_cls(**ikwargs)
+        ret._state.value = EState.Fetched
+
+        return ret
 
     @classmethod
-    def i2m(cls, model_cls, kwargs: Union[dict, List[dict]]) -> Union[dict, List[dict]]:
-        """interface to model"""
-        return model_cls.i2m(kwargs, cls)
+    def to_interface(cls, model: Model) -> dict:
+        model_cls = model.__class__
+        ret = dict()
+        for k in model.members():
+            ret[k] = cls.encode(getattr(model, k), model_cls, k, model_cls.__annotations__[k])
 
-    @classmethod
-    def from_interface(cls, model_cls: IModel, kwargs: Union[dict, List[dict]]) -> Union[IModel, List[IModel]]:
-        return model_cls.from_interface(kwargs, cls)
+        if model.state == EState.Fetched:
+            ret._state.value = EState.Modified
 
-    @classmethod
-    def m2i(cls, model_cls: IModel, kwargs: Union[dict, List[dict]]) -> Union[dict, List[dict]]:
-        """modle to interface"""
-        return model_cls.m2i(kwargs, cls)
-
-    @classmethod
-    def to_interface(cls, model: IModel) -> IModel:
-        return model.to_interface(cls)
+        return ret
 
     ########
     # CRUD #
     ########
 
-    @abstractmethod
-    def _create(self, model_cls: IModel, model: dict) -> int:
+    def _create(self, model: Model) -> int:
+        pass
+
+    def _update(self, model: Model) -> int:
         pass
 
     @abstractmethod
-    def _create_bulk(self, model_cls: IModel, models: List[dict]):
+    def delete_all(self, model_cls: Model, **kwargs):
         pass
 
     @abstractmethod
-    def delete_all(self, model_cls: IModel, **kwargs):
+    def delete(self, modl_cls: Model, model_id: int):
         pass
 
     @abstractmethod
-    def delete(self, modl_cls: IModel, model_id: int):
+    def count_all(self, model_cls: Model, **kwargs) -> int:
         pass
 
     @abstractmethod
-    def count_all(self, model_cls: IModel, **kwargs) -> int:
+    def get_all(self, model_cls: Model, **kwargs) -> List[dict]:
         pass
 
     @abstractmethod
-    def get_all(self, model_cls: IModel, **kwargs) -> List[dict]:
+    def get(self, model_cls: Model, model_id: int) -> Model:
         pass
-
-    @abstractmethod
-    def get(self, model_cls: IModel, model_id: int) -> dict:
-        pass
-
-    def create(self, model_cls: IModel, **mkwargs) -> int:
-        ret = self.create_bulk(model_cls, mkwargs)[0]
-        return ret
 
     @staticmethod
-    def members_attrs(model_cls: IModel, models: Union[IModel, List[IModel]], primary=False):
+    def members_attrs(model_cls: Model, models: Union[Model, List[Model]], primary=False):
         if isinstance(models, list):
             is_list = True
         else:
@@ -150,7 +142,7 @@ class Handler(IModelSerializer, Logger):
 
         return ret
 
-    def create_models_bulk(self, model_cls: IModel, models: List[IModel]) -> List[IModel]:
+    def create_models_bulk(self, model_cls: Model, models: List[Model]) -> List[Model]:
         # parents mapping
         parents = {}
         for mi, m in enumerate(models):
@@ -185,41 +177,9 @@ class Handler(IModelSerializer, Logger):
 
         return models
 
-    def create_dict_bulk(self, model_cls: IModel, models_attrs: List[dict]) -> List[int]:
-        for i, v in enumerate(models_attrs):
-            assert (
-                model_cls.id_key() not in v
-            ), f"item [{i}]: id '{model_cls.id_key()}' can't be passed to create '{model_cls.__name__}({model_cls.table_key()})'"
-        interface_models_attrs = self.m2i(model_cls, models_attrs)
-        model_ids = self._create_bulk(model_cls, interface_models_attrs)
-
-        return model_ids
-
-    def create_bulk(self, model_cls: IModel, models: Union[List[dict], List[IModel]]) -> List[int]:
-        if not models:
-            ret = []
-
-        if isinstance(models[0], IModel):
-            ret = self.create_models_bulk(model_cls, models)
-        elif isinstance(models[0], dict):
-            ret = self.create_dict_bulk(model_cls, models)
-        else:
-            raise RuntimeError("Unexpected models type, expected List[IModel] or List[dict]")
-
-        return ret
-
     @abstractmethod
-    def _update(self, model_cls: IModel, model_id: int, **ikwargs):
+    def update_all(self, model_cls: Model, where: str = None, **ikwargs):
         pass
-
-    @abstractmethod
-    def update_all(self, model_cls: IModel, where: str = None, **ikwargs):
-        pass
-
-    def update(self, model_cls: IModel, model_id: int, **mkwargs):
-        assert model_id is not None, f"{model_cls} must have assigned '{model_cls.id_key()}' for update"
-        ikwargs = self.m2i(model_cls, mkwargs)
-        self._update(model_cls, model_id, **ikwargs)
 
     ##########
     # Custom #

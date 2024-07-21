@@ -3,7 +3,8 @@ from typing import NamedTuple, List
 import sqlite3
 from datetime import datetime
 
-from ..imodel import IModel, DateTime
+from ..imodel import IModel
+from ..model import Model, DateTime, State
 from .handler import to_datetime, from_datetime
 from .db_handler import DBHandler, transaction_decorator
 
@@ -18,6 +19,26 @@ class SqliteConnection(NamedTuple):
 class SQLite3DBHandler(DBHandler):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
+
+    @staticmethod
+    def encode(obj, model_cls: Model, key, key_cls):
+        if obj is None:
+            return obj
+
+        if issubclass(key_cls, (datetime, DateTime)):
+            return to_datetime(obj)
+
+        return obj
+
+    # Custom decoding function
+    def decode(obj, model_cls: Model, key, key_cls):
+        if obj is None:
+            return obj
+
+        if issubclass(key_cls, (datetime, DateTime)):
+            return from_datetime(obj)
+
+        return obj
 
     @staticmethod
     def from_connection_str(conn):
@@ -62,10 +83,6 @@ class SQLite3DBHandler(DBHandler):
         return self._connection
 
     @property
-    def db_path(self):
-        return self._connection.path
-
-    @property
     def bytes_type(self):
         return "MEDIUMBLOB"
 
@@ -89,26 +106,20 @@ class SQLite3DBHandler(DBHandler):
         return ""
 
     def connect(self):
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(self.connection.path)
         return conn
 
-    @transaction_decorator()
-    def _create_bulk(self, c, model_cls: IModel, ikwargs: List[dict]) -> List[int]:
-        # todo: consolidate all ikwargs with same keys to single insert command
-        model_ids = []
-        for v in ikwargs:
-            d = {k: v for k, v in v.items() if k in model_cls.members()}
-            keys = list(d.keys())
-            values = list(d.values())
-            if keys:
-                c.execute(
-                    f'INSERT INTO {model_cls.table_key()} ({", ".join(keys)}) VALUES ({", ".join([self.format_symbol] * len(keys))})',
-                    values,
-                )
-            else:
-                c.execute(f"INSERT INTO {model_cls.table_key()} DEFAULT VALUES"),
+    def _create(self, c: sqlite3.Connection, model: Model):
+        d = {k: v for k, v in model.__dict__.items() if k in model._state.columns}
+        keys = list(d.keys())
+        values = list(d.values())
+        if keys:
+            c.execute(
+                f'INSERT INTO {model.table_key()} ({", ".join(keys)}) VALUES ({", ".join([self.format_symbol] * len(keys))})',
+                values,
+            )
+        else:
+            c.execute(f"INSERT INTO {model.table_key()} DEFAULT VALUES"),
 
-            model_id = c.lastrowid
-            model_ids.append(model_id)
-
-        return model_ids
+        model_id = c.lastrowid
+        setattr(model, model.id_key(), model_id)

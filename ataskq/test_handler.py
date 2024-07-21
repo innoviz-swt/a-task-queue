@@ -49,7 +49,7 @@ def test_db_format(config, handler):
         from .handler.sqlite3 import SQLite3DBHandler
 
         assert isinstance(handler, SQLite3DBHandler)
-        assert "ataskq.db" in handler.db_path
+        assert "ataskq.db" in handler.connection.path
     elif "pg" in conn:
         from .handler.postgresql import PostgresqlDBHandler
 

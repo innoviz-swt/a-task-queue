@@ -1,26 +1,17 @@
 from datetime import datetime, timedelta
-from typing import List
+from typing import List, Union, Set, _GenericAlias
 from abc import abstractmethod
 from datetime import datetime
 
 from .handler import Handler, get_query_kwargs
-from ..imodel import IModel
+from ..model import Model, EState, Child, Parent
 from .. import __schema_version__
-
-CONNECTION_LOG = [None]
-
-
-def set_connection_log(log):
-    CONNECTION_LOG[0] = log
 
 
 def transaction_decorator(exclusive=False):
     def decorator(func):
         def wrapper(self, *args, **kwargs):
             with self.connect() as conn:
-                if CONNECTION_LOG[0] is not None:
-                    conn.set_trace_callback(CONNECTION_LOG[0])
-
                 c = conn.cursor()
                 try:
                     if self.pragma_foreign_keys_on:
@@ -99,28 +90,87 @@ class DBHandler(Handler):
         if self.config["handler"]["db_init"]:
             self.init_db()
 
-    @property
-    def db_path(self):
-        raise Exception(f"'{self.__class__.__name__}' db doesn't support db path property'")
+    def _add(self, c, model: Model, handled: Set[int]):
+        # check if model already handled
+        if id(model) in handled:
+            return
 
-    def count_all(self, model_cls: IModel, **kwargs):
+        # handle parents
+        for p_key in model.parents():
+            if (parents := getattr(model, p_key)) is not None:
+                # # parent create is required
+                parent_mapping: Child = getattr(model.__class__, p_key)
+                p_id_key = parent_mapping.key
+                parent_class = model.__annotations__[p_key]
+                if isinstance(parent_class, _GenericAlias) and parent_class._name == "List":
+                    parent_class = parent_class.__args__[0]
+                else:
+                    parents = [parents]
+
+                for parent in parents:
+                    parent: Model
+                    if parent._state.value == EState.NEW:
+                        self._add(c, parent, handled)
+                        setattr(model, p_id_key, parent.id_val)
+                    else:
+                        assert getattr(model, p_id_key) == parent.id_val
+                        self._add(c, parent, handled)
+
+        if model._state.value == EState.NEW:
+            self._create(c, model)
+        elif model._state.value == EState.Modified:
+            self._update(c, model)
+
+        # handle childs
+        for c_key in model.childs():
+            if (children := getattr(model, c_key)) is not None:
+                # # parent create is required
+                child_mapping: Child = getattr(model.__class__, c_key)
+                c_id_key = child_mapping.key
+                child_class = model.__annotations__[c_key]
+                if isinstance(child_class, _GenericAlias) and child_class._name == "List":
+                    child_class = child_class.__args__[0]
+                else:
+                    children = [children]
+
+                for child in children:
+                    child: Model
+                    if child._state.value == EState.NEW:
+                        setattr(child, c_id_key, model.id_val)
+                    else:
+                        assert getattr(child, c_id_key) == self.id_val
+                    self._add(c, child, handled)
+
+        handled.add(id(model))
+
+    @transaction_decorator()
+    def add(self, c, models: Union[Model, List[Model]]):
+        handled = set()
+        if not isinstance(models, list):
+            models = [models]
+
+        for model in models:
+            self._add(c, model, handled)
+
+    def count_all(self, model_cls: Model, **kwargs):
         query_kwargs = get_query_kwargs(kwargs)
         count = self.count_query(model_cls, **query_kwargs)
 
         return count
 
-    def get_all(self, model_cls: IModel, **kwargs) -> List[dict]:
+    def get_all(self, model_cls: Model, **kwargs) -> List[dict]:
         query_kwargs = get_query_kwargs(kwargs)
         rows, col_names, _ = self.select_query(model_cls, **query_kwargs)
         ret = [dict(zip(col_names, row)) for row in rows]
 
         return ret
 
-    def get(self, model_cls: IModel, model_id) -> dict:
+    def get(self, model_cls: Model, model_id) -> Model:
         rows, col_names, query_str = self.select_query(model_cls, where=f"{model_cls.id_key()} = {model_id}")
         assert len(rows) != 0, f"no match found for '{model_cls.__name__}', query: '{query_str}'."
         assert len(rows) == 1, f"more than 1 row found for '{model_cls.__name__}', query: '{query_str}'."
-        ret = [dict(zip(col_names, row)) for row in rows][0]
+        iret = [dict(zip(col_names, row)) for row in rows][0]
+        ret = self.from_interface(model_cls, iret)
 
         return ret
 
@@ -171,39 +221,8 @@ class DBHandler(Handler):
     def connect(self):
         pass
 
-    def _create(self, model_cls: IModel, model: dict) -> int:
-        model_id = self.create_bulk(model_cls, [model])[0]
-
-        return model_id
-
     @transaction_decorator()
-    def _create_bulk(self, c, model_cls: IModel, ikwargs: List[dict]) -> List[int]:
-        # todo: consolidate all ikwargs with same keys to single insert command
-        model_ids = []
-        for v in ikwargs:
-            d = {k: v for k, v in v.items() if k in model_cls.members()}
-            keys = list(d.keys())
-            values = list(d.values())
-            c.execute(
-                f'INSERT INTO {model_cls.table_key()} ({", ".join(keys)}) VALUES ({", ".join([self.format_symbol] * len(keys))}) RETURNING {model_cls.id_key()}',
-                values,
-            )
-            model_id = c.fetchone()[0]
-            model_ids.append(model_id)
-
-        return model_ids
-
-    @transaction_decorator()
-    def _update(self, c, model_cls: IModel, model_id, **ikwargs):
-        if len(ikwargs) == 0:
-            return
-
-        insert = ", ".join([f"{k} = {self.format_symbol}" for k in ikwargs.keys()])
-        values = list(ikwargs.values())
-        c.execute(f"UPDATE {model_cls.table_key()} SET {insert} WHERE {model_cls.id_key()} = {model_id};", values)
-
-    @transaction_decorator()
-    def update_all(self, c, model_cls: IModel, where: str = None, **ikwargs):
+    def update_all(self, c, model_cls: Model, where: str = None, **ikwargs):
         if len(ikwargs) == 0:
             return
 
@@ -218,11 +237,11 @@ class DBHandler(Handler):
         c.execute(query_str, values)
 
     @abstractmethod
-    def delete(self, model_cls: IModel, model_id: int):
+    def delete(self, model_cls: Model, model_id: int):
         pass
 
     @transaction_decorator()
-    def delete_all(self, c, model_cls: IModel, **kwargs):
+    def delete_all(self, c, model_cls: Model, **kwargs):
         query_kwargs = get_query_kwargs(kwargs)
         query_str = f"DELETE FROM {model_cls.table_key()}"
 
@@ -232,7 +251,7 @@ class DBHandler(Handler):
         c.execute(query_str)
 
     @transaction_decorator()
-    def delete(self, c, model_cls: IModel, model_id: int):
+    def delete(self, c, model_cls: Model, model_id: int):
         c.execute(f"DELETE FROM {model_cls.table_key()} WHERE {model_cls.id_key()} = {model_id}")
 
     @transaction_decorator(exclusive=True)
@@ -292,7 +311,7 @@ class DBHandler(Handler):
         )
 
     @transaction_decorator()
-    def count_query(self, c, model_cls: IModel, where: str = None, limit: int = None, offset: int = 0):
+    def count_query(self, c, model_cls: Model, where: str = None, limit: int = None, offset: int = 0):
         if limit is None:
             limit = self.config["api"]["limit"]
         query_str = f"SELECT COUNT(*) FROM {model_cls.table_key()}"
@@ -307,7 +326,7 @@ class DBHandler(Handler):
     def select_query(
         self,
         c,
-        model_cls: IModel,
+        model_cls: Model,
         where: str = None,
         order_by=None,
         limit: int = None,
@@ -493,3 +512,24 @@ class DBHandler(Handler):
         c.execute(
             f"UPDATE tasks SET status = '{EStatus.FAILURE}' WHERE pulse_time < {self.timestamp(last_valid_pulse)} AND status NOT IN ('{EStatus.SUCCESS}', '{EStatus.FAILURE}');"
         )
+
+    def _create(self, c, model: Model):
+        d = {k: v for k, v in model.__dict__.items() if k in model._state.columns}
+        keys = list(d.keys())
+        values = list(d.values())
+        if keys:
+            c.execute(
+                f'INSERT INTO {model.table_key()} ({", ".join(keys)}) VALUES ({", ".join([self.format_symbol] * len(keys))}) RETURNING {model.id_key()}',
+                values,
+            )
+        else:
+            c.execute(f"INSERT INTO {model.table_key()} DEFAULT VALUES RETURNING {model.id_key()}"),
+
+        model_id = c.lastrowid
+        setattr(model, model.id_key(), model_id)
+
+    def _update(self, c, model: Model):
+        d = {k: v for k, v in model.__dict__.items() if k in model._state.columns}
+        insert = ", ".join([f"{k} = {self.format_symbol}" for k in d.keys()])
+        values = list(d.values())
+        c.execute(f"UPDATE {model.table_key()} SET {insert} WHERE {model.id_key()} = {model.id_val};", values)

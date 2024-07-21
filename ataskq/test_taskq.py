@@ -36,8 +36,8 @@
 
 #     conn = config["connection"]
 #     if "sqlite" in conn:
-#         assert Path(taskq.handler.db_path).exists()
-#         assert Path(taskq.handler.db_path).is_file()
+#         assert Path(taskq.handler.connection.path).exists()
+#         assert Path(taskq.handler.connection.path).is_file()
 #     elif "pg" in conn:
 #         pass
 #     elif "http" in conn:

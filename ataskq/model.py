@@ -1,22 +1,75 @@
-from copy import copy
-from typing import Union, List, overload
+from typing import Union, List, _GenericAlias
 
 from enum import Enum
 
 from .imodel import *
-from .handler import get_handler, Handler
+from .imodel import __DBFields__
+
+
+class EState(Enum):
+    NEW = 0
+    Fetched = 1
+    Modified = 2
+
+
+class State:
+    def __init__(self) -> None:
+        self.columns = set()
+        self.value = EState.NEW
 
 
 class Model(IModel):
+    _state: State
+
     @classmethod
     def id_key(cls):
         return cls.__name__.lower() + "_id"
+
+    @property
+    def id_val(self):
+        return getattr(self, self.id_key())
 
     @classmethod
     def table_key(cls):
         return cls.__name__.lower() + "s"
 
+    @classmethod
+    def primary_keys(cls) -> str:
+        ret = [
+            ann
+            for ann, klass in cls.__annotations__.items()
+            if not isinstance(klass, _GenericAlias) and issubclass(klass, PrimaryKey)
+        ]
+        return ret
+
+    @classmethod
+    def members(cls, primary=False) -> str:
+        if primary:
+            ret = [
+                ann
+                for ann, klass in cls.__annotations__.items()
+                if not isinstance(klass, _GenericAlias) and issubclass(klass, (*__DBFields__, PrimaryKey))
+            ]
+        else:
+            ret = [
+                ann
+                for ann, klass in cls.__annotations__.items()
+                if not isinstance(klass, _GenericAlias) and issubclass(klass, __DBFields__)
+            ]
+        return ret
+
+    @classmethod
+    def parents(cls) -> str:
+        ret = [ann for ann, klass in cls.__annotations__.items() if isinstance(getattr(cls, ann, None), Parent)]
+        return ret
+
+    @classmethod
+    def childs(cls) -> str:
+        ret = [ann for ann, klass in cls.__annotations__.items() if isinstance(getattr(cls, ann, None), Child)]
+        return ret
+
     def __init__(self, **kwargs) -> None:
+        self._state = State()
         cls_annotations = self.__annotations__
 
         # check a kwargs are class members
@@ -35,13 +88,25 @@ class Model(IModel):
                 kwargs[rel] = None
 
         # annotate kwargs
-        kwargs = self._serialize(kwargs, dict())  # flag passed on constructor with no interface handlers
+        kwargs = self._serialize(kwargs)  # flag passed on constructor with no interface handlers
+
         # set kwargs as class members
         for k, v in kwargs.items():
             setattr(self, k, v)
 
+    def __setattr__(self, name, value):
+        if name not in self.members():
+            super().__setattr__(name, value)
+            return
+
+        self._state.columns.add(name)
+        if self._state.value == EState.Fetched:
+            self._state.value = EState.Modified
+
+        super().__setattr__(name, value)
+
     @classmethod
-    def _serialize(cls, kwargs: dict, serializers: dict):
+    def _serialize(cls, kwargs: dict):
         ret = dict()
         cls_annotations = cls.__annotations__
         cls_name = cls.__name__
@@ -55,7 +120,12 @@ class Model(IModel):
                 continue
 
             if k in cls.parents():
-                assert isinstance(v, IModel), "relationship members must be Models instances."
+                # assert isinstance(v, IModel), "relationship members must be Models instances."
+                ret[k] = v
+                continue
+
+            if k in cls.childs():
+                # assert isinstance(v, IModel), "relationship members must be Models instances."
                 ret[k] = v
                 continue
 
@@ -72,18 +142,13 @@ class Model(IModel):
 
             # serializer
             ann_name = None
-            ann_serailizers = {k: v for k, v in serializers.items() if issubclass(ann, k)}
-            if ann_serailizers:
-                serializer = next(v for v in ann_serailizers.values())
-                ann_name = f"serializers[{ann.__name__}]"
-            else:
-                # check if already in relevant type
-                if isinstance(v, ann):
-                    ret[k] = v
-                    continue
+            # check if already in relevant type
+            if isinstance(v, ann):
+                ret[k] = v
+                continue
 
-                ann_name = f"{ann.__name__}"
-                serializer = ann
+            ann_name = f"{ann.__name__}"
+            serializer = ann
 
             try:
                 ret[k] = serializer(v)
@@ -128,113 +193,3 @@ class Model(IModel):
         ret = self.m2i(self.__dict__, serializer)
 
         return ret
-
-    @classmethod
-    def count_all(cls, _handler: Handler = None, **kwargs):
-        if _handler is None:
-            _handler = get_handler(assert_registered=True)
-
-        ret = _handler.count_all(cls, **kwargs)
-        return ret
-
-    @classmethod
-    def get_all_dict(cls, _handler: Handler = None, **kwargs):
-        if _handler is None:
-            _handler = get_handler(assert_registered=True)
-
-        ret = _handler.get_all(cls, **kwargs)
-        ret = cls.i2m(ret, _handler)
-
-        return ret
-
-    @classmethod
-    def get_all(cls, _handler: Handler = None, **kwargs):
-        ret = cls.get_all_dict(_handler=_handler, **kwargs)
-        ret = [cls(**r) for r in ret]
-
-        return ret
-
-    @classmethod
-    def get_dict(cls, model_id: int, _handler: Handler = None):
-        if _handler is None:
-            _handler = get_handler(assert_registered=True)
-
-        ikwargs = _handler.get(cls, model_id)
-        mkwargs = cls.i2m(ikwargs, _handler)
-
-        return mkwargs
-
-    @classmethod
-    def get(cls, model_id: int, _handler: Handler = None):
-        mkwargs = cls.get_dict(model_id, _handler)
-        ret = cls(**mkwargs)
-
-        return ret
-
-    @classmethod
-    def create_bulk(cls, models: List[IModel], _handler: Handler = None) -> List[int]:
-        if _handler is None:
-            _handler = get_handler(assert_registered=True)
-
-        ret = _handler.create_bulk(cls, models)
-        return ret
-
-    @classmethod
-    def create(cls, _handler: Handler = None, **mkwargs):
-        ret = cls.create_bulk([mkwargs], _handler=_handler)[0]
-        return ret
-
-    def screate(self, _handler: Handler = None):
-        assert (
-            getattr(self, self.id_key()) is None
-        ), f"id '{self.id_key()}' can't be assigned when creating '{self.__class__.__name__}({self.table_key()})'"
-        mkwargs = {k: v for k, v in self.__dict__.items() if k in self.members()}
-
-        model_id = self.create(_handler=_handler, **mkwargs)
-        setattr(self, self.id_key(), model_id)
-
-        return self
-
-    def update(self, _handler: Handler = None, **mkwargs):
-        if not mkwargs:
-            assert (
-                getattr(self, self.id_key()) is not None
-            ), f"id '{self.id_key()}' must be assigned when updating '{self.__class__.__name__}({self.table_key()})'"
-            mkwargs = {k: v for k, v in mkwargs.items() if k in self.__class__.members()}
-        else:
-            pk = [k for k in mkwargs.keys() if k in self.__class__.primary_keys()]
-            assert len(pk) == 0, f"primary keys {pk} found in update mwargs."
-
-        if _handler is None:
-            _handler = get_handler(assert_registered=True)
-
-        model_id = getattr(self, self.id_key())
-        ikwargs = self.m2i(mkwargs, _handler)
-        _handler._update(self.__class__, model_id, **ikwargs)
-
-        for k, v in mkwargs.items():
-            setattr(self, k, v)
-
-        return self
-
-    @classmethod
-    def delete_all(cls, _handler: Handler = None, **kwargs):
-        if _handler is None:
-            _handler = get_handler(assert_registered=True)
-
-        ret = _handler.delete_all(cls, **kwargs)
-        return ret
-
-    def delete(self, _handler: Handler = None):
-        model_id = getattr(self, self.id_key())
-        assert (
-            model_id is not None
-        ), f"id '{self.__class__.__name__}({self.table_key()} -> {self.id_key()})' required for delete"
-
-        if _handler is None:
-            _handler = get_handler(assert_registered=True)
-
-        _handler.delete(self.__class__, model_id)
-        setattr(self, self.id_key(), None)
-
-        return self

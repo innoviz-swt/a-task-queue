@@ -46,19 +46,17 @@ class TaskQ(Logger):
     def handler(self):
         return self._handler
 
-    @property
-    def task_wait_interval(self):
-        return self._task_pull_interval
+    def add(self, data):
+        self._handler.add(data)
 
-    @property
-    def monitor_pulse_interval(self):
-        return self._monitor_pulse_interval
+        return self
 
     def update_task_start_time(self, task: Task, start_time: datetime = None):
         if start_time is None:
             start_time = datetime.now()
 
-        task.update(start_time=start_time, _handler=self._handler)
+        task.start_time = start_time
+        self._handler.add(task)
 
     def update_task_status(self, task: Task, status: EStatus, timestamp: datetime = None):
         if timestamp is None:
@@ -66,12 +64,17 @@ class TaskQ(Logger):
 
         if status == EStatus.RUNNING:
             # for running task update pulse_time
-            task.update(_handler=self._handler, status=status, pulse_time=timestamp)
+            task.status = status
+            task.pulse_time = timestamp
         elif status == EStatus.SUCCESS or status == EStatus.FAILURE:
             # for done task update pulse_time and done_time time as well
-            task.update(_handler=self._handler, status=status, pulse_time=timestamp, done_time=timestamp)
+            task.status = status
+            task.pulse_time = timestamp
+            task.done_time = timestamp
         else:
             raise RuntimeError(f"Unsupported status '{status}' for status update")
+
+        self._handler.add(task)
 
     def count_pending_tasks_below_level(self, level):
         ret = Task.count_all(
@@ -104,7 +107,7 @@ class TaskQ(Logger):
         task_kwargs = dict()
         if task.kwargs_id is not None:
             try:
-                task_kwargs_obj = Object.get(task.kwargs_id, self._handler)
+                task_kwargs_obj = self._handler.get(Object, task.kwargs_id)
                 task_kwargs = task_kwargs_obj.deserialize()
             except Exception as ex:
                 msg = f"Getting tasks '{task}' kwargs failed."
@@ -197,9 +200,9 @@ class TaskQ(Logger):
     def run(self, job: Job, concurrency=None, level=None):
         if self.config["db"]["max_jobs"] is not None:
             # keep max jbos
-            Job.delete_all(
+            self._handler.delete_all(
+                Job,
                 where=f"job_id NOT IN (SELECT job_id FROM jobs ORDER BY job_id DESC limit {self.config['db']['max_jobs']})",
-                _handler=self.handler,
             )
 
         self.info(f"Start running with connection {self.config['connection']}")
