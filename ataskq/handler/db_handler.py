@@ -158,21 +158,20 @@ class DBHandler(Handler):
 
         return count
 
-    def get_all(self, model_cls: Model, **kwargs) -> List[dict]:
+    def _get_all(self, model_cls: Model, **kwargs) -> List[dict]:
         query_kwargs = get_query_kwargs(kwargs)
         rows, col_names, _ = self.select_query(model_cls, **query_kwargs)
         ret = [dict(zip(col_names, row)) for row in rows]
 
         return ret
 
-    def get(self, model_cls: Model, model_id) -> Model:
+    def _get(self, model_cls: Model, model_id) -> dict:
         rows, col_names, query_str = self.select_query(model_cls, where=f"{model_cls.id_key()} = {model_id}")
         assert len(rows) != 0, f"no match found for '{model_cls.__name__}', query: '{query_str}'."
         assert len(rows) == 1, f"more than 1 row found for '{model_cls.__name__}', query: '{query_str}'."
         iret = [dict(zip(col_names, row)) for row in rows][0]
-        ret = self.from_interface(model_cls, iret)
 
-        return ret
+        return iret
 
     @property
     def pragma_foreign_keys_on(self):

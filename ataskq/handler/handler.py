@@ -7,7 +7,6 @@ from ..env import CONFIG
 from ..logger import Logger
 from ..config import load_config
 
-# from ..model import IModel, IModelSerializer, DateTime, Parent
 from ..model import Model, DateTime, Parent, EState
 
 __STRTIME_FORMAT__ = "%Y-%m-%d %H:%M:%S.%f"
@@ -92,8 +91,14 @@ class Handler(Logger):
         for k in model.members():
             ret[k] = cls.encode(getattr(model, k), model_cls, k, model_cls.__annotations__[k])
 
-        if model.state == EState.Fetched:
-            ret._state.value = EState.Modified
+        if model.state.value == EState.NEW:
+            ret._state.value = EState.Fetched
+        elif model._state.value == EState.Fetched:
+            raise RuntimeError(f"trying to push to db model in fetched state. {model}")
+        elif model._state.value == EState.Modified:
+            pass
+        else:
+            raise RuntimeError(f"unsupported db state '{model._state}'")
 
         return ret
 
@@ -120,12 +125,24 @@ class Handler(Logger):
         pass
 
     @abstractmethod
-    def get_all(self, model_cls: Model, **kwargs) -> List[dict]:
+    def _get_all(self, model_cls: Model, **kwargs) -> List[dict]:
         pass
 
+    def get_all(self, model_cls: Model, **kwargs) -> List[Model]:
+        iret = self._get_all(model_cls, **kwargs)
+        ret = [self.from_interface(model_cls, ir) for ir in iret]
+
+        return ret
+
     @abstractmethod
-    def get(self, model_cls: Model, model_id: int) -> Model:
+    def _get(self, model_cls: Model, model_id: int) -> dict:
         pass
+
+    def get(self, model_cls: Model, model_id: int) -> Model:
+        iret = self._get(model_cls, model_id)
+        ret = self.from_interface(model_cls, iret)
+
+        return ret
 
     @staticmethod
     def members_attrs(model_cls: Model, models: Union[Model, List[Model]], primary=False):

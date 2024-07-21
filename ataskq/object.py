@@ -1,3 +1,4 @@
+from typing import Any
 from .model import Model, Str, Bytes, PrimaryKey
 from .utils.dynamic_import import import_callable
 
@@ -13,10 +14,21 @@ class Object(Model):
     serializer: Str
     desrializer: Str
 
+    def __init__(self, **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._cache = None
+
     def deserialize(self):
+        if self._cache is not None:
+            return self._cache
+
         deserializer_func = import_callable(self.desrializer)
         obj = deserializer_func(self.blob)
+        self._cache = obj
         return obj
+
+    def __call__(self, *args: Any, **kwds: Any) -> Any:
+        return self.deserialize()
 
     @staticmethod
     def serialize(obj, serializer="pickle.dumps", desrializer="pickle.loads"):
@@ -31,6 +43,3 @@ class Object(Model):
         )
 
         return ret
-
-    # created_at: datetime
-    # updated_at: datetime

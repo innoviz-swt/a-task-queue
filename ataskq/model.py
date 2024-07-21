@@ -1,9 +1,47 @@
 from typing import Union, List, _GenericAlias
-
+from datetime import datetime
 from enum import Enum
 
-from .imodel import *
-from .imodel import __DBFields__
+
+class DBEnum(Enum):
+    pass
+
+
+class Int(int):
+    pass
+
+
+class Float(float):
+    pass
+
+
+class Str(str):
+    pass
+
+
+class DateTime(datetime):
+    pass
+
+
+class Bytes(bytes):
+    pass
+
+
+class PrimaryKey(int):
+    pass
+
+
+__DBFields__ = (Int, Float, Str, DateTime, Bytes)
+
+
+class Parent:
+    def __init__(self, key) -> None:
+        self.key = key
+
+
+class Child:
+    def __init__(self, key) -> None:
+        self.key = key
 
 
 class EState(Enum):
@@ -18,7 +56,7 @@ class State:
         self.value = EState.NEW
 
 
-class Model(IModel):
+class Model:
     _state: State
 
     @classmethod
@@ -154,42 +192,5 @@ class Model(IModel):
                 ret[k] = serializer(v)
             except Exception as ex:
                 raise Exception(f"{cls_name}::{k}({ann_name}) failed to serilize '{v}'({type(v).__name__})") from ex
-
-        return ret
-
-    @classmethod
-    def i2m(cls, kwargs: Union[dict, List[dict]], serializer: IModelSerializer) -> Union[dict, List[dict]]:
-        """interface to model"""
-        if isinstance(kwargs, list):
-            ret = [cls._serialize(kw, serializer.i2m_serialize()) for kw in kwargs]
-        else:
-            ret = cls._serialize(kwargs, serializer.i2m_serialize())
-
-        return ret
-
-    @classmethod
-    def from_interface(cls, kwargs: Union[dict, List[dict]], serializer: IModelSerializer):
-        """interface to model"""
-        mkwargs = cls.i2m(kwargs, serializer)
-        if isinstance(kwargs, list):
-            ret = [cls(**kw) for kw in mkwargs]
-        else:
-            ret = cls(**mkwargs)
-
-        return ret
-
-    @classmethod
-    def m2i(cls, kwargs: Union[dict, List[dict]], serializer: IModelSerializer) -> Union[dict, List[dict]]:
-        """model to interface"""
-        if isinstance(kwargs, list):
-            ret = [cls._serialize(kw, serializer.m2i_serialize()) for kw in kwargs]
-        else:
-            ret = cls._serialize(kwargs, serializer.m2i_serialize())
-
-        return ret
-
-    def to_interface(self, serializer: IModelSerializer) -> dict:
-        """model to interface"""
-        ret = self.m2i(self.__dict__, serializer)
 
         return ret

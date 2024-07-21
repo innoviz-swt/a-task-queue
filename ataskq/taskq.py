@@ -108,7 +108,7 @@ class TaskQ(Logger):
         if task.kwargs_id is not None:
             try:
                 task_kwargs_obj = self._handler.get(Object, task.kwargs_id)
-                task_kwargs = task_kwargs_obj.deserialize()
+                task_kwargs = task_kwargs_obj()
             except Exception as ex:
                 msg = f"Getting tasks '{task}' kwargs failed."
                 if self.config["run"]["raise_exception"]:  # for debug purposes only

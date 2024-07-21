@@ -3,10 +3,9 @@ from typing import NamedTuple, List
 import sqlite3
 from datetime import datetime
 
-from ..imodel import IModel
-from ..model import Model, DateTime, State
+from ..model import Model, DateTime
 from .handler import to_datetime, from_datetime
-from .db_handler import DBHandler, transaction_decorator
+from .db_handler import DBHandler
 
 
 class SqliteConnection(NamedTuple):
