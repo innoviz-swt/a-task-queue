@@ -1,5 +1,5 @@
 import multiprocessing
-from typing import Union, List
+from typing import Union
 import logging
 from multiprocessing import Process
 import time
@@ -7,6 +7,7 @@ from datetime import datetime
 
 
 from .logger import Logger
+from .model import EState
 from .models import EStatus, Job, Task, Object
 from .monitor import MonitorThread
 from .handler import Handler, DBHandler, from_config, EAction
@@ -76,11 +77,12 @@ class TaskQ(Logger):
 
         self._handler.add(task)
 
-    def count_pending_tasks_below_level(self, level):
-        ret = Task.count_all(
-            where=f"job_id = {self.job_id} AND level < {level} AND status in ('{EStatus.PENDING}')",
-            _handler=self._handler,
+    def count_pending_tasks_below_level(self, job_id, level):
+        ret = self._handler.count_all(
+            Task,
+            where=f"job_id = {job_id} AND level < {level} AND status in ('{EStatus.PENDING}')",
         )
+
         return ret
 
     def oid(self, obj, serializer="pickle.dumps", desrializer="pickle.loads") -> int:
@@ -182,7 +184,7 @@ class TaskQ(Logger):
             else:
                 raise Exception(f"Unsupported action {action}")
 
-    def assert_level(self, level):
+    def assert_level(self, job_id, level):
         if isinstance(level, int):
             level = range(level, level + 1)
         elif isinstance(level, (list, tuple)):
@@ -192,12 +194,12 @@ class TaskQ(Logger):
             assert isinstance(level, range), "level must be int, list, tuple or range"
 
         # check all task < level.start are done
-        count = self.count_pending_tasks_below_level(level.start)
+        count = self.count_pending_tasks_below_level(job_id, level.start)
         assert count == 0, f"all tasks below level must be done before running tasks at levels {level}"
 
         return level
 
-    def run(self, job: Job, concurrency=None, level=None):
+    def run(self, job: Union[Job, int], concurrency=None, level=None):
         if self.config["db"]["max_jobs"] is not None:
             # keep max jbos
             self._handler.delete_all(
@@ -205,15 +207,24 @@ class TaskQ(Logger):
                 where=f"job_id NOT IN (SELECT job_id FROM jobs ORDER BY job_id DESC limit {self.config['db']['max_jobs']})",
             )
 
+        if isinstance(job, int):
+            pass
+        elif isinstance(job, Job):
+            if job._state.value == EState.NEW:
+                self.add(job)
+            job = job.job_id
+        else:
+            raise RuntimeError("job must be of type int (job_id) or Job")
+
         self.info(f"Start running with connection {self.config['connection']}")
         if level is not None:
-            level = self.assert_level(level)
+            level = self.assert_level(job, level)
 
         self._running = True
 
         # default to run in current process
         if concurrency is None:
-            self._run(job.job_id, level)
+            self._run(job, level)
             self._running = False
             return
 
@@ -232,7 +243,7 @@ class TaskQ(Logger):
             Process(
                 target=self._run,
                 args=(
-                    job.job_id,
+                    job,
                     level,
                 ),
             )

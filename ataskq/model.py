@@ -125,6 +125,10 @@ class Model:
             if rel not in kwargs:
                 kwargs[rel] = None
 
+        for rel in self.childs():
+            if rel not in kwargs:
+                kwargs[rel] = None
+
         # annotate kwargs
         kwargs = self._serialize(kwargs)  # flag passed on constructor with no interface handlers
 

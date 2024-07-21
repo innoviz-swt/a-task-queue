@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from . import TaskQ, Task
+from . import TaskQ, Task, Job
 from .tasks_utils.write_to_file_tasks import write_to_file, write_to_file_mp_lock
 from .__main__ import main
 
@@ -20,17 +20,16 @@ def test_run_job(tmp_path, config):
     with open(configpath := tmp_path / "config.json", "w") as f:
         json.dump(config, f)
 
-    taskq = TaskQ(config=config).create_job()
-
-    taskq.add_tasks(
-        [
+    job = Job(
+        tasks=[
             Task(entrypoint=write_to_file, kwargs=dict(filepath=filepath, text="task 0\n")),
             Task(entrypoint=write_to_file, kwargs=dict(filepath=filepath, text="task 1\n")),
             Task(entrypoint=write_to_file, kwargs=dict(filepath=filepath, text="task 2\n")),
         ]
     )
+    TaskQ(config=config).add(job)
 
-    args = ["run", "-c", str(configpath), "--job-id", str(taskq.job_id)]
+    args = ["run", "-c", str(configpath), "--job-id", str(job.job_id)]
     main(args=args)
 
     assert filepath.exists()
@@ -42,10 +41,8 @@ def test_run_level(tmp_path, config):
     with open(configpath := tmp_path / "config.json", "w") as f:
         json.dump(config, f)
 
-    taskq = TaskQ(config=config).create_job()
-
-    taskq.add_tasks(
-        [
+    job = Job(
+        tasks=[
             Task(entrypoint=write_to_file, level=0, kwargs=dict(filepath=filepath, text="task 0\n")),
             Task(entrypoint=write_to_file, level=0, kwargs=dict(filepath=filepath, text="task 1\n")),
             Task(entrypoint=write_to_file, level=1, kwargs=dict(filepath=filepath, text="task 2\n")),
@@ -53,23 +50,24 @@ def test_run_level(tmp_path, config):
             Task(entrypoint=write_to_file, level=3, kwargs=dict(filepath=filepath, text="task 4\n")),
         ]
     )
+    TaskQ(config=config).add(job)
 
     # run level 0
-    args = ["run", "-c", str(configpath), "--job-id", str(taskq.job_id), "--level", "0"]
+    args = ["run", "-c", str(configpath), "--job-id", str(job.job_id), "--level", "0"]
     main(args=args)
 
     assert filepath.exists()
     assert filepath.read_text() == "task 0\n" "task 1\n"
 
     # run level 1
-    args = ["run", "-c", str(configpath), "--job-id", str(taskq.job_id), "--level", "1"]
+    args = ["run", "-c", str(configpath), "--job-id", str(job.job_id), "--level", "1"]
     main(args=args)
 
     assert filepath.exists()
     assert filepath.read_text() == "task 0\n" "task 1\n" "task 2\n"
 
     # run level 2, 3
-    args = ["run", "-c", str(configpath), "--job-id", str(taskq.job_id), "--level", "2", "4"]
+    args = ["run", "-c", str(configpath), "--job-id", str(job.job_id), "--level", "2", "4"]
     main(args=args)
 
     assert filepath.exists()
@@ -81,10 +79,8 @@ def test_run_concurrency(tmp_path, config):
     with open(configpath := tmp_path / "config.json", "w") as f:
         json.dump(config, f)
 
-    taskq = TaskQ(config=config).create_job()
-
-    taskq.add_tasks(
-        [
+    job = Job(
+        tasks=[
             Task(entrypoint=write_to_file_mp_lock, kwargs=dict(filepath=filepath, text="@{pid}\n", sleep=1)),
             Task(entrypoint=write_to_file_mp_lock, kwargs=dict(filepath=filepath, text="@{pid}\n", sleep=1)),
             Task(entrypoint=write_to_file_mp_lock, kwargs=dict(filepath=filepath, text="@{pid}\n", sleep=1)),
@@ -92,8 +88,9 @@ def test_run_concurrency(tmp_path, config):
             Task(entrypoint=write_to_file_mp_lock, kwargs=dict(filepath=filepath, text="@{pid}\n", sleep=1)),
         ]
     )
+    TaskQ(config=config).add(job)
 
-    args = ["run", "-c", str(configpath), "--job-id", str(taskq.job_id), "--concurrency", "3"]
+    args = ["run", "-c", str(configpath), "--job-id", str(job.job_id), "--concurrency", "3"]
     main(args=args)
 
     assert filepath.exists()

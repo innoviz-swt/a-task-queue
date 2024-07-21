@@ -1,6 +1,6 @@
 import pytest
 
-from . import TaskQ, Task
+from . import TaskQ, Task, Job
 from .handler import from_config
 
 
@@ -8,25 +8,26 @@ from .handler import from_config
 def job_ids(config):
     ret = []
 
-    taskq = TaskQ(config=config).create_job(name="job1")
-    taskq.add_tasks(
-        [
+    job1 = Job(
+        name="job1",
+        tasks=[
             Task(name="n1", entrypoint=""),
             Task(name="n1", entrypoint=""),
             Task(name="n2", entrypoint=""),
-        ]
+        ],
     )
-    ret.append(taskq.job_id)
 
-    taskq = TaskQ(config=config).create_job(name="job2")
-    taskq.add_tasks(
-        [
+    job2 = Job(
+        name="job2",
+        tasks=[
             Task(name="n3", entrypoint=""),
             Task(name="n4", entrypoint=""),
             Task(name="n4", entrypoint=""),
-        ]
+        ],
     )
-    ret.append(taskq.job_id)
+    jobs = [job1, job2]
+    TaskQ(config=config).add(jobs)
+    ret = [j.job_id for j in jobs]
 
     return ret
 

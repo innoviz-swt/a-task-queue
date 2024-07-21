@@ -63,7 +63,7 @@ def main(args=None):
         if args.level is not None and len(args.level) == 1:
             args.level = args.level[0]
         init_logger()
-        TaskQ(config=args.config, job_id=args.job_id).run(level=args.level, concurrency=args.concurrency)
+        TaskQ(config=args.config).run(job=args.job_id, level=args.level, concurrency=args.concurrency)
 
 
 if __name__ == "__main__":

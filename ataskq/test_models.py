@@ -5,6 +5,13 @@ from typing import Dict
 from .models import Model, Job, Task, Object
 from .handler import Handler, from_config, register_handler, unregister_handler
 
+
+def create_job_id(h: Handler):
+    job = Job()
+    h.add(job)
+    return job.job_id
+
+
 TEST_DATA = [
     {
         "klass": Object,
@@ -16,7 +23,7 @@ TEST_DATA = [
     },
     {
         "klass": Task,
-        "attr": {"name": "obj-name", "job_id": lambda: Job.create()},
+        "attr": {"name": "obj-name", "job_id": create_job_id},
     },
 ]
 TEST_IDS = [m["klass"].table_key() for m in TEST_DATA]
@@ -35,10 +42,10 @@ def jhandler(handler) -> Handler:
     return handler.create_job()
 
 
-def apply_lamdas(test_attr):
+def apply_lamdas(handler: Handler, test_attr):
     for k, v in test_attr.items():
         if callable(v):
-            test_attr[k] = v()
+            test_attr[k] = v(handler)
 
     return test_attr
 
@@ -46,10 +53,11 @@ def apply_lamdas(test_attr):
 @pytest.mark.parametrize("test_data", TEST_DATA, ids=TEST_IDS)
 def test_create(handler, test_data):
     model_cls: Model = test_data["klass"]
-    attr = apply_lamdas(test_data["attr"])
-    m = model_cls(**attr).screate()
+    attr = apply_lamdas(handler, test_data["attr"])
+    m = model_cls(**attr)
+    handler.add(m)
 
-    count = len(model_cls.get_all())
+    count = len(handler.get_all(model_cls))
     assert count == 1
 
     for k, v in attr.items():
