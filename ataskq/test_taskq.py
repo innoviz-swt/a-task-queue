@@ -1,164 +1,93 @@
-# from pathlib import Path
-# from datetime import datetime, timedelta
-# from copy import copy
-# from multiprocessing import Process
-# import time
+from pathlib import Path
+from datetime import datetime, timedelta
+from copy import copy
+from multiprocessing import Process
+import time
 
-# import pytest
+import pytest
 
-# from . import TaskQ, Job, Task, EStatus
-# from .handler import DBHandler
-# from .handler import EAction, from_config
+from . import TaskQ, Job, Task, EStatus
+from .handler import DBHandler
+from .handler import EAction, from_config
 
-# from .tasks_utils import dummy_args_task, write_to_file
-
-
-# def non_decreasing(L):
-#     return all(x <= y for x, y in zip(L, L[1:]))
+from .tasks_utils import dummy_args_task, write_to_file
 
 
-# def non_increasing(L):
-#     return all(x >= y for x, y in zip(L, L[1:]))
+def non_decreasing(L):
+    return all(x <= y for x, y in zip(L, L[1:]))
 
 
-# def monotonic(L):
-#     return non_decreasing(L) or non_increasing(L)
+def non_increasing(L):
+    return all(x >= y for x, y in zip(L, L[1:]))
 
 
-# @pytest.fixture
-# def jtaskq(config) -> TaskQ:
-#     return TaskQ(config=config).create_job()
+def monotonic(L):
+    return non_decreasing(L) or non_increasing(L)
 
 
-# def test_create_job(config):
-#     taskq = TaskQ(config=config).create_job()
-#     assert isinstance(taskq, TaskQ)
+@pytest.fixture
+def jtaskq(config) -> TaskQ:
+    taskq = TaskQ(config=config)
+    job = Job()
+    taskq.add(job)
 
-#     conn = config["connection"]
-#     if "sqlite" in conn:
-#         assert Path(taskq.handler.connection.path).exists()
-#         assert Path(taskq.handler.connection.path).is_file()
-#     elif "pg" in conn:
-#         pass
-#     elif "http" in conn:
-#         pass
-#     else:
-#         raise Exception(f"unknown db type in connection string '{conn}'")
+    return (taskq, job)
 
 
-# def test_job_default_name(config):
-#     job = TaskQ(config=config).create_job().job
-#     assert job.name is None
+def test_create_job(config):
+    taskq = TaskQ(config=config).add(Job())
+    assert isinstance(taskq, TaskQ)
+
+    conn = config["connection"]
+    if "sqlite" in conn:
+        assert Path(taskq.handler.connection.path).exists()
+        assert Path(taskq.handler.connection.path).is_file()
+    elif "pg" in conn:
+        pass
+    elif "http" in conn:
+        pass
+    else:
+        raise Exception(f"unknown db type in connection string '{conn}'")
 
 
-# def test_job_custom_name(config):
-#     job = TaskQ(config=config).create_job(name="my_job").job
-#     assert job.name == "my_job"
+def test_update_task_status(jtaskq):
+    taskq, job = jtaskq
+    taskq: TaskQ
+    task = Task(entrypoint=dummy_args_task, level=1, name="task1")
+    job.tasks = [task]
+    taskq.add(job)
 
+    now = datetime.now()
+    # update db with task status (also updates task inplace)
+    taskq.update_task_status(task, EStatus.RUNNING, timestamp=now)
+    assert task.status == EStatus.RUNNING
+    assert task.pulse_time == now
+    assert task.done_time is None
 
-# def test_task_job_delete_cascade(config):
-#     # test that deleting a job deletes all its tasks
-#     handler = from_config(config)
-#     taskq1: TaskQ = TaskQ(handler=handler).create_job(name="job1")
-#     taskq2: TaskQ = TaskQ(handler=handler).create_job(name="job2")
-#     assert Job.count_all(_handler=handler) == 2
+    # get task form db and validate
+    # todo: replace with refresh
+    tasks = taskq._handler.get_all(Task)
+    assert len(tasks) == 1  # sanity
+    task: Task = tasks[0]
 
-#     taskq1.add_tasks(
-#         [
-#             Task(entrypoint=""),
-#             Task(entrypoint=""),
-#             Task(entrypoint=""),
-#         ]
-#     )
-#     assert Task.count_all(_handler=handler) == 3
-#     assert len(taskq1.get_tasks()) == 3
+    assert task.status == EStatus.RUNNING
+    assert task.pulse_time == now
+    assert task.done_time is None
 
-#     taskq2.add_tasks(
-#         [
-#             Task(entrypoint=""),
-#             Task(entrypoint=""),
-#         ]
-#     )
-#     assert Task.count_all(_handler=handler) == 5
-#     assert len(taskq1.get_tasks()) == 3
-#     assert len(taskq2.get_tasks()) == 2
+    # update db with task status (also updates task inplace)
+    taskq.update_task_status(task, EStatus.SUCCESS, timestamp=now)
+    assert task.status == EStatus.SUCCESS
+    assert task.pulse_time == now
+    assert task.done_time == now
 
-#     taskq2.delete_job()
-#     assert len(Job.get_all(_handler=handler)) == 1
+    # get task form db and validate
+    tasks = taskq._handler.get_all(Task)
+    assert len(tasks) == 1  # sanity
+    task: Task = tasks[0]
 
-#     assert Task.count_all(_handler=handler) == 3
-#     assert len(taskq1.get_tasks()) == 3
-
-#     taskq1.delete_job()
-#     assert Task.count_all(_handler=handler) == 0
-
-
-# def test_update_task_start_time(jtaskq):
-#     in_task1 = Task(entrypoint=dummy_args_task, level=1, name="task1")
-
-#     jtaskq.add_tasks(
-#         [
-#             in_task1,
-#         ]
-#     )
-
-#     tasks = jtaskq.get_tasks()
-#     assert len(tasks) == 1  # sanity
-#     task: Task = tasks[0]
-
-#     # update db with task time (also updates task inplace)
-#     start_time = datetime.now()
-#     start_time = start_time.replace(microsecond=0)  # test to seconds resolution
-#     jtaskq.update_task_start_time(task, start_time)
-#     assert task.start_time == start_time
-
-#     # get task form db and validate
-#     tasks = jtaskq.get_tasks()
-#     assert len(tasks) == 1  # sanity
-#     task: Task = tasks[0]
-#     assert task.start_time == start_time
-
-
-# def test_update_task_status(jtaskq):
-#     in_task1 = Task(entrypoint=dummy_args_task, level=1, name="task1")
-
-#     jtaskq.add_tasks(
-#         [
-#             in_task1,
-#         ]
-#     )
-
-#     tasks = jtaskq.get_tasks()
-#     assert len(tasks) == 1  # sanity
-#     task: Task = tasks[0]
-#     assert task.status == EStatus.PENDING
-
-#     now = datetime.now()
-#     # update db with task status (also updates task inplace)
-#     jtaskq.update_task_status(task, EStatus.RUNNING, timestamp=now)
-#     assert task.status == EStatus.RUNNING
-#     assert task.pulse_time == now
-#     assert task.done_time is None
-#     # get task form db and validate
-#     tasks = jtaskq.get_tasks()
-#     assert len(tasks) == 1  # sanity
-#     task: Task = tasks[0]
-#     assert task.status == EStatus.RUNNING
-#     assert task.pulse_time == now
-#     assert task.done_time is None
-
-#     # update db with task status (also updates task inplace)
-#     jtaskq.update_task_status(task, EStatus.SUCCESS, timestamp=now)
-#     assert task.status == EStatus.SUCCESS
-#     assert task.pulse_time == now
-#     assert task.done_time == now
-#     # get task form db and validate
-#     tasks = jtaskq.get_tasks()
-#     assert len(tasks) == 1  # sanity
-#     task: Task = tasks[0]
-#     assert task.status == EStatus.SUCCESS
-#     assert task.pulse_time == now
-#     assert task.done_time == now
+    assert task.status == EStatus.SUCCESS
+    assert task.pulse_time == now
+    assert task.done_time == now
 
 
 # def _compare_tasks(task1: Task, task2: Task, job_id=None):

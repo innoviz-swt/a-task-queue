@@ -93,5 +93,6 @@ def test_run_concurrency(tmp_path, config):
     args = ["run", "-c", str(configpath), "--job-id", str(job.job_id), "--concurrency", "3"]
     main(args=args)
 
+    pids = set([l for l in filepath.read_text().split("\n") if l])
     assert filepath.exists()
-    assert len(set([l for l in filepath.read_text().split("\n") if l])) == 3
+    assert len(pids) == 3

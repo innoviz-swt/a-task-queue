@@ -25,7 +25,7 @@ class SQLite3DBHandler(DBHandler):
             return obj
 
         if issubclass(key_cls, (datetime, DateTime)):
-            return to_datetime(obj)
+            return from_datetime(obj)
 
         return obj
 
@@ -35,7 +35,7 @@ class SQLite3DBHandler(DBHandler):
             return obj
 
         if issubclass(key_cls, (datetime, DateTime)):
-            return from_datetime(obj)
+            return to_datetime(obj)
 
         return obj
 
@@ -109,7 +109,7 @@ class SQLite3DBHandler(DBHandler):
         return conn
 
     def _create(self, c: sqlite3.Connection, model: Model):
-        d = {k: v for k, v in model.__dict__.items() if k in model._state.columns}
+        d = self.to_interface(model)
         keys = list(d.keys())
         values = list(d.values())
         if keys:

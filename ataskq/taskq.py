@@ -52,13 +52,6 @@ class TaskQ(Logger):
 
         return self
 
-    def update_task_start_time(self, task: Task, start_time: datetime = None):
-        if start_time is None:
-            start_time = datetime.now()
-
-        task.start_time = start_time
-        self._handler.add(task)
-
     def update_task_status(self, task: Task, status: EStatus, timestamp: datetime = None):
         if timestamp is None:
             timestamp = datetime.now()
@@ -124,7 +117,8 @@ class TaskQ(Logger):
                 return
 
         # update task start time
-        self.update_task_start_time(task)
+        task.start_time = datetime.now()
+        self._handler.add(task)
 
         # run task
         monitor = MonitorThread(task, self, pulse_interval=self.config["monitor"]["pulse_interval"])
@@ -210,7 +204,7 @@ class TaskQ(Logger):
         if isinstance(job, int):
             pass
         elif isinstance(job, Job):
-            if job._state.value == EState.NEW:
+            if job._state.value == EState.New:
                 self.add(job)
             job = job.job_id
         else:

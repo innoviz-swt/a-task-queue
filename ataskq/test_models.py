@@ -1,7 +1,7 @@
 import pytest
+from copy import copy
 
-from typing import Dict
-
+from .model import EState
 from .models import Model, Job, Task, Object
 from .handler import Handler, from_config, register_handler, unregister_handler
 
@@ -37,17 +37,13 @@ def handler(config):
     unregister_handler("test_handler")
 
 
-@pytest.fixture
-def jhandler(handler) -> Handler:
-    return handler.create_job()
-
-
-def apply_lamdas(handler: Handler, test_attr):
+def apply_lamdas(h: Handler, test_attr):
+    ret = copy(test_attr)
     for k, v in test_attr.items():
         if callable(v):
-            test_attr[k] = v(handler)
+            ret[k] = v(h)
 
-    return test_attr
+    return ret
 
 
 @pytest.mark.parametrize("test_data", TEST_DATA, ids=TEST_IDS)
@@ -55,7 +51,9 @@ def test_create(handler, test_data):
     model_cls: Model = test_data["klass"]
     attr = apply_lamdas(handler, test_data["attr"])
     m = model_cls(**attr)
+    assert m._state.value == EState.New
     handler.add(m)
+    assert m._state.value == EState.Modified
 
     count = len(handler.get_all(model_cls))
     assert count == 1
@@ -64,71 +62,120 @@ def test_create(handler, test_data):
         assert getattr(m, k) == v, f"{m}.{k}: key value mismatch"
 
 
-# def assert_model(m_src, m_rec, model_cls, first_id, i):
-#     assert isinstance(m_rec, model_cls), f"index: '{i}'"
-#     assert m_src.name == m_rec.name == f"test {i+1}", f"index: '{i}'"
-#     assert m_src.__dict__ == m_rec.__dict__, f"index: '{i}'"
-#     assert getattr(m_src, m_src.id_key()) == i + first_id, f"index: '{i}'"
-#     assert getattr(m_rec, m_rec.id_key()) == i + first_id, f"index: '{i}'"
+def assert_model(m_src: Model, m_rec: Model, model_cls, first_id, i):
+    assert id(m_src) != id(m_rec), f"index: '{i}'"
+    assert isinstance(m_rec, model_cls), f"index: '{i}'"
+    assert m_src.to_dict() == m_rec.to_dict(), f"index: '{i}'"
+    assert getattr(m_src, m_src.id_key()) == i + first_id, f"index: '{i}'"
+    assert getattr(m_rec, m_rec.id_key()) == i + first_id, f"index: '{i}'"
 
 
-# @pytest.mark.parametrize("model_cls", __MODELS__.values(), ids=TEST_IDS)
-# def test_get_all(handler, model_cls):
-#     m1 = create(model_cls, name="test 1")
-#     m2 = create(model_cls, name="test 2")
-#     m3 = create(model_cls, name="test 3")
-#     data = [m1, m2, m3]
-#     m_all = model_cls.get_all()
-#     assert len(m_all) == 3
+@pytest.mark.parametrize("test_data", TEST_DATA, ids=TEST_IDS)
+def test_get_all(handler, test_data):
+    model_cls: Model = test_data["klass"]
+    attr = apply_lamdas(handler, test_data["attr"])
+    k = list(test_data["attr"].keys())[0]
+    m1 = model_cls(**{**attr, k: "test 1"})
+    m2 = model_cls(**{**attr, k: "test 2"})
+    m3 = model_cls(**{**attr, k: "test 3"})
 
-#     first_id = getattr(m1, m1.id_key())
-#     for i in range(len(data)):
-#         m_src = data[i]
-#         m_rec = m_all[i]
-#         assert_model(m_src, m_rec, model_cls, first_id, i)
+    data = [m1, m2, m3]
+    handler.add(data)
 
+    m_all = handler.get_all(model_cls)
+    assert len(m_all) == 3
 
-# @pytest.mark.parametrize("model_cls", __MODELS__.values(), ids=TEST_IDS)
-# def test_get_all_where(handler, model_cls: Model):
-#     m1 = create(model_cls, name="test 1")
-#     m2 = create(model_cls, name="test 2")
-#     m3 = create(model_cls, name="test 3")
-
-#     m_all = model_cls.get_all(where="name='test 1'")
-#     assert len(m_all) == 1
-
-#     m_rec = m_all[0]
-#     first_id = getattr(m1, m1.id_key())
-#     assert_model(m1, m_rec, model_cls, first_id, 0)
+    first_id = getattr(m1, m1.id_key())
+    for i in range(len(data)):
+        m_src = data[i]
+        m_rec = m_all[i]
+        assert_model(m_src, m_rec, model_cls, first_id, i)
+        assert m_rec._state.value == EState.Fetched
 
 
-# @pytest.mark.parametrize("model_cls", __MODELS__.values(), ids=TEST_IDS)
-# def test_get(handler, model_cls):
-#     m1 = create(model_cls, name="test 1")
-#     m2 = create(model_cls, name="test 2")
-#     m3 = create(model_cls, name="test 3")
-#     data = [m1, m2, m3]
+@pytest.mark.parametrize("test_data", TEST_DATA, ids=TEST_IDS)
+def test_get_all_where(handler, test_data):
+    model_cls: Model = test_data["klass"]
+    attr = apply_lamdas(handler, test_data["attr"])
+    k = list(test_data["attr"].keys())[0]
+    m1 = model_cls(**{**attr, k: "test 1"})
+    m2 = model_cls(**{**attr, k: "test 2"})
+    m3 = model_cls(**{**attr, k: "test 3"})
+    data = [m1, m2, m3]
+    handler.add(data)
 
-#     first_id = getattr(m1, m1.id_key())
-#     m_all = [model_cls.get(i + first_id) for i in range(len(data))]
-#     for i in range(len(data)):
-#         m = data[i]
-#         m_rec = m_all[i]
-#         assert isinstance(m_rec, model_cls), f"index: '{i}'"
-#         assert m.name == m_rec.name == f"test {i+1}", f"index: '{i}'"
-#         assert m.__dict__ == m_rec.__dict__, f"index: '{i}'"
-#         assert getattr(m, m.id_key()) == i + first_id, f"index: '{i}'"
-#         assert getattr(m_rec, m_rec.id_key()) == i + first_id, f"index: '{i}'"
+    m_all = handler.get_all(model_cls, where=f"{k}='test 1'")
+    assert len(m_all) == 1
+
+    m_rec = m_all[0]
+    first_id = getattr(m1, m1.id_key())
+    assert_model(m1, m_rec, model_cls, first_id, 0)
+    assert m_rec._state.value == EState.Fetched
 
 
-# @pytest.mark.parametrize("model_cls", __MODELS__.values(), ids=TEST_IDS)
-# def test_delete(handler, model_cls):
-#     m = create(model_cls)
+@pytest.mark.parametrize("test_data", TEST_DATA, ids=TEST_IDS)
+def test_get(handler, test_data):
+    model_cls: Model = test_data["klass"]
+    attr = apply_lamdas(handler, test_data["attr"])
+    k = list(test_data["attr"].keys())[0]
+    m1 = model_cls(**{**attr, k: "test 1"})
+    m2 = model_cls(**{**attr, k: "test 2"})
+    m3 = model_cls(**{**attr, k: "test 3"})
+    data = [m1, m2, m3]
+    handler.add(data)
 
-#     count = len(model_cls.get_all())
-#     assert count == 1
+    first_id = getattr(m1, m1.id_key())
+    m_all = [handler.get(model_cls, i + first_id) for i in range(len(data))]
+    for i in range(len(data)):
+        m_src = data[i]
+        m_rec = m_all[i]
+        assert_model(m_src, m_rec, model_cls, first_id, i)
+        assert m_rec._state.value == EState.Fetched
 
-#     m.delete()
 
-#     count = len(model_cls.get_all())
-#     assert count == 0
+@pytest.mark.parametrize("test_data", TEST_DATA, ids=TEST_IDS)
+def test_delete(handler, test_data):
+    model_cls: Model = test_data["klass"]
+    attr = apply_lamdas(handler, test_data["attr"])
+    model = model_cls(**attr)
+    handler.add(model)
+
+    count = len(handler.get_all(model_cls))
+    assert count == 1
+
+    handler.delete(model)
+    assert model._state.value == EState.Deleted
+
+    count = len(handler.get_all(model_cls))
+    assert count == 0
+
+
+def test_job_delete_cascade(config):
+    # test that deleting a job deletes all its tasks
+    handler = from_config(config)
+    job1 = Job(
+        name="job1",
+        tasks=[
+            Task(entrypoint=""),
+            Task(entrypoint=""),
+            Task(entrypoint=""),
+        ],
+    )
+    job2 = Job(
+        name="job2",
+        tasks=[
+            Task(entrypoint=""),
+            Task(entrypoint=""),
+        ],
+    )
+    handler.add([job1, job2])
+    assert handler.count_all(Job) == 2
+    assert handler.count_all(Task) == 5
+
+    handler.delete(job2)
+    assert handler.count_all(Job) == 1
+    assert handler.count_all(Task) == 3
+
+    handler.delete(job1)
+    assert handler.count_all(Job) == 0
+    assert handler.count_all(Task) == 0

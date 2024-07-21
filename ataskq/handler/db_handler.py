@@ -4,7 +4,7 @@ from abc import abstractmethod
 from datetime import datetime
 
 from .handler import Handler, get_query_kwargs
-from ..model import Model, EState, Child, Parent
+from ..model import Model, State, EState, Child, Parent
 from .. import __schema_version__
 
 
@@ -109,16 +109,16 @@ class DBHandler(Handler):
 
                 for parent in parents:
                     parent: Model
-                    if parent._state.value == EState.NEW:
+                    if parent._state.value == EState.New:
                         self._add(c, parent, handled)
                         setattr(model, p_id_key, parent.id_val)
                     else:
                         assert getattr(model, p_id_key) == parent.id_val
                         self._add(c, parent, handled)
 
-        if model._state.value == EState.NEW:
+        if model._state.value == EState.New:
             self._create(c, model)
-        elif model._state.value == EState.Modified:
+        elif model._state.value == EState.Modified and model._state.columns:
             self._update(c, model)
 
         # handle childs
@@ -135,7 +135,7 @@ class DBHandler(Handler):
 
                 for child in children:
                     child: Model
-                    if child._state.value == EState.NEW:
+                    if child._state.value == EState.New:
                         setattr(child, c_id_key, model.id_val)
                     else:
                         assert getattr(child, c_id_key) == self.id_val
@@ -235,10 +235,6 @@ class DBHandler(Handler):
 
         c.execute(query_str, values)
 
-    @abstractmethod
-    def delete(self, model_cls: Model, model_id: int):
-        pass
-
     @transaction_decorator()
     def delete_all(self, c, model_cls: Model, **kwargs):
         query_kwargs = get_query_kwargs(kwargs)
@@ -250,8 +246,8 @@ class DBHandler(Handler):
         c.execute(query_str)
 
     @transaction_decorator()
-    def delete(self, c, model_cls: Model, model_id: int):
-        c.execute(f"DELETE FROM {model_cls.table_key()} WHERE {model_cls.id_key()} = {model_id}")
+    def _delete(self, c, model: Model):
+        c.execute(f"DELETE FROM {model.table_key()} WHERE {model.id_key()} = {model.id_val}")
 
     @transaction_decorator(exclusive=True)
     def init_db(self, c):
@@ -513,7 +509,7 @@ class DBHandler(Handler):
         )
 
     def _create(self, c, model: Model):
-        d = {k: v for k, v in model.__dict__.items() if k in model._state.columns}
+        d = self.to_interface()
         keys = list(d.keys())
         values = list(d.values())
         if keys:
@@ -528,7 +524,7 @@ class DBHandler(Handler):
         setattr(model, model.id_key(), model_id)
 
     def _update(self, c, model: Model):
-        d = {k: v for k, v in model.__dict__.items() if k in model._state.columns}
+        d = self.to_interface(model)
         insert = ", ".join([f"{k} = {self.format_symbol}" for k in d.keys()])
         values = list(d.values())
         c.execute(f"UPDATE {model.table_key()} SET {insert} WHERE {model.id_key()} = {model.id_val};", values)

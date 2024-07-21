@@ -45,15 +45,16 @@ class Child:
 
 
 class EState(Enum):
-    NEW = 0
+    New = 0
     Fetched = 1
     Modified = 2
+    Deleted = 3
 
 
 class State:
-    def __init__(self) -> None:
+    def __init__(self, value=EState.New) -> None:
         self.columns = set()
-        self.value = EState.NEW
+        self.value = value
 
 
 class Model:
@@ -104,6 +105,11 @@ class Model:
     @classmethod
     def childs(cls) -> str:
         ret = [ann for ann, klass in cls.__annotations__.items() if isinstance(getattr(cls, ann, None), Child)]
+        return ret
+
+    def to_dict(self):
+        ret = {getattr(self, k) for k in self.members()}
+
         return ret
 
     def __init__(self, **kwargs) -> None:

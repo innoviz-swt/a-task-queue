@@ -7,7 +7,7 @@ from ..env import CONFIG
 from ..logger import Logger
 from ..config import load_config
 
-from ..model import Model, DateTime, Parent, EState
+from ..model import Model, DateTime, Parent, State, EState
 
 __STRTIME_FORMAT__ = "%Y-%m-%d %H:%M:%S.%f"
 
@@ -76,11 +76,12 @@ class Handler(Logger):
     ######################
     @classmethod
     def from_interface(cls, model_cls: Model, ikwargs: dict) -> Model:
+        iret = dict()
         for k in ikwargs.keys():
-            ikwargs[k] = cls.encode(ikwargs[k], model_cls, k, model_cls.__annotations__[k])
+            iret[k] = cls.decode(ikwargs[k], model_cls, k, model_cls.__annotations__[k])
 
-        ret = model_cls(**ikwargs)
-        ret._state.value = EState.Fetched
+        ret = model_cls(**iret)
+        ret._state = State(value=EState.Fetched)
 
         return ret
 
@@ -88,15 +89,15 @@ class Handler(Logger):
     def to_interface(cls, model: Model) -> dict:
         model_cls = model.__class__
         ret = dict()
-        for k in model.members():
+        for k in model._state.columns:
             ret[k] = cls.encode(getattr(model, k), model_cls, k, model_cls.__annotations__[k])
 
-        if model.state.value == EState.NEW:
-            ret._state.value = EState.Fetched
+        if model._state.value == EState.New:
+            model._state = State(value=EState.Modified)
         elif model._state.value == EState.Fetched:
             raise RuntimeError(f"trying to push to db model in fetched state. {model}")
         elif model._state.value == EState.Modified:
-            pass
+            model._state = State(value=EState.Modified)
         else:
             raise RuntimeError(f"unsupported db state '{model._state}'")
 
@@ -116,9 +117,9 @@ class Handler(Logger):
     def delete_all(self, model_cls: Model, **kwargs):
         pass
 
-    @abstractmethod
-    def delete(self, modl_cls: Model, model_id: int):
-        pass
+    def delete(self, model: Model):
+        self._delete(model)
+        model._state = State(value=EState.Deleted)
 
     @abstractmethod
     def count_all(self, model_cls: Model, **kwargs) -> int:
@@ -129,6 +130,8 @@ class Handler(Logger):
         pass
 
     def get_all(self, model_cls: Model, **kwargs) -> List[Model]:
+        assert issubclass(model_cls, Model)
+
         iret = self._get_all(model_cls, **kwargs)
         ret = [self.from_interface(model_cls, ir) for ir in iret]
 
