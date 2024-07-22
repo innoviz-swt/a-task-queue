@@ -3,6 +3,11 @@ from .model import Model, Str, Bytes, PrimaryKey
 from .utils.dynamic_import import import_callable
 
 
+def pickle_iter(*obj):
+    ret = Object.serialize(obj, serializer="pickle.dumps", desrializer="pickle.loads")
+    return ret
+
+
 def pickle_dict(**obj):
     ret = Object.serialize(obj, serializer="pickle.dumps", desrializer="pickle.loads")
     return ret

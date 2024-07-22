@@ -119,7 +119,7 @@ class Model:
         # check a kwargs are class members
         for k in kwargs.keys():
             if k not in cls_annotations.keys():
-                raise Exception(f"'{k}' not a possible class '{self.__class__.__name__}' member.")
+                raise Exception(f"'{k}' is not annotated for class '{self.__class__.__name__}'.")
 
         # set defaults
         for member in self.members(primary=True):

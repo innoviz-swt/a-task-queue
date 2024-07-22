@@ -20,7 +20,7 @@
             "type": "debugpy",
             "request": "launch",
             "module": "pytest",
-            "args": ["${file}", "-vs"],
+            "args": ["${file}::test_take_next_task_exclusive", "-vs"],
             // "args": ["${file}::<test_name>"],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
@@ -85,10 +85,26 @@
             "justMyCode": true
         },
         {
+            "name": "basic_task_queue_with_logger",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/basic_task_queue_with_logger.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
             "name": "run_in_parallel",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/examples/run_in_parallel.py",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
+            "name": "run_with_levels",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/examples/run_with_levels.py",
             "console": "integratedTerminal",
             "justMyCode": true
         },
@@ -108,5 +124,14 @@
             "console": "integratedTerminal",
             "justMyCode": true
         },
-    ]
+    ],
+    "compounds": [
+        {
+            "name": "server + background",
+            "configurations": [
+                "server",
+                "background"
+            ],
+        }
+    ],
 }

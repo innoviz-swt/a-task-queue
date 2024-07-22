@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Union, List, Dict
+from typing import Union, List, Dict, Tuple
 from datetime import datetime
 from enum import Enum
 
@@ -8,6 +8,7 @@ from ..logger import Logger
 from ..config import load_config
 
 from ..model import Model, DateTime, Parent, State, EState
+from ..models import Task
 
 __STRTIME_FORMAT__ = "%Y-%m-%d %H:%M:%S.%f"
 
@@ -205,7 +206,7 @@ class Handler(Logger):
     # Custom #
     ##########
     @abstractmethod
-    def take_next_task(self, job_id=None, level_start: int = None, level_stop: int = None) -> tuple:
+    def take_next_task(self, job_id=None, level_start: int = None, level_stop: int = None) -> Tuple[EAction, Task]:
         pass
 
     @abstractmethod

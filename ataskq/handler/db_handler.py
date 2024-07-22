@@ -138,7 +138,7 @@ class DBHandler(Handler):
                     if child._state.value == EState.New:
                         setattr(child, c_id_key, model.id_val)
                     else:
-                        assert getattr(child, c_id_key) == self.id_val
+                        assert getattr(child, c_id_key) == model.id_val
                     self._add(c, child, handled)
 
         handled.add(id(model))
@@ -285,6 +285,7 @@ class DBHandler(Handler):
             "level REAL, "
             "entrypoint TEXT NOT NULL, "
             f"kwargs_id INTEGER, "  # object id
+            f"args_id INTEGER, "  # object id
             f"status TEXT ,"
             f"take_time {self.timestamp_type}, "
             f"start_time {self.timestamp_type}, "

@@ -1,5 +1,5 @@
 import multiprocessing
-from typing import Union
+from typing import Union, Tuple
 import logging
 from multiprocessing import Process
 import time
@@ -70,10 +70,13 @@ class TaskQ(Logger):
 
         self._handler.add(task)
 
-    def count_pending_tasks_below_level(self, job_id, level):
+    def count_pending_tasks_below_level(self, job: Union[int, Job], level: int):
+        if isinstance(job, Job):
+            job = job.job_id
+
         ret = self._handler.count_all(
             Task,
-            where=f"job_id = {job_id} AND level < {level} AND status in ('{EStatus.PENDING}')",
+            where=f"job_id = {job} AND level < {level} AND status in ('{EStatus.PENDING}')",
         )
 
         return ret
@@ -96,7 +99,29 @@ class TaskQ(Logger):
         self.info(f"Running task '{task}'")
 
         # get entry point func to execute
+        if task.entrypoint == "ataskq.tasks_utils.skip_run_task":
+            self.info(f"task '{task}' is marked as 'skip_run_task', skipping run task.")
+            return
+
         func = import_callable(task.entrypoint)
+
+        # get task args
+        task_args = list()
+        if task.args_id is not None:
+            try:
+                task_args_obj = self._handler.get(Object, task.args_id)
+                task_args = task_args_obj()
+            except Exception as ex:
+                msg = f"Getting tasks '{task}' args failed."
+                if self.config["run"]["raise_exception"]:  # for debug purposes only
+                    self.warning(msg)
+                    self.update_task_status(task, EStatus.FAILURE)
+                    raise ex
+
+                self.warning(msg, exc_info=True)
+                self.update_task_status(task, EStatus.FAILURE)
+
+                return
 
         # get task kwargs
         task_kwargs = dict()
@@ -125,7 +150,7 @@ class TaskQ(Logger):
         monitor.start()
 
         try:
-            func(**task_kwargs)
+            func(*task_args, **task_kwargs)
             status = EStatus.SUCCESS
         except Exception as ex:
             msg = f"Running task '{task}' failed with exception."
@@ -143,7 +168,7 @@ class TaskQ(Logger):
         monitor.join()
         self.update_task_status(task, status)
 
-    def _take_next_task(self, job_id=None, level=None):
+    def _take_next_task(self, job_id=None, level=None) -> Tuple[EAction, Task]:
         level_start = level.start if level is not None else None
         level_stop = level.stop if level is not None else None
         ret = self._handler.take_next_task(job_id=job_id, level_start=level_start, level_stop=level_stop)
@@ -193,7 +218,7 @@ class TaskQ(Logger):
 
         return level
 
-    def run(self, job: Union[Job, int], concurrency=None, level=None):
+    def run(self, job: Union[None, Job, int] = None, concurrency=None, level=None):
         if self.config["db"]["max_jobs"] is not None:
             # keep max jbos
             self._handler.delete_all(
@@ -201,14 +226,14 @@ class TaskQ(Logger):
                 where=f"job_id NOT IN (SELECT job_id FROM jobs ORDER BY job_id DESC limit {self.config['db']['max_jobs']})",
             )
 
-        if isinstance(job, int):
+        if job is None or isinstance(job, int):
             pass
         elif isinstance(job, Job):
             if job._state.value == EState.New:
                 self.add(job)
             job = job.job_id
         else:
-            raise RuntimeError("job must be of type int (job_id) or Job")
+            raise RuntimeError("job must be of type int (job_id), Job or None")
 
         self.info(f"Start running with connection {self.config['connection']}")
         if level is not None:
@@ -220,7 +245,7 @@ class TaskQ(Logger):
         if concurrency is None:
             self._run(job, level)
             self._running = False
-            return
+            return self
 
         assert isinstance(concurrency, (int, float))
 
