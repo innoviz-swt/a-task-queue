@@ -4,13 +4,20 @@ from .utils.dynamic_import import import_callable
 
 
 def pickle_iter(*obj):
-    ret = Object.serialize(obj, serializer="pickle.dumps", desrializer="pickle.loads")
+    ret = Object.serialize(obj, encoder="pickle")
     return ret
 
 
 def pickle_dict(**obj):
-    ret = Object.serialize(obj, serializer="pickle.dumps", desrializer="pickle.loads")
+    ret = Object.serialize(obj, encoder="pickle")
     return ret
+
+
+DEFAULT_ENCODER = "pickle"
+ENCODE_MAP = {
+    "pickle": ("pickle.dumps", "pickle.loads"),
+    "json": ("json.dumps", "json.loads"),
+}
 
 
 class Object(Model):
@@ -32,19 +39,25 @@ class Object(Model):
         self._cache = obj
         return obj
 
-    def __call__(self, *args: Any, **kwds: Any) -> Any:
+    def __call__(self) -> Any:
         return self.deserialize()
 
     @staticmethod
-    def serialize(obj, serializer="pickle.dumps", desrializer="pickle.loads"):
+    def serialize(obj, encoder=DEFAULT_ENCODER, decoder=None):
         if obj is None:
             return None
-        serializer_func = import_callable(serializer)
+
+        if encoder is None and decoder is None:
+            encoder = ENCODE_MAP[DEFAULT_ENCODER]
+        elif encoder is not None and decoder is None:
+            encoder, decoder = ENCODE_MAP[encoder]
+
+        serializer_func = import_callable(encoder)
         blob = serializer_func(obj)
         ret = Object(
             blob=blob,
-            serializer=serializer,
-            desrializer=desrializer,
+            serializer=encoder,
+            desrializer=decoder,
         )
 
         return ret

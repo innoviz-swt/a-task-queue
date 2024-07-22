@@ -148,56 +148,6 @@ class Handler(Logger):
 
         return ret
 
-    @staticmethod
-    def members_attrs(model_cls: Model, models: Union[Model, List[Model]], primary=False):
-        if isinstance(models, list):
-            is_list = True
-        else:
-            is_list = False
-            models = [models]
-
-        ret = [{k: v for k, v in m.__dict__.items() if k in model_cls.members(primary=primary)} for m in models]
-
-        if not is_list:
-            ret = ret[0]
-
-        return ret
-
-    def create_models_bulk(self, model_cls: Model, models: List[Model]) -> List[Model]:
-        # parents mapping
-        parents = {}
-        for mi, m in enumerate(models):
-            for p_key in m.parents():
-                if (parent := getattr(m, p_key)) is not None:
-                    # parent create is required
-                    parent_mapping: Parent = getattr(m.__class__, p_key)
-                    p_id_key = parent_mapping.key
-                    assert getattr(m, p_id_key) is None, ""
-                    parent_class = m.__annotations__[p_key]
-                    if parent_class not in parents:
-                        parents[parent_class] = {"models": [], "indices": [], "id_keys": []}
-                    parents[parent_class]["models"].append(parent)
-                    parents[parent_class]["indices"].append(mi)
-                    parents[parent_class]["id_keys"].append(p_id_key)
-
-        # parents bulk create
-        for p_cls, parent_models_data in parents.items():
-            parent_models = parent_models_data["models"]
-            self.create_bulk(p_cls, parent_models)
-            for p_m, p_i, p_id_key in zip(
-                parent_models_data["models"], parent_models_data["indices"], parent_models_data["id_keys"]
-            ):
-                setattr(models[p_i], p_id_key, getattr(p_m, p_m.id_key()))
-
-        # model create
-        models_attrs = self.members_attrs(model_cls, models)
-        ikwargs = self.m2i(model_cls, models_attrs)
-        model_ids = self._create_bulk(model_cls, ikwargs)
-        for i, mi in enumerate(model_ids):
-            setattr(models[i], model_cls.id_key(), mi)
-
-        return models
-
     @abstractmethod
     def update_all(self, model_cls: Model, where: str = None, **ikwargs):
         pass

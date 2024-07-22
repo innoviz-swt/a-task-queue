@@ -68,8 +68,6 @@ class TaskQ(Logger):
         else:
             raise RuntimeError(f"Unsupported status '{status}' for status update")
 
-        self._handler.add(task)
-
     def count_pending_tasks_below_level(self, job: Union[int, Job], level: int):
         if isinstance(job, Job):
             job = job.job_id
@@ -80,20 +78,6 @@ class TaskQ(Logger):
         )
 
         return ret
-
-    def oid(self, obj, serializer="pickle.dumps", desrializer="pickle.loads") -> int:
-        """return object id if isinstance(obj, Object)
-        otherwise creates new object in db and returns its id
-
-        Returns:
-            int: Object id
-        """
-        if isinstance(obj, Object):
-            return obj.object_id
-
-        obj = self.create_object(obj=obj, serializer=serializer, _desrializer=desrializer)
-
-        return obj.object_id
 
     def _run_task(self, task: Task):
         self.info(f"Running task '{task}'")
@@ -116,10 +100,12 @@ class TaskQ(Logger):
                 if self.config["run"]["raise_exception"]:  # for debug purposes only
                     self.warning(msg)
                     self.update_task_status(task, EStatus.FAILURE)
+                    self.add(task)
                     raise ex
 
                 self.warning(msg, exc_info=True)
                 self.update_task_status(task, EStatus.FAILURE)
+                self.add(task)
 
                 return
 
@@ -134,10 +120,12 @@ class TaskQ(Logger):
                 if self.config["run"]["raise_exception"]:  # for debug purposes only
                     self.warning(msg)
                     self.update_task_status(task, EStatus.FAILURE)
+                    self.add(task)
                     raise ex
 
                 self.warning(msg, exc_info=True)
                 self.update_task_status(task, EStatus.FAILURE)
+                self.add(task)
 
                 return
 
@@ -149,24 +137,45 @@ class TaskQ(Logger):
         monitor = MonitorThread(task, self, pulse_interval=self.config["monitor"]["pulse_interval"])
         monitor.start()
 
+        ret = None
         try:
-            func(*task_args, **task_kwargs)
-            status = EStatus.SUCCESS
+            ret = func(*task_args, **task_kwargs)
         except Exception as ex:
             msg = f"Running task '{task}' failed with exception."
             if self.config["run"]["raise_exception"]:  # for debug purposes only
                 self.warning(msg)
                 self.update_task_status(task, EStatus.FAILURE)
+                self.add(task)
                 monitor.stop()
                 monitor.join()
                 raise ex
 
             self.warning(msg, exc_info=True)
-            status = EStatus.FAILURE
+            self.update_task_status(task, EStatus.FAILURE)
+            self.add(task)
+            return
 
         monitor.stop()
         monitor.join()
-        self.update_task_status(task, status)
+
+        if ret is not None:
+            try:
+                task.ret = Object.serialize(ret)
+            except Exception as ex:
+                msg = f"Serialize task '{task}' return value failed with exception."
+                if self.config["run"]["raise_exception"]:  # for debug purposes only
+                    self.warning(msg)
+                    self.update_task_status(task, EStatus.FAILURE)
+                    self.add(task)
+                    raise ex
+
+                self.warning(msg, exc_info=True)
+                self.update_task_status(task, EStatus.FAILURE)
+                self.add(task)
+                return
+
+        self.update_task_status(task, EStatus.SUCCESS)
+        self.add(task)
 
     def _take_next_task(self, job_id=None, level=None) -> Tuple[EAction, Task]:
         level_start = level.start if level is not None else None

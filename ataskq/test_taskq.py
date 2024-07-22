@@ -60,12 +60,13 @@ def test_update_task_status(config):
     now = datetime.now()
     # update db with task status (also updates task inplace)
     taskq.update_task_status(task, EStatus.RUNNING, timestamp=now)
+    taskq.add(task)
     assert task.status == EStatus.RUNNING
     assert task.pulse_time == now
     assert task.done_time is None
 
     # get task form db and validate
-    # todo: replace with refresh
+    taskq.add(task)
     tasks = taskq._handler.get_all(Task)
     assert len(tasks) == 1  # sanity
     task: Task = tasks[0]
@@ -75,12 +76,14 @@ def test_update_task_status(config):
     assert task.done_time is None
 
     # update db with task status (also updates task inplace)
+    taskq.add(task)
     taskq.update_task_status(task, EStatus.SUCCESS, timestamp=now)
     assert task.status == EStatus.SUCCESS
     assert task.pulse_time == now
     assert task.done_time == now
 
     # get task form db and validate
+    taskq.add(task)
     tasks = taskq._handler.get_all(Task)
     assert len(tasks) == 1  # sanity
     task: Task = tasks[0]

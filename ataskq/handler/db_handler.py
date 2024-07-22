@@ -4,7 +4,7 @@ from abc import abstractmethod
 from datetime import datetime
 
 from .handler import Handler, get_query_kwargs
-from ..model import Model, State, EState, Child, Parent
+from ..model import Model, EState, Child, Parent
 from .. import __schema_version__
 
 
@@ -99,7 +99,7 @@ class DBHandler(Handler):
         for p_key in model.parents():
             if (parents := getattr(model, p_key)) is not None:
                 # # parent create is required
-                parent_mapping: Child = getattr(model.__class__, p_key)
+                parent_mapping: Parent = getattr(model.__class__, p_key)
                 p_id_key = parent_mapping.key
                 parent_class = model.__annotations__[p_key]
                 if isinstance(parent_class, _GenericAlias) and parent_class._name == "List":
@@ -286,12 +286,16 @@ class DBHandler(Handler):
             "entrypoint TEXT NOT NULL, "
             f"kwargs_id INTEGER, "  # object id
             f"args_id INTEGER, "  # object id
+            f"ret_id INTEGER, "  # object id
             f"status TEXT ,"
             f"take_time {self.timestamp_type}, "
             f"start_time {self.timestamp_type}, "
             f"done_time {self.timestamp_type}, "
             f"pulse_time {self.timestamp_type}, "
             "job_id INTEGER NOT NULL, "
+            "FOREIGN KEY (kwargs_id) REFERENCES objects(object_id), "
+            "FOREIGN KEY (args_id) REFERENCES objects(object_id), "
+            "FOREIGN KEY (ret_id) REFERENCES objects(object_id), "
             "CONSTRAINT fk_job_id FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE CASCADE"
             ")"
         )

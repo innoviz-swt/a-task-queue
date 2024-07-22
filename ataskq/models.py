@@ -1,5 +1,5 @@
 from typing import List
-from .model import Model, PrimaryKey, Str, Int, Float, DateTime, Parent, Child, Bytes
+from .model import Model, PrimaryKey, Str, Int, Float, DateTime, Parent, Child
 from .object import Object, pickle_dict, pickle_iter
 from enum import Enum
 
@@ -22,6 +22,7 @@ class Task(Model):
     entrypoint: Str = ""
     args_id: Int
     kwargs_id: Int
+    ret_id: Int
     status: EStatus = EStatus.PENDING
     start_time: DateTime
     take_time: DateTime
@@ -30,6 +31,7 @@ class Task(Model):
     job_id: Int
     args: Object = Parent(key="args_id")
     kwargs: Object = Parent(key="kwargs_id")
+    ret: Object = Parent(key="ret_id")
 
     def __init__(self, **kwargs) -> None:
         entrypoint = kwargs.get("entrypoint")
