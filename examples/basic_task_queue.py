@@ -1,5 +1,5 @@
 import context
-from ataskq import TaskQ, Job, Task
+from ataskq import TaskQ, Job, Task, Object
 
 
 def hello_world():
@@ -30,7 +30,7 @@ tq.run(job)
 print()
 
 # get tasks results (return values)
-tasks = tq.handler.get_all(Task, job_id=job.job_id)
+tasks = tq.get_all(Task, relationships=["ret"], job_id=job.job_id)
 print("# return values")
 for t in tasks:
-    print(f"task {t} return value: {t.ret}")
+    print(f"task {t} return value: {t.ret and t.ret()}")

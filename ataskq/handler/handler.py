@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import Union, List, Dict, Tuple
+from typing import List, Dict, Tuple, Type, _GenericAlias
 from datetime import datetime
 from enum import Enum
 
@@ -75,24 +75,35 @@ class Handler(Logger):
     ######################
     # interface handlers #
     ######################
-    @classmethod
-    def from_interface(cls, model_cls: Model, ikwargs: dict) -> Model:
+    @staticmethod
+    @abstractmethod
+    def encode(obj, model_cls: Type[Model], key: str, key_cls):
+        pass
+
+    # Custom decoding function
+    @staticmethod
+    @abstractmethod
+    def decode(obj, model_cls: Type[Model], key: str, key_cls):
+        pass
+
+    def _from_interface(self, model_cls: Type[Model], ikwargs: dict) -> Model:
         iret = dict()
         for k in ikwargs.keys():
-            iret[k] = cls.decode(ikwargs[k], model_cls, k, model_cls.__annotations__[k])
+            iret[k] = self.decode(ikwargs[k], model_cls, k, model_cls.__annotations__[k])
 
         ret = model_cls(**iret)
+
         ret._state = State(value=EState.Fetched)
 
         return ret
 
-    @classmethod
-    def to_interface(cls, model: Model) -> dict:
+    def _to_interface(self, model: Model) -> dict:
         model_cls = model.__class__
         ret = dict()
         for k in model._state.columns:
-            ret[k] = cls.encode(getattr(model, k), model_cls, k, model_cls.__annotations__[k])
+            ret[k] = self.encode(getattr(model, k), model_cls, k, model_cls.__annotations__[k])
 
+        # set state
         if model._state.value == EState.New:
             model._state = State(value=EState.Modified)
         elif model._state.value == EState.Fetched:
@@ -115,7 +126,7 @@ class Handler(Logger):
         pass
 
     @abstractmethod
-    def delete_all(self, model_cls: Model, **kwargs):
+    def delete_all(self, model_cls: Type[Model], **kwargs):
         pass
 
     def delete(self, model: Model):
@@ -123,33 +134,54 @@ class Handler(Logger):
         model._state = State(value=EState.Deleted)
 
     @abstractmethod
-    def count_all(self, model_cls: Model, **kwargs) -> int:
+    def count_all(self, model_cls: Type[Model], **kwargs) -> int:
         pass
 
     @abstractmethod
-    def _get_all(self, model_cls: Model, **kwargs) -> List[dict]:
+    def _get_all(self, model_cls: Type[Model], **kwargs) -> List[dict]:
         pass
 
-    def get_all(self, model_cls: Model, **kwargs) -> List[Model]:
+    def get_all(self, model_cls: Type[Model], relationships=None, **kwargs) -> List[Model]:
         assert issubclass(model_cls, Model)
 
-        iret = self._get_all(model_cls, **kwargs)
-        ret = [self.from_interface(model_cls, ir) for ir in iret]
+        if relationships is None:
+            relationships = []
 
-        return ret
+        imodels = self._get_all(model_cls, **kwargs)
+        models = [self._from_interface(model_cls, imodel) for imodel in imodels]
+
+        for rel in relationships:
+            if rel in model_cls.parents():
+                p_key = rel
+                parent: Parent = getattr(model_cls, rel)
+                for model in models:
+                    parent_class = model.__annotations__[p_key]
+                    if isinstance(parent_class, _GenericAlias) and parent_class._name == "List":
+                        parent_class = parent_class.__args__[0]
+                        raise NotImplementedError()
+                    else:
+                        if (parent_id := getattr(model, parent.key)) is not None:
+                            rel_model = self.get(parent_class, parent_id)
+                            setattr(model, rel, rel_model)
+            elif rel in model_cls.childs():
+                raise NotImplementedError()
+            else:
+                raise RuntimeError(f"relationship '{rel}' is not '{model_cls.__name__}' parent or child.")
+
+        return models
 
     @abstractmethod
-    def _get(self, model_cls: Model, model_id: int) -> dict:
+    def _get(self, model_cls: Type[Model], model_id: int) -> dict:
         pass
 
-    def get(self, model_cls: Model, model_id: int) -> Model:
+    def get(self, model_cls: Type[Model], model_id: int) -> Model:
         iret = self._get(model_cls, model_id)
-        ret = self.from_interface(model_cls, iret)
+        ret = self._from_interface(model_cls, iret)
 
         return ret
 
     @abstractmethod
-    def update_all(self, model_cls: Model, where: str = None, **ikwargs):
+    def update_all(self, model_cls: Type[Model], where: str = None, **ikwargs):
         pass
 
     ##########

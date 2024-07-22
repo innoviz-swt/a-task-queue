@@ -47,10 +47,16 @@ class TaskQ(Logger):
     def handler(self):
         return self._handler
 
+    #################
+    # hanlder proxy #
+    #################
     def add(self, data):
         self._handler.add(data)
 
         return self
+
+    def get_all(self, *args, **kwargs):
+        return self._handler.get_all(*args, **kwargs)
 
     def update_task_status(self, task: Task, status: EStatus, timestamp: datetime = None):
         if timestamp is None:

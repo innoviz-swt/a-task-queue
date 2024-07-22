@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import List, Union, Set, _GenericAlias
+from typing import List, Union, Set, _GenericAlias, Type
 from abc import abstractmethod
 from datetime import datetime
 
@@ -98,7 +98,7 @@ class DBHandler(Handler):
         # handle parents
         for p_key in model.parents():
             if (parents := getattr(model, p_key)) is not None:
-                # # parent create is required
+                # parent create is required
                 parent_mapping: Parent = getattr(model.__class__, p_key)
                 p_id_key = parent_mapping.key
                 parent_class = model.__annotations__[p_key]
@@ -152,20 +152,20 @@ class DBHandler(Handler):
         for model in models:
             self._add(c, model, handled)
 
-    def count_all(self, model_cls: Model, **kwargs):
+    def count_all(self, model_cls: Type[Model], **kwargs):
         query_kwargs = get_query_kwargs(kwargs)
         count = self.count_query(model_cls, **query_kwargs)
 
         return count
 
-    def _get_all(self, model_cls: Model, **kwargs) -> List[dict]:
+    def _get_all(self, model_cls: Type[Model], **kwargs) -> List[dict]:
         query_kwargs = get_query_kwargs(kwargs)
         rows, col_names, _ = self.select_query(model_cls, **query_kwargs)
         ret = [dict(zip(col_names, row)) for row in rows]
 
         return ret
 
-    def _get(self, model_cls: Model, model_id) -> dict:
+    def _get(self, model_cls: Type[Model], model_id) -> dict:
         rows, col_names, query_str = self.select_query(model_cls, where=f"{model_cls.id_key()} = {model_id}")
         assert len(rows) != 0, f"no match found for '{model_cls.__name__}', query: '{query_str}'."
         assert len(rows) == 1, f"more than 1 row found for '{model_cls.__name__}', query: '{query_str}'."
@@ -221,7 +221,7 @@ class DBHandler(Handler):
         pass
 
     @transaction_decorator()
-    def update_all(self, c, model_cls: Model, where: str = None, **ikwargs):
+    def update_all(self, c, model_cls: Type[Model], where: str = None, **ikwargs):
         if len(ikwargs) == 0:
             return
 
@@ -236,7 +236,7 @@ class DBHandler(Handler):
         c.execute(query_str, values)
 
     @transaction_decorator()
-    def delete_all(self, c, model_cls: Model, **kwargs):
+    def delete_all(self, c, model_cls: Type[Model], **kwargs):
         query_kwargs = get_query_kwargs(kwargs)
         query_str = f"DELETE FROM {model_cls.table_key()}"
 
@@ -311,7 +311,7 @@ class DBHandler(Handler):
         )
 
     @transaction_decorator()
-    def count_query(self, c, model_cls: Model, where: str = None, limit: int = None, offset: int = 0):
+    def count_query(self, c, model_cls: Type[Model], where: str = None, limit: int = None, offset: int = 0):
         if limit is None:
             limit = self.config["api"]["limit"]
         query_str = f"SELECT COUNT(*) FROM {model_cls.table_key()}"
@@ -326,7 +326,7 @@ class DBHandler(Handler):
     def select_query(
         self,
         c,
-        model_cls: Model,
+        model_cls: Type[Model],
         where: str = None,
         order_by=None,
         limit: int = None,
@@ -380,7 +380,7 @@ class DBHandler(Handler):
             ptask = None
         else:
             col_names = [description[0] for description in c.description]
-            ptask = self.from_interface(Task, dict(zip(col_names, row)))
+            ptask = self._from_interface(Task, dict(zip(col_names, row)))
 
         # get running task with minimum level
         query = (
@@ -395,7 +395,7 @@ class DBHandler(Handler):
             rtask = None
         else:
             col_names = [description[0] for description in c.description]
-            rtask = self.from_interface(Task, dict(zip(col_names, row)))
+            rtask = self._from_interface(Task, dict(zip(col_names, row)))
 
         action = None
         if ptask is None and rtask is None:
@@ -514,7 +514,7 @@ class DBHandler(Handler):
         )
 
     def _create(self, c, model: Model):
-        d = self.to_interface()
+        d = self._to_interface()
         keys = list(d.keys())
         values = list(d.values())
         if keys:
@@ -529,7 +529,7 @@ class DBHandler(Handler):
         setattr(model, model.id_key(), model_id)
 
     def _update(self, c, model: Model):
-        d = self.to_interface(model)
+        d = self._to_interface(model)
         insert = ", ".join([f"{k} = {self.format_symbol}" for k in d.keys()])
         values = list(d.values())
         c.execute(f"UPDATE {model.table_key()} SET {insert} WHERE {model.id_key()} = {model.id_val};", values)

@@ -77,7 +77,7 @@ async def take_next_task(
 ):
     # take next task
     action, task = dbh.take_next_task(**request.query_params)
-    task = rh.to_interface(task) if task is not None else None
+    task = rh._to_interface(task) if task is not None else None
 
     return dict(action=action, task=task)
 
@@ -128,7 +128,7 @@ async def get_model(model: str, model_id: int, dbh: DBHandler = Depends(db_handl
 
 @app.post("/api/{model}")
 async def create_model(model: str, request: Request, dbh: DBHandler = Depends(db_handler)):
-    model_cls: Model = __MODELS__[model]
+    model_cls: Type[Model] = __MODELS__[model]
     ikwargs = await request.json()
     mkwargs = rh.i2m(model_cls, ikwargs)
     model_id = dbh.create(model_cls, **mkwargs)
@@ -138,7 +138,7 @@ async def create_model(model: str, request: Request, dbh: DBHandler = Depends(db
 
 @app.post("/api/{model}/bulk")
 async def create_model_bulk(model: str, request: Request, dbh: DBHandler = Depends(db_handler)):
-    model_cls: Model = __MODELS__[model]
+    model_cls: Type[Model] = __MODELS__[model]
     ikwargs = await request.json()
     mkwargs = rh.i2m(model_cls, ikwargs)
     model_ids = dbh.create_bulk(model_cls, mkwargs)
@@ -148,7 +148,7 @@ async def create_model_bulk(model: str, request: Request, dbh: DBHandler = Depen
 
 @app.put("/api/{model}/{model_id}")
 async def update_model(model: str, model_id: int, request: Request, dbh: DBHandler = Depends(db_handler)):
-    model_cls: Model = __MODELS__[model]
+    model_cls: Type[Model] = __MODELS__[model]
     ikwargs = await request.json()
     mkwargs = rh.i2m(model_cls, ikwargs)
     dbh.update(model_cls, model_id, **mkwargs)
@@ -158,7 +158,7 @@ async def update_model(model: str, model_id: int, request: Request, dbh: DBHandl
 
 @app.delete("/api/{model}/{model_id}")
 async def delete_model(model: str, model_id: int, dbh: DBHandler = Depends(db_handler)):
-    model_cls: Model = __MODELS__[model]
+    model_cls: Type[Model] = __MODELS__[model]
     dbh.delete(model_cls, model_id)
 
     return {model_cls.id_key(): model_id}

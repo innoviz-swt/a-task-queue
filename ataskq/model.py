@@ -99,12 +99,12 @@ class Model:
 
     @classmethod
     def parents(cls) -> str:
-        ret = [ann for ann, klass in cls.__annotations__.items() if isinstance(getattr(cls, ann, None), Parent)]
+        ret = [ann for ann in cls.__annotations__.keys() if isinstance(getattr(cls, ann, None), Parent)]
         return ret
 
     @classmethod
     def childs(cls) -> str:
-        ret = [ann for ann, klass in cls.__annotations__.items() if isinstance(getattr(cls, ann, None), Child)]
+        ret = [ann for ann in cls.__annotations__.keys() if isinstance(getattr(cls, ann, None), Child)]
         return ret
 
     def to_dict(self):

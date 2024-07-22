@@ -1,5 +1,5 @@
 import re
-from typing import NamedTuple, List
+from typing import NamedTuple, Type
 import sqlite3
 from datetime import datetime
 
@@ -20,7 +20,7 @@ class SQLite3DBHandler(DBHandler):
         super().__init__(**kwargs)
 
     @staticmethod
-    def encode(obj, model_cls: Model, key, key_cls):
+    def encode(obj, model_cls: Type[Model], key, key_cls):
         if obj is None:
             return obj
 
@@ -30,7 +30,8 @@ class SQLite3DBHandler(DBHandler):
         return obj
 
     # Custom decoding function
-    def decode(obj, model_cls: Model, key, key_cls):
+    @staticmethod
+    def decode(obj, model_cls: Type[Model], key, key_cls):
         if obj is None:
             return obj
 
@@ -109,7 +110,7 @@ class SQLite3DBHandler(DBHandler):
         return conn
 
     def _create(self, c: sqlite3.Connection, model: Model):
-        d = self.to_interface(model)
+        d = self._to_interface(model)
         keys = list(d.keys())
         values = list(d.values())
         if keys:

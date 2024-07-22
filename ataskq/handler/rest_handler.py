@@ -129,7 +129,7 @@ class RESTHandler(Handler):
         res = self.rest_get("custom_query/take_next_task", params=kwargs)
 
         action = EAction(res["action"])
-        task = self.from_interface(Task, res["task"]) if res["task"] is not None else None
+        task = self._from_interface(Task, res["task"]) if res["task"] is not None else None
 
         return (action, task)
 

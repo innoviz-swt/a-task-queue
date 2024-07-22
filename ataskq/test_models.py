@@ -48,7 +48,7 @@ def apply_lamdas(h: Handler, test_attr):
 
 @pytest.mark.parametrize("test_data", TEST_DATA, ids=TEST_IDS)
 def test_create(handler, test_data):
-    model_cls: Model = test_data["klass"]
+    model_cls: Type[Model] = test_data["klass"]
     attr = apply_lamdas(handler, test_data["attr"])
     m = model_cls(**attr)
     assert m._state.value == EState.New
@@ -72,7 +72,7 @@ def assert_model(m_src: Model, m_rec: Model, model_cls, first_id, i):
 
 @pytest.mark.parametrize("test_data", TEST_DATA, ids=TEST_IDS)
 def test_get_all(handler, test_data):
-    model_cls: Model = test_data["klass"]
+    model_cls: Type[Model] = test_data["klass"]
     attr = apply_lamdas(handler, test_data["attr"])
     k = list(test_data["attr"].keys())[0]
     m1 = model_cls(**{**attr, k: "test 1"})
@@ -95,7 +95,7 @@ def test_get_all(handler, test_data):
 
 @pytest.mark.parametrize("test_data", TEST_DATA, ids=TEST_IDS)
 def test_get_all_where(handler, test_data):
-    model_cls: Model = test_data["klass"]
+    model_cls: Type[Model] = test_data["klass"]
     attr = apply_lamdas(handler, test_data["attr"])
     k = list(test_data["attr"].keys())[0]
     m1 = model_cls(**{**attr, k: "test 1"})
@@ -115,7 +115,7 @@ def test_get_all_where(handler, test_data):
 
 @pytest.mark.parametrize("test_data", TEST_DATA, ids=TEST_IDS)
 def test_get(handler, test_data):
-    model_cls: Model = test_data["klass"]
+    model_cls: Type[Model] = test_data["klass"]
     attr = apply_lamdas(handler, test_data["attr"])
     k = list(test_data["attr"].keys())[0]
     m1 = model_cls(**{**attr, k: "test 1"})
@@ -135,7 +135,7 @@ def test_get(handler, test_data):
 
 @pytest.mark.parametrize("test_data", TEST_DATA, ids=TEST_IDS)
 def test_delete(handler, test_data):
-    model_cls: Model = test_data["klass"]
+    model_cls: Type[Model] = test_data["klass"]
     attr = apply_lamdas(handler, test_data["attr"])
     model = model_cls(**attr)
     handler.add(model)
