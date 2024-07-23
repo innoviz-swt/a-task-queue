@@ -10,7 +10,7 @@ from .logger import Logger
 from .model import EState
 from .models import EStatus, Job, Task, Object
 from .monitor import MonitorThread
-from .handler import Handler, DBHandler, from_config, EAction
+from .handler import Handler, SQLHandler, from_config, EAction
 from .config import load_config
 from .utils.dynamic_import import import_callable
 
@@ -197,7 +197,7 @@ class TaskQ(Logger):
         task_pull_start = time.time()
         while True:
             # if the taskq handler is db handler, the taskq performs background tasks before each run
-            if self.config["run"]["fail_pulse_timeout"] and isinstance(self._handler, DBHandler):
+            if self.config["run"]["fail_pulse_timeout"] and isinstance(self._handler, SQLHandler):
                 self._handler.fail_pulse_timeout_tasks(self.config["monitor"]["pulse_timeout"])
             # grab tasks and set them in Q
             action, task = self._take_next_task(job_id, level)

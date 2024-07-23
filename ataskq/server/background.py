@@ -5,13 +5,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from ataskq.handler import DBHandler, from_config
+from ataskq.handler import SQLHandler, from_config
 from ataskq.env import SERVER_CONFIG
 
 logger = logging.getLogger("uvicorn")
 
 
-def db_handler() -> DBHandler:
+def db_handler() -> SQLHandler:
     return from_config(SERVER_CONFIG or "server")
 
 

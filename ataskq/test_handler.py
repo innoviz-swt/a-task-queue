@@ -4,7 +4,7 @@ import pytest
 
 from .config import load_config
 from .handler import Handler, from_config
-from .handler.db_handler import DBHandler
+from .handler.sql_handler import SQLHandler
 from .handler import register_handler
 
 
@@ -16,7 +16,7 @@ def handler(config) -> Handler:
 
 
 def test_invalid_transaction(handler):
-    if not isinstance(handler, DBHandler):
+    if not isinstance(handler, SQLHandler):
         pytest.skip()
 
     with pytest.raises(Exception) as excinfo:

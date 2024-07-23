@@ -7,7 +7,7 @@ try:
 except ModuleNotFoundError:
     raise Exception("'psycopg2' is reuiqred for using atasgq postgresql adapter.")
 
-from .db_handler import DBHandler
+from .sql_handler import SQLHandler
 from .handler import to_datetime, from_datetime, DateTime
 
 
@@ -25,7 +25,7 @@ class PostgresConnection(NamedTuple):
         return f"pg://{userspec}{self.host}:{self.port}/{self.database}"
 
 
-class PostgresqlDBHandler(DBHandler):
+class PostgresqlDBHandler(SQLHandler):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 

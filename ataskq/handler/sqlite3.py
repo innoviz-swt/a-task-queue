@@ -5,7 +5,7 @@ from datetime import datetime
 
 from ..model import Model, DateTime
 from .handler import to_datetime, from_datetime
-from .db_handler import DBHandler, SQLSession
+from .sql_handler import SQLHandler, SQLSession
 
 
 class SqliteConnection(NamedTuple):
@@ -43,7 +43,7 @@ class SQLiteSession(SQLSession):
             self.cursor.execute("BEGIN")
 
 
-class SQLite3DBHandler(DBHandler):
+class SQLite3DBHandler(SQLHandler):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 

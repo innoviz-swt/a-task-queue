@@ -87,7 +87,7 @@ def expand_query_str(query_str, where=None, group_by=None, order_by=None, limit=
     return query_str
 
 
-class DBHandler(Handler):
+class SQLHandler(Handler):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
         if self.config["handler"]["db_init"]:

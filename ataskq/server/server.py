@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 
-from ataskq.handler import DBHandler, from_config
+from ataskq.handler import SQLHandler, from_config
 from ataskq.handler.rest_handler import RESTHandler as rh
 from ataskq.models import Model, __MODELS__
 from ataskq.env import SERVER_CONFIG
@@ -19,7 +19,7 @@ logger = logging.getLogger("uvicorn")
 
 
 # DB Handler
-def db_handler() -> DBHandler:
+def db_handler() -> SQLHandler:
     return from_config(SERVER_CONFIG or "server")
 
 
@@ -73,7 +73,7 @@ async def api():
 @app.get("/api/custom_query/take_next_task")
 async def take_next_task(
     request: Request,
-    dbh: DBHandler = Depends(db_handler),
+    dbh: SQLHandler = Depends(db_handler),
 ):
     # take next task
     action, task = dbh.take_next_task(**request.query_params)
@@ -83,14 +83,14 @@ async def take_next_task(
 
 
 @app.get("/api/custom_query/jobs_status")
-async def jobs_status(request: Request, dbh: DBHandler = Depends(db_handler)):
+async def jobs_status(request: Request, dbh: SQLHandler = Depends(db_handler)):
     ret = dbh.jobs_status(**request.query_params)
 
     return ret
 
 
 @app.get("/api/custom_query/tasks_status")
-async def tasks_status(request: Request, dbh: DBHandler = Depends(db_handler)):
+async def tasks_status(request: Request, dbh: SQLHandler = Depends(db_handler)):
     ret = dbh.tasks_status(**request.query_params)
 
     return ret
@@ -100,7 +100,7 @@ async def tasks_status(request: Request, dbh: DBHandler = Depends(db_handler)):
 # Model API #
 #############
 @app.get("/api/{model}")
-async def get_model_all(model: str, request: Request, dbh: DBHandler = Depends(db_handler)):
+async def get_model_all(model: str, request: Request, dbh: SQLHandler = Depends(db_handler)):
     # logger.info(f"query_params: {request.query_params}")
     model_cls = __MODELS__[model]
     mkwargs = model_cls.get_all_dict(_handler=dbh, **request.query_params)
@@ -110,7 +110,7 @@ async def get_model_all(model: str, request: Request, dbh: DBHandler = Depends(d
 
 
 @app.get("/api/{model}/count")
-async def count_model_all(model: str, request: Request, dbh: DBHandler = Depends(db_handler)):
+async def count_model_all(model: str, request: Request, dbh: SQLHandler = Depends(db_handler)):
     model_cls = __MODELS__[model]
     count = model_cls.count_all(_handler=dbh, **request.query_params)
 
@@ -118,7 +118,7 @@ async def count_model_all(model: str, request: Request, dbh: DBHandler = Depends
 
 
 @app.get("/api/{model}/{model_id}")
-async def get_model(model: str, model_id: int, dbh: DBHandler = Depends(db_handler)):
+async def get_model(model: str, model_id: int, dbh: SQLHandler = Depends(db_handler)):
     model_cls = __MODELS__[model]
     mkwargs = model_cls.get_dict(model_id, _handler=dbh)
     ikwargs = rh.m2i(model_cls, mkwargs)
@@ -127,7 +127,7 @@ async def get_model(model: str, model_id: int, dbh: DBHandler = Depends(db_handl
 
 
 @app.post("/api/{model}")
-async def create_model(model: str, request: Request, dbh: DBHandler = Depends(db_handler)):
+async def create_model(model: str, request: Request, dbh: SQLHandler = Depends(db_handler)):
     model_cls: Type[Model] = __MODELS__[model]
     ikwargs = await request.json()
     mkwargs = rh.i2m(model_cls, ikwargs)
@@ -137,7 +137,7 @@ async def create_model(model: str, request: Request, dbh: DBHandler = Depends(db
 
 
 @app.post("/api/{model}/bulk")
-async def create_model_bulk(model: str, request: Request, dbh: DBHandler = Depends(db_handler)):
+async def create_model_bulk(model: str, request: Request, dbh: SQLHandler = Depends(db_handler)):
     model_cls: Type[Model] = __MODELS__[model]
     ikwargs = await request.json()
     mkwargs = rh.i2m(model_cls, ikwargs)
@@ -147,7 +147,7 @@ async def create_model_bulk(model: str, request: Request, dbh: DBHandler = Depen
 
 
 @app.put("/api/{model}/{model_id}")
-async def update_model(model: str, model_id: int, request: Request, dbh: DBHandler = Depends(db_handler)):
+async def update_model(model: str, model_id: int, request: Request, dbh: SQLHandler = Depends(db_handler)):
     model_cls: Type[Model] = __MODELS__[model]
     ikwargs = await request.json()
     mkwargs = rh.i2m(model_cls, ikwargs)
@@ -157,7 +157,7 @@ async def update_model(model: str, model_id: int, request: Request, dbh: DBHandl
 
 
 @app.delete("/api/{model}/{model_id}")
-async def delete_model(model: str, model_id: int, dbh: DBHandler = Depends(db_handler)):
+async def delete_model(model: str, model_id: int, dbh: SQLHandler = Depends(db_handler)):
     model_cls: Type[Model] = __MODELS__[model]
     dbh.delete(model_cls, model_id)
 

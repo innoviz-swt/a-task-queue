@@ -7,7 +7,7 @@ import time
 import pytest
 
 from . import TaskQ, Job, Task, EStatus
-from .handler import DBHandler
+from .handler import SQLHandler
 from .handler import EAction, from_config
 
 from .tasks_utils import dummy_args_task, write_to_file, skip_run_task, write_to_file_mp_lock, exception_task
@@ -504,7 +504,7 @@ def test_max_jobs(config):
     max_jobs = 10
     config["db"]["max_jobs"] = max_jobs
     taskq, _ = get_taskq(config, [])
-    if not isinstance(taskq.handler, DBHandler):
+    if not isinstance(taskq.handler, SQLHandler):
         pytest.skip()
 
     jobs_id = []
