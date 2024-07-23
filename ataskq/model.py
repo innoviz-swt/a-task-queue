@@ -1,6 +1,7 @@
 from typing import Union, List, _GenericAlias
 from datetime import datetime
 from enum import Enum
+from functools import lru_cache
 
 
 class DBEnum(Enum):
@@ -39,7 +40,17 @@ class Parent:
         self.key = key
 
 
+class Parents:
+    def __init__(self, key) -> None:
+        self.key = key
+
+
 class Child:
+    def __init__(self, key) -> None:
+        self.key = key
+
+
+class Children:
     def __init__(self, key) -> None:
         self.key = key
 
@@ -61,6 +72,7 @@ class Model:
     _state: State
 
     @classmethod
+    @lru_cache(1)
     def id_key(cls):
         return cls.__name__.lower() + "_id"
 
@@ -69,10 +81,12 @@ class Model:
         return getattr(self, self.id_key())
 
     @classmethod
+    @lru_cache(1)
     def table_key(cls):
         return cls.__name__.lower() + "s"
 
     @classmethod
+    @lru_cache(1)
     def primary_keys(cls) -> str:
         ret = [
             ann
@@ -82,7 +96,8 @@ class Model:
         return ret
 
     @classmethod
-    def members(cls, primary=False) -> str:
+    @lru_cache(2)
+    def members_keys(cls, primary=False) -> str:
         if primary:
             ret = [
                 ann
@@ -98,17 +113,41 @@ class Model:
         return ret
 
     @classmethod
-    def parents(cls) -> str:
+    @lru_cache(1)
+    def parent_keys(cls) -> str:
         ret = [ann for ann in cls.__annotations__.keys() if isinstance(getattr(cls, ann, None), Parent)]
         return ret
 
     @classmethod
-    def childs(cls) -> str:
+    @lru_cache(1)
+    def parents_keys(cls) -> str:
         ret = [ann for ann in cls.__annotations__.keys() if isinstance(getattr(cls, ann, None), Child)]
         return ret
 
-    def to_dict(self):
-        ret = {getattr(self, k) for k in self.members()}
+    @classmethod
+    @lru_cache(1)
+    def child_keys(cls) -> str:
+        ret = [ann for ann in cls.__annotations__.keys() if isinstance(getattr(cls, ann, None), Child)]
+        return ret
+
+    @classmethod
+    @lru_cache(1)
+    def children_keys(cls) -> str:
+        ret = [ann for ann in cls.__annotations__.keys() if isinstance(getattr(cls, ann, None), Children)]
+        return ret
+
+    @classmethod
+    @lru_cache(1)
+    def relationships_keys(cls) -> str:
+        ret = [
+            ann
+            for ann in cls.__annotations__.keys()
+            if isinstance(getattr(cls, ann, None), (Parent, Parents, Child, Children))
+        ]
+        return ret
+
+    def members(self, primary=False):
+        ret = {getattr(self, k) for k in self.members_keys(primary=primary)}
 
         return ret
 
@@ -122,16 +161,12 @@ class Model:
                 raise Exception(f"'{k}' is not annotated for class '{self.__class__.__name__}'.")
 
         # set defaults
-        for member in self.members(primary=True):
+        for mkey in self.members_keys(primary=True):
             # default None to members not passed
-            if member not in kwargs:
-                kwargs[member] = getattr(self.__class__, member, None)
+            if mkey not in kwargs:
+                kwargs[mkey] = getattr(self.__class__, mkey, None)
 
-        for rel in self.parents():
-            if rel not in kwargs:
-                kwargs[rel] = None
-
-        for rel in self.childs():
+        for rel in self.relationships_keys():
             if rel not in kwargs:
                 kwargs[rel] = None
 
@@ -143,7 +178,7 @@ class Model:
             setattr(self, k, v)
 
     def __setattr__(self, name, value):
-        if name not in self.members():
+        if name not in self.members_keys():
             super().__setattr__(name, value)
             return
 
@@ -167,12 +202,12 @@ class Model:
                 ret[k] = None
                 continue
 
-            if k in cls.parents():
+            if k in cls.parent_keys():
                 # assert isinstance(v, IModel), "relationship members must be Models instances."
                 ret[k] = v
                 continue
 
-            if k in cls.childs():
+            if k in cls.child_keys():
                 # assert isinstance(v, IModel), "relationship members must be Models instances."
                 ret[k] = v
                 continue

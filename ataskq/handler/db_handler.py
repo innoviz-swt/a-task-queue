@@ -96,7 +96,7 @@ class DBHandler(Handler):
             return
 
         # handle parents
-        for p_key in model.parents():
+        for p_key in model.parent_keys():
             if (parents := getattr(model, p_key)) is not None:
                 # parent create is required
                 parent_mapping: Parent = getattr(model.__class__, p_key)
@@ -122,7 +122,7 @@ class DBHandler(Handler):
             self._update(c, model)
 
         # handle childs
-        for c_key in model.childs():
+        for c_key in model.child_keys():
             if (children := getattr(model, c_key)) is not None:
                 # # parent create is required
                 child_mapping: Child = getattr(model.__class__, c_key)

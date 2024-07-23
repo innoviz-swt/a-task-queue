@@ -151,7 +151,7 @@ class Handler(Logger):
         models = [self._from_interface(model_cls, imodel) for imodel in imodels]
 
         for rel in relationships:
-            if rel in model_cls.parents():
+            if rel in model_cls.parent_keys():
                 p_key = rel
                 parent: Parent = getattr(model_cls, rel)
                 for model in models:
@@ -163,7 +163,7 @@ class Handler(Logger):
                         if (parent_id := getattr(model, parent.key)) is not None:
                             rel_model = self.get(parent_class, parent_id)
                             setattr(model, rel, rel_model)
-            elif rel in model_cls.childs():
+            elif rel in model_cls.child_keys():
                 raise NotImplementedError()
             else:
                 raise RuntimeError(f"relationship '{rel}' is not '{model_cls.__name__}' parent or child.")

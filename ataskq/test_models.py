@@ -1,5 +1,6 @@
 import pytest
 from copy import copy
+from typing import Type
 
 from .model import EState
 from .models import Model, Job, Task, Object
@@ -65,7 +66,7 @@ def test_create(handler, test_data):
 def assert_model(m_src: Model, m_rec: Model, model_cls, first_id, i):
     assert id(m_src) != id(m_rec), f"index: '{i}'"
     assert isinstance(m_rec, model_cls), f"index: '{i}'"
-    assert m_src.to_dict() == m_rec.to_dict(), f"index: '{i}'"
+    assert m_src.members() == m_rec.members(), f"index: '{i}'"
     assert getattr(m_src, m_src.id_key()) == i + first_id, f"index: '{i}'"
     assert getattr(m_rec, m_rec.id_key()) == i + first_id, f"index: '{i}'"
 
