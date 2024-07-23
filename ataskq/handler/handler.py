@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import List, Dict, Tuple, Type, _GenericAlias
+from typing import List, Dict, Tuple, Type
 from datetime import datetime
 from enum import Enum
 
@@ -11,6 +11,25 @@ from ..model import Model, DateTime, Parent, State, EState
 from ..models import Task
 
 __STRTIME_FORMAT__ = "%Y-%m-%d %H:%M:%S.%f"
+
+
+class Session:
+    @abstractmethod
+    def connect():
+        pass
+
+    @abstractmethod
+    def close():
+        pass
+
+    def __enter__(self):
+        # make a database connection and return it
+        self.connect()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        # make sure the dbconnection gets closed
+        self.close()
 
 
 def get_query_kwargs(kwargs):
@@ -66,6 +85,9 @@ class Handler(Logger):
     @property
     def config(self):
         return self._config
+
+    def session(exclusive=False):
+        pass
 
     @staticmethod
     @abstractmethod
@@ -141,6 +163,15 @@ class Handler(Logger):
     def _get_all(self, model_cls: Type[Model], **kwargs) -> List[dict]:
         pass
 
+    # todo: pass session and use self._get(session,...)
+    def _get_parent(self, p_key, model_cls, models):
+        parent: Parent = getattr(model_cls, p_key)
+        for model in models:
+            parent_class = model.__annotations__[p_key]
+            if (parent_id := getattr(model, parent.key)) is not None:
+                rel_model = self.get(parent_class, parent_id)
+                setattr(model, p_key, rel_model)
+
     def get_all(self, model_cls: Type[Model], relationships=None, **kwargs) -> List[Model]:
         assert issubclass(model_cls, Model)
 
@@ -150,23 +181,17 @@ class Handler(Logger):
         imodels = self._get_all(model_cls, **kwargs)
         models = [self._from_interface(model_cls, imodel) for imodel in imodels]
 
-        for rel in relationships:
-            if rel in model_cls.parent_keys():
-                p_key = rel
-                parent: Parent = getattr(model_cls, rel)
-                for model in models:
-                    parent_class = model.__annotations__[p_key]
-                    if isinstance(parent_class, _GenericAlias) and parent_class._name == "List":
-                        parent_class = parent_class.__args__[0]
-                        raise NotImplementedError()
-                    else:
-                        if (parent_id := getattr(model, parent.key)) is not None:
-                            rel_model = self.get(parent_class, parent_id)
-                            setattr(model, rel, rel_model)
-            elif rel in model_cls.child_keys():
+        for rel_key in relationships:
+            if rel_key in model_cls.parent_keys():
+                self._get_parent(rel_key, model_cls, models)
+            elif rel_key in model_cls.parents_keys():
+                raise NotImplementedError()
+            elif rel_key in model_cls.child_keys():
+                raise NotImplementedError()
+            elif rel_key in model_cls.children_keys():
                 raise NotImplementedError()
             else:
-                raise RuntimeError(f"relationship '{rel}' is not '{model_cls.__name__}' parent or child.")
+                raise RuntimeError(f"relationship '{model_cls.__name__}.{rel_key}' is not a relationship")
 
         return models
 

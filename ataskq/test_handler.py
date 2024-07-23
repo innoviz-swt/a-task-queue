@@ -4,7 +4,7 @@ import pytest
 
 from .config import load_config
 from .handler import Handler, from_config
-from .handler.db_handler import DBHandler, transaction_decorator
+from .handler.db_handler import DBHandler
 from .handler import register_handler
 
 
@@ -15,29 +15,13 @@ def handler(config) -> Handler:
     return handler
 
 
-class ForTestDBHandler:
-    def __init__(self, handler):
-        self._handler = handler
-        self.error_msg = []
-
-    def connect(self):
-        return self._handler.connect()
-
-    def __getattr__(self, name):
-        return getattr(self._handler, name)
-
-    @transaction_decorator()
-    def invalid(self, c):
-        c.execute("SOME INVALID TRANSACTION")
-
-
 def test_invalid_transaction(handler):
     if not isinstance(handler, DBHandler):
         pytest.skip()
 
-    handler = ForTestDBHandler(handler)
     with pytest.raises(Exception) as excinfo:
-        handler.invalid()
+        with handler.session() as s:
+            s.execute("SOME INVALID TRANSACTION")
     assert "syntax error" in str(excinfo.value)
 
 

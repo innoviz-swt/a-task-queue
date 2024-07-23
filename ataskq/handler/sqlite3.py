@@ -5,7 +5,7 @@ from datetime import datetime
 
 from ..model import Model, DateTime
 from .handler import to_datetime, from_datetime
-from .db_handler import DBHandler
+from .db_handler import DBHandler, SQLSession
 
 
 class SqliteConnection(NamedTuple):
@@ -13,6 +13,34 @@ class SqliteConnection(NamedTuple):
 
     def __str__(self):
         return f"sqlite://{self.path}"
+
+
+class SQLiteSession(SQLSession):
+    def __init__(self, connection: SqliteConnection, exclusive) -> None:
+        super().__init__()
+        self.exclusive = exclusive
+        self.connection = connection
+        self.conn = None
+        self.curso = None
+
+    @property
+    def lastrowid(self):
+        return self.cursor.lastrowid
+
+    def connect(self):
+        self.conn = sqlite3.connect(self.connection.path)
+        self.cursor = self.conn.cursor()
+        # enable foreign keys for each connection (sqlite default is off)
+        # https://www.sqlite.org/foreignkeys.html
+        # Foreign key constraints are disabled by default (for backwards
+        # compatibility), so must be enabled separately for each database
+        # connection
+        self.cursor.execute("PRAGMA foreign_keys = ON")
+
+        if self.exclusive:
+            self.cursor.execute("BEGIN EXCLUSIVE")
+        else:
+            self.cursor.execute("BEGIN")
 
 
 class SQLite3DBHandler(DBHandler):
@@ -105,21 +133,21 @@ class SQLite3DBHandler(DBHandler):
     def for_update(self):
         return ""
 
-    def connect(self):
-        conn = sqlite3.connect(self.connection.path)
-        return conn
+    def session(self, exclusive=False):
+        session = SQLiteSession(self.connection, exclusive)
+        return session
 
-    def _create(self, c: sqlite3.Connection, model: Model):
+    def _create(self, s: SQLiteSession, model: Model):
         d = self._to_interface(model)
         keys = list(d.keys())
         values = list(d.values())
         if keys:
-            c.execute(
+            s.execute(
                 f'INSERT INTO {model.table_key()} ({", ".join(keys)}) VALUES ({", ".join([self.format_symbol] * len(keys))})',
                 values,
             )
         else:
-            c.execute(f"INSERT INTO {model.table_key()} DEFAULT VALUES"),
+            s.execute(f"INSERT INTO {model.table_key()} DEFAULT VALUES"),
 
-        model_id = c.lastrowid
+        model_id = s.lastrowid
         setattr(model, model.id_key(), model_id)
