@@ -1,5 +1,5 @@
 from abc import abstractmethod
-from typing import List, Dict, Tuple, Type
+from typing import Union, List, Dict, Tuple, Type, Set, _GenericAlias
 from datetime import datetime
 from enum import Enum
 
@@ -7,7 +7,7 @@ from ..env import CONFIG
 from ..logger import Logger
 from ..config import load_config
 
-from ..model import Model, DateTime, Parent, State, EState
+from ..model import Model, DateTime, Parent, Parents, Child, Children, State, EState
 from ..models import Task
 
 __STRTIME_FORMAT__ = "%Y-%m-%d %H:%M:%S.%f"
@@ -33,7 +33,6 @@ class Session:
 
 
 def get_query_kwargs(kwargs):
-    # todo: the k=v for the kwargs should be interface dependent similar to insert
     ret = {}
     where = ""
     if "where" in kwargs:
@@ -141,11 +140,90 @@ class Handler(Logger):
     # CRUD #
     ########
 
+    @abstractmethod
     def _create(self, model: Model) -> int:
         pass
 
+    @abstractmethod
     def _update(self, model: Model) -> int:
         pass
+
+    def _add_parent(self, s, model, p_key, handled):
+        if (parent := getattr(model, p_key)) is None:
+            return
+
+        parent: Model
+        parent_mapping: Parent = getattr(model.__class__, p_key)
+        p_id_key = parent_mapping.key
+        if parent._state.value == EState.New:
+            self._add(s, parent, handled)
+            setattr(model, p_id_key, parent.id_val)
+        else:
+            assert getattr(model, p_id_key) == parent.id_val
+            self._add(s, parent, handled)
+
+    def _add_parents(self, s, model, p_key, handled):
+        if (parents := getattr(model, p_key)) is None:
+            return
+
+        parents: List[Model]
+        parents_mapping: Parents = getattr(model.__class__, p_key)
+        p_id_key = parents_mapping.key
+
+        for parent in parents:
+            if parent._state.value == EState.New:
+                self._add(s, parent, handled)
+                setattr(model, p_id_key, parent.id_val)
+            else:
+                assert getattr(model, p_id_key) == parent.id_val
+                self._add(s, parent, handled)
+
+    def _add(self, s, model: Model, handled: Set[int]):
+        # check if model already handled
+        if id(model) in handled:
+            return
+
+        # handle parents
+        for p_key in model.parent_keys():
+            self._add_parent(s, model, p_key, handled)
+        for p_key in model.parents_keys():
+            self._add_parents(s, model, p_key, handled)
+
+        if model._state.value == EState.New:
+            self._create(s, model)
+        elif model._state.value == EState.Modified and model._state.columns:
+            self._update(s, model)
+
+        # handle childs
+        for c_key in model.child_keys():
+            if (children := getattr(model, c_key)) is not None:
+                # # parent create is required
+                child_mapping: Child = getattr(model.__class__, c_key)
+                c_id_key = child_mapping.key
+                child_class = model.__annotations__[c_key]
+                if isinstance(child_class, _GenericAlias) and child_class._name == "List":
+                    child_class = child_class.__args__[0]
+                else:
+                    children = [children]
+
+                for child in children:
+                    child: Model
+                    if child._state.value == EState.New:
+                        setattr(child, c_id_key, model.id_val)
+                    else:
+                        assert getattr(child, c_id_key) == model.id_val
+                    self._add(s, child, handled)
+
+        handled.add(id(model))
+
+    def add(self, models: Union[Model, List[Model]]):
+        with self.session() as s:
+            handled = set()
+            if not isinstance(models, list):
+                models = [models]
+
+            for model in models:
+                self._add(s, model, handled)
 
     @abstractmethod
     def delete_all(self, model_cls: Type[Model], **kwargs):

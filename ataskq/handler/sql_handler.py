@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
-from typing import List, Union, Set, _GenericAlias, Type
+from typing import List, Type
 from abc import abstractmethod
 from datetime import datetime
 import logging
 
 from .handler import Handler, get_query_kwargs, Session, EAction
-from ..model import Model, EState, Child, Parent
+from ..model import Model
 from ..models import EStatus, Object, Task
 
 from .. import __schema_version__
@@ -92,68 +92,6 @@ class SQLHandler(Handler):
         super().__init__(**kwargs)
         if self.config["handler"]["db_init"]:
             self.init_db()
-
-    def _add(self, s, model: Model, handled: Set[int]):
-        # check if model already handled
-        if id(model) in handled:
-            return
-
-        # handle parents
-        for p_key in model.parent_keys():
-            if (parents := getattr(model, p_key)) is not None:
-                # parent create is required
-                parent_mapping: Parent = getattr(model.__class__, p_key)
-                p_id_key = parent_mapping.key
-                parent_class = model.__annotations__[p_key]
-                if isinstance(parent_class, _GenericAlias) and parent_class._name == "List":
-                    parent_class = parent_class.__args__[0]
-                else:
-                    parents = [parents]
-
-                for parent in parents:
-                    parent: Model
-                    if parent._state.value == EState.New:
-                        self._add(s, parent, handled)
-                        setattr(model, p_id_key, parent.id_val)
-                    else:
-                        assert getattr(model, p_id_key) == parent.id_val
-                        self._add(s, parent, handled)
-
-        if model._state.value == EState.New:
-            self._create(s, model)
-        elif model._state.value == EState.Modified and model._state.columns:
-            self._update(s, model)
-
-        # handle childs
-        for c_key in model.child_keys():
-            if (children := getattr(model, c_key)) is not None:
-                # # parent create is required
-                child_mapping: Child = getattr(model.__class__, c_key)
-                c_id_key = child_mapping.key
-                child_class = model.__annotations__[c_key]
-                if isinstance(child_class, _GenericAlias) and child_class._name == "List":
-                    child_class = child_class.__args__[0]
-                else:
-                    children = [children]
-
-                for child in children:
-                    child: Model
-                    if child._state.value == EState.New:
-                        setattr(child, c_id_key, model.id_val)
-                    else:
-                        assert getattr(child, c_id_key) == model.id_val
-                    self._add(s, child, handled)
-
-        handled.add(id(model))
-
-    def add(self, models: Union[Model, List[Model]]):
-        with self.session() as s:
-            handled = set()
-            if not isinstance(models, list):
-                models = [models]
-
-            for model in models:
-                self._add(s, model, handled)
 
     def count_all(self, model_cls: Type[Model], **kwargs):
         query_kwargs = get_query_kwargs(kwargs)

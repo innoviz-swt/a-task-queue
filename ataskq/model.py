@@ -1,4 +1,4 @@
-from typing import Union, List, _GenericAlias
+from typing import Union, _GenericAlias
 from datetime import datetime
 from enum import Enum
 from functools import lru_cache
@@ -121,7 +121,7 @@ class Model:
     @classmethod
     @lru_cache(1)
     def parents_keys(cls) -> str:
-        ret = [ann for ann in cls.__annotations__.keys() if isinstance(getattr(cls, ann, None), Child)]
+        ret = [ann for ann in cls.__annotations__.keys() if isinstance(getattr(cls, ann, None), Parents)]
         return ret
 
     @classmethod
@@ -202,12 +202,7 @@ class Model:
                 ret[k] = None
                 continue
 
-            if k in cls.parent_keys():
-                # assert isinstance(v, IModel), "relationship members must be Models instances."
-                ret[k] = v
-                continue
-
-            if k in cls.child_keys():
+            if k in cls.relationships_keys():
                 # assert isinstance(v, IModel), "relationship members must be Models instances."
                 ret[k] = v
                 continue
