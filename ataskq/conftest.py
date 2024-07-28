@@ -30,13 +30,14 @@ END $$;
 def drop_pg_tables(conn):
     assert "pg" in conn
     import psycopg2
-    from ataskq.handler.postgresql import PostgresqlDBHandler
+    from ataskq.handler.postgresql import PostgreSQLHandler
 
-    connection = PostgresqlDBHandler.from_connection_str(conn)
+    connection = PostgreSQLHandler.from_connection_str(conn)
     db_conn = psycopg2.connect(
         host=connection.host, database=connection.database, user=connection.user, password=connection.password
     )
     c = db_conn.cursor()
+    c.execute(truncate_query("objects"))
     c.execute(truncate_query("tasks"))
     c.execute(truncate_query("jobs"))
     db_conn.commit()

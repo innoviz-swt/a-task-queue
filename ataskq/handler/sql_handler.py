@@ -90,7 +90,7 @@ def expand_query_str(query_str, where=None, group_by=None, order_by=None, limit=
 class SQLHandler(Handler):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
-        if self.config["handler"]["db_init"]:
+        if self.config["handler"]["init_db"]:
             self.init_db()
 
     def count_all(self, model_cls: Type[Model], **kwargs):
@@ -149,11 +149,6 @@ class SQLHandler(Handler):
 
     @property
     @abstractmethod
-    def begin_exclusive(self):
-        pass
-
-    @property
-    @abstractmethod
     def for_update(self):
         pass
 
@@ -204,6 +199,16 @@ class SQLHandler(Handler):
                     current_schema_version == __schema_version__
                 ), f"Schema version mismatch, current schema version is {current_schema_version} while code schema version is {__schema_version__}"
 
+            # Create jobs tasks if not exists
+            s.execute(
+                f"CREATE TABLE IF NOT EXISTS objects ("
+                f"{Object.id_key()} {self.primary_key}, "
+                "serializer TEXT, "
+                "desrializer TEXT, "
+                f"blob {self.bytes_type}"
+                ")"
+            )
+
             # Create jobs table if not exists
             s.execute(
                 "CREATE TABLE IF NOT EXISTS jobs ("
@@ -236,16 +241,6 @@ class SQLHandler(Handler):
                 "FOREIGN KEY (args_id) REFERENCES objects(object_id), "
                 "FOREIGN KEY (ret_id) REFERENCES objects(object_id), "
                 "CONSTRAINT fk_job_id FOREIGN KEY (job_id) REFERENCES jobs(job_id) ON DELETE CASCADE"
-                ")"
-            )
-
-            # Create jobs tasks if not exists
-            s.execute(
-                f"CREATE TABLE IF NOT EXISTS objects ("
-                f"{Object.id_key()} {self.primary_key}, "
-                "serializer TEXT, "
-                "desrializer TEXT, "
-                f"blob {self.bytes_type}"
                 ")"
             )
 
@@ -438,19 +433,19 @@ class SQLHandler(Handler):
                 f"UPDATE tasks SET status = '{EStatus.FAILURE}' WHERE pulse_time < {self.timestamp(last_valid_pulse)} AND status NOT IN ('{EStatus.SUCCESS}', '{EStatus.FAILURE}');"
             )
 
-    def _create(self, c, model: Model):
-        d = self._to_interface()
+    def _create(self, s: SQLSession, model: Model):
+        d = self._to_interface(model)
         keys = list(d.keys())
         values = list(d.values())
         if keys:
-            c.execute(
+            s.execute(
                 f'INSERT INTO {model.table_key()} ({", ".join(keys)}) VALUES ({", ".join([self.format_symbol] * len(keys))}) RETURNING {model.id_key()}',
                 values,
             )
         else:
-            c.execute(f"INSERT INTO {model.table_key()} DEFAULT VALUES RETURNING {model.id_key()}"),
+            s.execute(f"INSERT INTO {model.table_key()} DEFAULT VALUES RETURNING {model.id_key()}"),
 
-        model_id = c.lastrowid
+        model_id = s.fetchone()[0]
         setattr(model, model.id_key(), model_id)
 
     def _update(self, c, model: Model):

@@ -222,10 +222,12 @@ class Model:
                 continue
 
             ann_name = f"{ann.__name__}"
-            serializer = ann
 
             try:
-                ret[k] = serializer(v)
+                if issubclass(ann, DateTime):
+                    ret[k] = DateTime.fromisoformat(v.isoformat())
+                else:
+                    ret[k] = ann(v)
             except Exception as ex:
                 raise Exception(f"{cls_name}::{k}({ann_name}) failed to serilize '{v}'({type(v).__name__})") from ex
 

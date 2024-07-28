@@ -51,7 +51,7 @@ def test_load_client_preset():
 
     ref = copy.deepcopy(get_config_set())
     ref["connection"] = "http://localhost:8080"
-    ref["handler"]["db_init"] = False
+    ref["handler"]["init_db"] = False
     ref["run"]["fail_pulse_timeout"] = False
 
     assert_config(ref, config)
@@ -82,7 +82,7 @@ def test_load_custom_and_preset():
 
     ref = copy.deepcopy(get_config_set())
     ref["connection"] = "test"
-    ref["handler"]["db_init"] = False
+    ref["handler"]["init_db"] = False
     ref["run"]["fail_pulse_timeout"] = False
 
     assert_config(ref, config)

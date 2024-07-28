@@ -1,5 +1,5 @@
 import re
-from typing import NamedTuple, Union
+from typing import NamedTuple, Union, Type
 from datetime import datetime
 
 try:
@@ -7,11 +7,12 @@ try:
 except ModuleNotFoundError:
     raise Exception("'psycopg2' is reuiqred for using atasgq postgresql adapter.")
 
-from .sql_handler import SQLHandler
+from .sql_handler import SQLHandler, SQLSession
 from .handler import to_datetime, from_datetime, DateTime
+from ..model import Model
 
 
-class PostgresConnection(NamedTuple):
+class PostgreSQLConnection(NamedTuple):
     user: Union[None, str]
     password: Union[None, str]
     host: str
@@ -25,7 +26,26 @@ class PostgresConnection(NamedTuple):
         return f"pg://{userspec}{self.host}:{self.port}/{self.database}"
 
 
-class PostgresqlDBHandler(SQLHandler):
+class PostgreSQLSession(SQLSession):
+    def __init__(self, connection: PostgreSQLConnection, exclusive) -> None:
+        super().__init__()
+        self.exclusive = exclusive
+        self.connection = connection
+        self.conn = None
+        self.curso = None
+
+    def connect(self):
+        self.conn = psycopg2.connect(
+            host=self.connection.host,
+            database=self.connection.database,
+            user=self.connection.user,
+            password=self.connection.password,
+        )
+        self.cursor = self.conn.cursor()
+        self.cursor.execute("BEGIN")
+
+
+class PostgreSQLHandler(SQLHandler):
     def __init__(self, **kwargs) -> None:
         super().__init__(**kwargs)
 
@@ -46,25 +66,24 @@ class PostgresqlDBHandler(SQLHandler):
         host = match.group("host")
         port = match.group("port")
         database = match.group("database")
-        ret = PostgresConnection(user=user, password=password, host=host, port=port, database=database)
+        ret = PostgreSQLConnection(user=user, password=password, host=host, port=port, database=database)
 
         return ret
 
     @staticmethod
-    def m2i_serialize():
-        type_handlers = {
-            DateTime: lambda v: from_datetime(v),
-        }
+    def encode(obj, model_cls: Type[Model], key, key_cls):
+        if obj is None:
+            return obj
 
-        return type_handlers
+        return obj
 
+    # Custom decoding function
     @staticmethod
-    def i2m_serialize():
-        type_handlers = {
-            DateTime: lambda v: to_datetime(v),
-        }
+    def decode(obj, model_cls: Type[Model], key, key_cls):
+        if obj is None:
+            return obj
 
-        return type_handlers
+        return obj
 
     @property
     def format_symbol(self):
@@ -90,18 +109,9 @@ class PostgresqlDBHandler(SQLHandler):
         return f"'{ts}'::timestamp"
 
     @property
-    def begin_exclusive(self):
-        return "BEGIN"
-
-    @property
     def for_update(self):
         return "FOR UPDATE"
 
-    def connect(self):
-        conn = psycopg2.connect(
-            host=self.connection.host,
-            database=self.connection.database,
-            user=self.connection.user,
-            password=self.connection.password,
-        )
-        return conn
+    def session(self, exclusive=False):
+        session = PostgreSQLSession(self.connection, exclusive)
+        return session

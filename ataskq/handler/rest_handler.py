@@ -31,22 +31,6 @@ class RESTHandler(Handler):
 
         return ret
 
-    @staticmethod
-    def m2i_serialize():
-        type_handlers = {
-            datetime: lambda v: from_datetime(v),
-            Enum: lambda v: v.value,
-            bytes: lambda v: base64.b64encode(v).decode("ascii"),
-        }
-
-        return type_handlers
-
-    @staticmethod
-    def i2m_serialize():
-        type_handlers = {datetime: lambda v: to_datetime(v), bytes: lambda v: base64.b64decode(v.encode("ascii"))}
-
-        return type_handlers
-
     @property
     def api_url(self):
         return f"{self._connection.url}/api"

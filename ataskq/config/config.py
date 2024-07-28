@@ -10,7 +10,7 @@ CONFIG_FORMAT = {
         "run_forever": bool,
     },
     "handler": {
-        "db_init": bool,
+        "init_db": bool,
     },
     "db": {
         "max_jobs": int,
@@ -38,7 +38,7 @@ CONFIG_SETS = {
             "run_forever": False,
         },
         "handler": {
-            "db_init": True,
+            "init_db": True,
         },
         "db": {
             "max_jobs": None,
@@ -66,7 +66,7 @@ CONFIG_SETS = {
             "fail_pulse_timeout": False,
         },
         "handler": {
-            "db_init": False,
+            "init_db": False,
         },
     },
     "server": {
@@ -74,7 +74,7 @@ CONFIG_SETS = {
             "fail_pulse_timeout": False,
         },
         "handler": {
-            "db_init": False,
+            "init_db": False,
         },
     },
 }

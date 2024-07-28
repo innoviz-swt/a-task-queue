@@ -376,9 +376,9 @@ def from_config(config=CONFIG, **kwargs) -> Handler:
 
         handler = SQLite3DBHandler(**kwargs)
     elif handler_type == "pg":
-        from .postgresql import PostgresqlDBHandler
+        from .postgresql import PostgreSQLHandler
 
-        handler = PostgresqlDBHandler(**kwargs)
+        handler = PostgreSQLHandler(**kwargs)
     elif handler_type == "http" or handler_type == "https":
         from .rest_handler import RESTHandler
 
