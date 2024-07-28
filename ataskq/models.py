@@ -1,5 +1,5 @@
 from typing import List
-from .model import Model, PrimaryKey, Str, Int, Float, DateTime, Parent, Child
+from .model import Model, PrimaryKey, Str, Int, Float, DateTime, Parent, Parents, Child, Children
 from .object import Object, pickle_dict, pickle_iter
 from enum import Enum
 
@@ -52,7 +52,7 @@ class Job(Model):
     name: Str
     priority: Float
     description: Str
-    tasks: List[Task] = Child(key="job_id")
+    tasks: List[Task] = Children(key="job_id")
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

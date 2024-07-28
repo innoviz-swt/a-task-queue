@@ -178,6 +178,35 @@ class Handler(Logger):
                 assert getattr(model, p_id_key) == parent.id_val
                 self._add(s, parent, handled)
 
+    def _add_child(self, s, model, c_key, handled):
+        if (child := getattr(model, c_key)) is None:
+            return
+
+        child: Model
+        child_mapping: Child = getattr(model.__class__, c_key)
+        c_id_key = child_mapping.key
+
+        if child._state.value == EState.New:
+            setattr(child, c_id_key, model.id_val)
+        else:
+            assert getattr(child, c_id_key) == model.id_val
+        self._add(s, child, handled)
+
+    def _add_children(self, s, model, c_key, handled):
+        if (children := getattr(model, c_key)) is None:
+            return
+
+        children: List[Model]
+        child_mapping: Child = getattr(model.__class__, c_key)
+        c_id_key = child_mapping.key
+
+        for child in children:
+            if child._state.value == EState.New:
+                setattr(child, c_id_key, model.id_val)
+            else:
+                assert getattr(child, c_id_key) == model.id_val
+            self._add(s, child, handled)
+
     def _add(self, s, model: Model, handled: Set[int]):
         # check if model already handled
         if id(model) in handled:
@@ -196,29 +225,15 @@ class Handler(Logger):
 
         # handle childs
         for c_key in model.child_keys():
-            if (children := getattr(model, c_key)) is not None:
-                # # parent create is required
-                child_mapping: Child = getattr(model.__class__, c_key)
-                c_id_key = child_mapping.key
-                child_class = model.__annotations__[c_key]
-                if isinstance(child_class, _GenericAlias) and child_class._name == "List":
-                    child_class = child_class.__args__[0]
-                else:
-                    children = [children]
-
-                for child in children:
-                    child: Model
-                    if child._state.value == EState.New:
-                        setattr(child, c_id_key, model.id_val)
-                    else:
-                        assert getattr(child, c_id_key) == model.id_val
-                    self._add(s, child, handled)
+            self._add_child(s, model, c_key, handled)
+        for c_key in model.children_keys():
+            self._add_children(s, model, c_key, handled)
 
         handled.add(id(model))
 
     def add(self, models: Union[Model, List[Model]]):
+        handled = set()
         with self.session() as s:
-            handled = set()
             if not isinstance(models, list):
                 models = [models]
 

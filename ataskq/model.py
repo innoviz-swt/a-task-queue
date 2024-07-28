@@ -4,10 +4,6 @@ from enum import Enum
 from functools import lru_cache
 
 
-class DBEnum(Enum):
-    pass
-
-
 class Int(int):
     pass
 
