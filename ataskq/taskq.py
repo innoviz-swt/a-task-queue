@@ -6,6 +6,7 @@ import time
 from datetime import datetime
 
 
+from .env import CONFIG
 from .logger import Logger
 from .model import EState
 from .models import EStatus, Job, Task, Object
@@ -20,7 +21,7 @@ class TaskQ(Logger):
         self,
         handler: Handler = None,
         logger: Union[str, logging.Logger, None] = None,
-        config=None,
+        config=CONFIG,
     ) -> None:
         super().__init__(logger)
 

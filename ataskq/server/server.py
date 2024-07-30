@@ -1,5 +1,5 @@
 import logging
-import asyncio
+from typing import Type
 from pathlib import Path
 
 from fastapi import FastAPI, Request, Depends
@@ -11,7 +11,8 @@ from fastapi.staticfiles import StaticFiles
 from ataskq.handler import SQLHandler, from_config
 from ataskq.handler.rest_handler import RESTHandler as rh
 from ataskq.models import Model, __MODELS__
-from ataskq.env import SERVER_CONFIG
+from ataskq.env import SERVER_CONFIG, SERVER_LIFESPAN
+from ataskq.server.background import lifespan
 
 # from .form_utils import form_data_array
 
@@ -23,8 +24,10 @@ def db_handler() -> SQLHandler:
     return from_config(SERVER_CONFIG or "server")
 
 
-app = FastAPI()
-
+if SERVER_LIFESPAN:
+    app = FastAPI(lifespan=lifespan)
+else:
+    app = FastAPI()
 
 # allow all cors
 app.add_middleware(
@@ -124,36 +127,6 @@ async def get_model(model: str, model_id: int, dbh: SQLHandler = Depends(db_hand
     ikwargs = rh.m2i(model_cls, mkwargs)
 
     return ikwargs
-
-
-@app.post("/api/{model}")
-async def create_model(model: str, request: Request, dbh: SQLHandler = Depends(db_handler)):
-    model_cls: Type[Model] = __MODELS__[model]
-    ikwargs = await request.json()
-    mkwargs = rh.i2m(model_cls, ikwargs)
-    model_id = dbh.create(model_cls, **mkwargs)
-
-    return model_id
-
-
-@app.post("/api/{model}/bulk")
-async def create_model_bulk(model: str, request: Request, dbh: SQLHandler = Depends(db_handler)):
-    model_cls: Type[Model] = __MODELS__[model]
-    ikwargs = await request.json()
-    mkwargs = rh.i2m(model_cls, ikwargs)
-    model_ids = dbh.create_bulk(model_cls, mkwargs)
-
-    return model_ids
-
-
-@app.put("/api/{model}/{model_id}")
-async def update_model(model: str, model_id: int, request: Request, dbh: SQLHandler = Depends(db_handler)):
-    model_cls: Type[Model] = __MODELS__[model]
-    ikwargs = await request.json()
-    mkwargs = rh.i2m(model_cls, ikwargs)
-    dbh.update(model_cls, model_id, **mkwargs)
-
-    return {model_cls.id_key(): model_id}
 
 
 @app.delete("/api/{model}/{model_id}")

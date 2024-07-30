@@ -15,11 +15,11 @@ __STRTIME_FORMAT__ = "%Y-%m-%d %H:%M:%S.%f"
 
 class Session:
     @abstractmethod
-    def connect():
+    def connect(self):
         pass
 
     @abstractmethod
-    def close():
+    def close(self):
         pass
 
     def __enter__(self):

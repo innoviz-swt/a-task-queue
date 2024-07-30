@@ -1,16 +1,12 @@
 from typing import List, NamedTuple, Tuple, Union
-from enum import Enum
-from datetime import datetime
-import base64
-
-from ataskq.imodel import IModel
+from ataskq.model import Model
 
 try:
     import requests
 except ImportError:
     raise Exception("'requests' is required to use ataskq REST handler.")
 
-from .handler import Handler, EAction, from_datetime, get_query_kwargs, to_datetime
+from .handler import Handler, EAction, get_query_kwargs, Session
 
 
 class RESTConnection(NamedTuple):
@@ -18,6 +14,18 @@ class RESTConnection(NamedTuple):
 
     def __str__(self):
         return {self.url}
+
+
+class RESTSession(Session):
+    def __init__(self, connection: RESTConnection) -> None:
+        super().__init__()
+        self.connection = connection
+
+    def connect(self):
+        pass
+
+    def close(self):
+        pass
 
 
 class RESTHandler(Handler):
@@ -32,27 +40,20 @@ class RESTHandler(Handler):
         return ret
 
     @property
+    def connection(self):
+        return self._connection
+
+    @property
     def api_url(self):
         return f"{self._connection.url}/api"
+
+    def session(self, exclusive=False):
+        return RESTSession(self._connection)
 
     def rest_get(self, url, *args, **kwargs):
         url = f"{self.api_url}/{url}"
         res = requests.get(url, *args, **kwargs)
         assert res.ok, f"get url '{url}' failed. message: {res.text}"
-
-        return res.json()
-
-    def rest_post(self, url, *args, **kwargs):
-        url = f"{self.api_url}/{url}"
-        res = requests.post(url, *args, **kwargs)
-        assert res.ok, f"post url '{url}' failed. message: {res.text}"
-
-        return res.json()
-
-    def rest_put(self, url, *args, **kwargs):
-        url = f"{self.api_url}/{url}"
-        res = requests.put(url, *args, **kwargs)
-        assert res.ok, f"put url '{url}' failed. message: {res.text}"
 
         return res.json()
 
@@ -66,41 +67,41 @@ class RESTHandler(Handler):
     #########
     # Model #
     #########
-    def get_all(self, model_cls: IModel, **kwargs) -> List[dict]:
+    def get_all(self, model_cls: Model, **kwargs) -> List[dict]:
         query_kwargs = get_query_kwargs(kwargs)
         res = self.rest_get(model_cls.table_key(), params=query_kwargs)
         return res
 
-    def get(self, model_cls: IModel, model_id: int) -> dict:
+    def get(self, model_cls: Model, model_id: int) -> dict:
         res = self.rest_get(f"{model_cls.table_key()}/{model_id}")
         return res
 
-    def count_all(self, model_cls: IModel, **kwargs) -> int:
+    def count_all(self, model_cls: Model, **kwargs) -> int:
         query_kwargs = get_query_kwargs(kwargs)
         res = self.rest_get(f"{model_cls.table_key()}/count", params=query_kwargs)
         return res
 
-    def _create(self, model_cls: IModel, model: dict) -> int:
+    def _create(self, model_cls: Model, model: dict) -> int:
         res = self.rest_post(model_cls.table_key(), json=model)
 
         return res
 
-    def _create_bulk(self, model_cls: IModel, ikwargs: List[dict]) -> List[int]:
+    def _create_bulk(self, model_cls: Model, ikwargs: List[dict]) -> List[int]:
         res = self.rest_post(f"{model_cls.table_key()}/bulk", json=ikwargs)
 
         return res
 
-    def delete_all(self, model_cls: IModel, **kwargs):
+    def delete_all(self, model_cls: Model, **kwargs):
         query_kwargs = get_query_kwargs(kwargs)
         self.rest_delete(f"{model_cls.table_key()}", json=query_kwargs)
 
-    def delete(self, model_cls: IModel, model_id: int):
+    def delete(self, model_cls: Model, model_id: int):
         self.rest_delete(f"{model_cls.table_key()}/{model_id}")
 
-    def _update(self, model_cls: IModel, model_id, **ikwargs):
+    def _update(self, model_cls: Model, model_id, **ikwargs):
         self.rest_put(f"{model_cls.table_key()}/{model_id}", json=ikwargs)
 
-    def update_all(self, model_cls: IModel, **ikwargs):
+    def update_all(self, model_cls: Model, **ikwargs):
         self.rest_put(f"{model_cls.table_key()}", json=ikwargs)
 
     ##################

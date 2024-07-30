@@ -8,7 +8,6 @@ except ModuleNotFoundError:
     raise Exception("'psycopg2' is reuiqred for using atasgq postgresql adapter.")
 
 from .sql_handler import SQLHandler, SQLSession
-from .handler import to_datetime, from_datetime, DateTime
 from ..model import Model
 
 
@@ -27,9 +26,8 @@ class PostgreSQLConnection(NamedTuple):
 
 
 class PostgreSQLSession(SQLSession):
-    def __init__(self, connection: PostgreSQLConnection, exclusive) -> None:
+    def __init__(self, connection: PostgreSQLConnection) -> None:
         super().__init__()
-        self.exclusive = exclusive
         self.connection = connection
         self.conn = None
         self.curso = None
@@ -105,13 +103,13 @@ class PostgreSQLHandler(SQLHandler):
     def timestamp_type(self):
         return "TIMESTAMP"
 
+    def session(self, exclusive=False):
+        session = PostgreSQLSession(self.connection)
+        return session
+
     def timestamp(self, ts):
         return f"'{ts}'::timestamp"
 
     @property
     def for_update(self):
         return "FOR UPDATE"
-
-    def session(self, exclusive=False):
-        session = PostgreSQLSession(self.connection, exclusive)
-        return session

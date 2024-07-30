@@ -56,3 +56,6 @@ class Job(Model):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+
+
+__MODELS__ = {m.table_key(): m for m in [Job, Task, Object]}
