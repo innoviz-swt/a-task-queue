@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
-from typing import List, Type
+from typing import List, Type, Set, Union, _GenericAlias
 from abc import abstractmethod
 from datetime import datetime
 import logging
 
 from .handler import Handler, get_query_kwargs, Session, EAction
-from ..model import Model
+from ..model import Model, Parent, Parents, Child, EState
 from ..models import EStatus, Object, Task
 
 from .. import __schema_version__
@@ -92,6 +92,106 @@ class SQLHandler(Handler):
         super().__init__(**kwargs)
         if self.config["handler"]["init_db"]:
             self.init_db()
+
+    @abstractmethod
+    def _create(self, model: Model) -> int:
+        pass
+
+    @abstractmethod
+    def _update(self, model: Model) -> int:
+        pass
+
+    def _add_parent(self, s, model, p_key, handled):
+        if (parent := getattr(model, p_key)) is None:
+            return
+
+        parent: Model
+        parent_mapping: Parent = getattr(model.__class__, p_key)
+        p_id_key = parent_mapping.key
+        if parent._state.value == EState.New:
+            self._add(s, parent, handled)
+            setattr(model, p_id_key, parent.id_val)
+        else:
+            assert getattr(model, p_id_key) == parent.id_val
+            self._add(s, parent, handled)
+
+    def _add_parents(self, s, model, p_key, handled):
+        if (parents := getattr(model, p_key)) is None:
+            return
+
+        parents: List[Model]
+        parents_mapping: Parents = getattr(model.__class__, p_key)
+        p_id_key = parents_mapping.key
+
+        for parent in parents:
+            if parent._state.value == EState.New:
+                self._add(s, parent, handled)
+                setattr(model, p_id_key, parent.id_val)
+            else:
+                assert getattr(model, p_id_key) == parent.id_val
+                self._add(s, parent, handled)
+
+    def _add_child(self, s, model, c_key, handled):
+        if (child := getattr(model, c_key)) is None:
+            return
+
+        child: Model
+        child_mapping: Child = getattr(model.__class__, c_key)
+        c_id_key = child_mapping.key
+
+        if child._state.value == EState.New:
+            setattr(child, c_id_key, model.id_val)
+        else:
+            assert getattr(child, c_id_key) == model.id_val
+        self._add(s, child, handled)
+
+    def _add_children(self, s, model, c_key, handled):
+        if (children := getattr(model, c_key)) is None:
+            return
+
+        children: List[Model]
+        child_mapping: Child = getattr(model.__class__, c_key)
+        c_id_key = child_mapping.key
+
+        for child in children:
+            if child._state.value == EState.New:
+                setattr(child, c_id_key, model.id_val)
+            else:
+                assert getattr(child, c_id_key) == model.id_val
+            self._add(s, child, handled)
+
+    def _add(self, s, model: Model, handled: Set[int]):
+        # check if model already handled
+        if id(model) in handled:
+            return
+
+        # handle parents
+        for p_key in model.parent_keys():
+            self._add_parent(s, model, p_key, handled)
+        for p_key in model.parents_keys():
+            self._add_parents(s, model, p_key, handled)
+
+        if model._state.value == EState.New:
+            self._create(s, model)
+        elif model._state.value == EState.Modified and model._state.columns:
+            self._update(s, model)
+
+        # handle childs
+        for c_key in model.child_keys():
+            self._add_child(s, model, c_key, handled)
+        for c_key in model.children_keys():
+            self._add_children(s, model, c_key, handled)
+
+        handled.add(id(model))
+
+    def add(self, models: Union[Model, List[Model]]):
+        handled = set()
+        with self.session() as s:
+            if not isinstance(models, list):
+                models = [models]
+
+            for model in models:
+                self._add(s, model, handled)
 
     def count_all(self, model_cls: Type[Model], **kwargs):
         query_kwargs = get_query_kwargs(kwargs)
