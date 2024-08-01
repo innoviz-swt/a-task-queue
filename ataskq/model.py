@@ -59,8 +59,11 @@ class EState(Enum):
 
 
 class State:
-    def __init__(self, value=EState.New) -> None:
-        self.columns = set()
+    def __init__(self, value=EState.New, columns=None) -> None:
+        if columns is None:
+            self.columns = set()
+        else:
+            self.columns = columns
         self.value = value
 
 
@@ -143,7 +146,12 @@ class Model:
         return ret
 
     def members(self, primary=False):
-        ret = {getattr(self, k) for k in self.members_keys(primary=primary)}
+        ret = {k: getattr(self, k) for k in self.members_keys(primary=primary)}
+
+        return ret
+
+    def relationships(self):
+        ret = {k: getattr(self, k) for k in self.relationships_keys()}
 
         return ret
 

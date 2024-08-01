@@ -1,5 +1,10 @@
 from typing import List, NamedTuple, Tuple, Union
-from ataskq.model import Model
+from ataskq.model import Model, State
+import msgpack
+from io import BytesIO
+from enum import Enum
+from ..utils.dynamic_import import import_class
+
 
 try:
     import requests
@@ -64,9 +69,81 @@ class RESTHandler(Handler):
 
         return res.json()
 
-    #########
-    # Model #
-    #########
+    ###########
+    # msgpack #
+    ###########
+    @classmethod
+    def encode(cls, obj):
+        if isinstance(obj, set):
+            data = list(obj)
+            data_bytes = msgpack.packb(data, default=cls.encode)
+            ret = msgpack.ExtType(1, data_bytes)
+        elif isinstance(obj, Enum):
+            data = {
+                "class": f"{obj.__module__}.{obj.__class__.__name__}",
+                "data": obj.value,
+            }
+            data_bytes = msgpack.packb(data, default=cls.encode)
+            ret = msgpack.ExtType(2, data_bytes)
+        elif isinstance(obj, State):
+            data = {
+                "class": f"{obj.__module__}.{obj.__class__.__name__}",
+                "data": obj.__dict__,
+            }
+            data_bytes = msgpack.packb(data, default=cls.encode)
+            ret = msgpack.ExtType(3, data_bytes)
+        elif isinstance(obj, Model):
+            data = {
+                "class": f"{obj.__module__}.{obj.__class__.__name__}",
+                "data": {**obj.members(primary=True), **obj.relationships()},
+                "state": obj._state,
+            }
+            data_bytes = msgpack.packb(data, default=cls.encode)
+            ret = msgpack.ExtType(4, data_bytes)
+        else:
+            ret = obj
+
+        return ret
+
+    @classmethod
+    def ext_hook(cls, code, data_bytes):
+        if code == 1:
+            with BytesIO(data_bytes) as b:
+                data = msgpack.unpack(b, ext_hook=cls.ext_hook)
+            ret = set(data)
+        elif code == 2:
+            with BytesIO(data_bytes) as b:
+                data = msgpack.unpack(b, ext_hook=cls.ext_hook)
+            cls = import_class(data["class"], Enum)
+            ret = cls(data["data"])
+        elif code == 3:
+            with BytesIO(data_bytes) as b:
+                data = msgpack.unpack(b, ext_hook=cls.ext_hook)
+            cls = import_class(data["class"], State)
+            ret = cls(**data["data"])
+        elif code == 4:
+            with BytesIO(data_bytes) as b:
+                data = msgpack.unpack(b, ext_hook=cls.ext_hook)
+            cls = import_class(data["class"], Model)
+            ret = cls(**data["data"])
+            ret._state = data["state"]
+        else:
+            ret = msgpack.ExtType(code, data_bytes)
+
+        return ret
+
+    ########
+    # CRUD #
+    ########
+
+    def add(self, models: Union[Model, List[Model]]):
+        packed = msgpack.packb(models, default=self.encode)
+        print("Serialized data:", packed)
+
+        # Decode the packed data
+        unpacked = msgpack.unpackb(packed, ext_hook=self.ext_hook)
+        print("Deserialized data:", unpacked)
+
     def get_all(self, model_cls: Model, **kwargs) -> List[dict]:
         query_kwargs = get_query_kwargs(kwargs)
         res = self.rest_get(model_cls.table_key(), params=query_kwargs)

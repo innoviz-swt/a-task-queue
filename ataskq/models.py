@@ -1,5 +1,5 @@
 from typing import List
-from .model import Model, PrimaryKey, Str, Int, Float, DateTime, Parent, Parents, Child, Children
+from .model import Model, PrimaryKey, Str, Int, Float, DateTime, Parent, Children
 from .object import Object, pickle_dict, pickle_iter
 from enum import Enum
 
@@ -41,6 +41,8 @@ class Task(Model):
             kwargs["kwargs"] = pickle_dict(**kwargs["kwargs"])
         if isinstance(kwargs.get("args"), (list, tuple)):
             kwargs["args"] = pickle_iter(*kwargs["args"])
+        if kwargs.get("name") is None and callable(entrypoint):
+            kwargs["name"] = entrypoint.__name__
         Model.__init__(self, **kwargs)
 
     def __str__(self):

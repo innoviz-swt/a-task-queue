@@ -1,4 +1,4 @@
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from typing import Union, List, Dict, Tuple, Type
 from datetime import datetime
 from enum import Enum
@@ -7,7 +7,7 @@ from ..env import CONFIG
 from ..logger import Logger
 from ..config import load_config
 
-from ..model import Model, DateTime, Parent, Parents, Child, Children, State, EState
+from ..model import Model, DateTime, Parent, State, EState
 from ..models import Task
 
 __STRTIME_FORMAT__ = "%Y-%m-%d %H:%M:%S.%f"
@@ -73,7 +73,7 @@ class EAction(str, Enum):
         return self.value
 
 
-class Handler(Logger):
+class Handler(ABC, Logger):
     def __init__(self, config=CONFIG, logger: Logger = None):
         Logger.__init__(self, logger)
 
@@ -93,49 +93,6 @@ class Handler(Logger):
     def from_connection_str(conn):
         pass
 
-    ######################
-    # interface handlers #
-    ######################
-    @staticmethod
-    @abstractmethod
-    def encode(obj, model_cls: Type[Model], key: str, key_cls):
-        pass
-
-    # Custom decoding function
-    @staticmethod
-    @abstractmethod
-    def decode(obj, model_cls: Type[Model], key: str, key_cls):
-        pass
-
-    def _from_interface(self, model_cls: Type[Model], ikwargs: dict) -> Model:
-        iret = dict()
-        for k in ikwargs.keys():
-            iret[k] = self.decode(ikwargs[k], model_cls, k, model_cls.__annotations__[k])
-
-        ret = model_cls(**iret)
-
-        ret._state = State(value=EState.Fetched)
-
-        return ret
-
-    def _to_interface(self, model: Model) -> dict:
-        model_cls = model.__class__
-        ret = dict()
-        for k in model._state.columns:
-            ret[k] = self.encode(getattr(model, k), model_cls, k, model_cls.__annotations__[k])
-
-        # set state
-        if model._state.value == EState.New:
-            model._state = State(value=EState.Modified)
-        elif model._state.value == EState.Fetched:
-            raise RuntimeError(f"trying to push to db model in fetched state. {model}")
-        elif model._state.value == EState.Modified:
-            model._state = State(value=EState.Modified)
-        else:
-            raise RuntimeError(f"unsupported db state '{model._state}'")
-
-        return ret
-
     ########
     # CRUD #
     ########
@@ -148,59 +105,21 @@ class Handler(Logger):
     def delete_all(self, model_cls: Type[Model], **kwargs):
         pass
 
+    @abstractmethod
     def delete(self, model: Model):
-        self._delete(model)
-        model._state = State(value=EState.Deleted)
+        pass
 
     @abstractmethod
     def count_all(self, model_cls: Type[Model], **kwargs) -> int:
         pass
 
     @abstractmethod
-    def _get_all(self, model_cls: Type[Model], **kwargs) -> List[dict]:
-        pass
-
-    # todo: pass session and use self._get(session,...)
-    def _get_parent(self, p_key, model_cls, models):
-        parent: Parent = getattr(model_cls, p_key)
-        for model in models:
-            parent_class = model.__annotations__[p_key]
-            if (parent_id := getattr(model, parent.key)) is not None:
-                rel_model = self.get(parent_class, parent_id)
-                setattr(model, p_key, rel_model)
-
     def get_all(self, model_cls: Type[Model], relationships=None, **kwargs) -> List[Model]:
-        assert issubclass(model_cls, Model)
-
-        if relationships is None:
-            relationships = []
-
-        imodels = self._get_all(model_cls, **kwargs)
-        models = [self._from_interface(model_cls, imodel) for imodel in imodels]
-
-        for rel_key in relationships:
-            if rel_key in model_cls.parent_keys():
-                self._get_parent(rel_key, model_cls, models)
-            elif rel_key in model_cls.parents_keys():
-                raise NotImplementedError()
-            elif rel_key in model_cls.child_keys():
-                raise NotImplementedError()
-            elif rel_key in model_cls.children_keys():
-                raise NotImplementedError()
-            else:
-                raise RuntimeError(f"relationship '{model_cls.__name__}.{rel_key}' is not a relationship")
-
-        return models
+        pass
 
     @abstractmethod
-    def _get(self, model_cls: Type[Model], model_id: int) -> dict:
-        pass
-
     def get(self, model_cls: Type[Model], model_id: int) -> Model:
-        iret = self._get(model_cls, model_id)
-        ret = self._from_interface(model_cls, iret)
-
-        return ret
+        pass
 
     @abstractmethod
     def update_all(self, model_cls: Type[Model], where: str = None, **ikwargs):

@@ -1,11 +1,11 @@
 from datetime import datetime, timedelta
-from typing import List, Type, Set, Union, _GenericAlias
+from typing import List, Type, Set, Union
 from abc import abstractmethod
 from datetime import datetime
 import logging
 
 from .handler import Handler, get_query_kwargs, Session, EAction
-from ..model import Model, Parent, Parents, Child, EState
+from ..model import Model, Parent, Parents, Child, EState, State
 from ..models import EStatus, Object, Task
 
 from .. import __schema_version__
@@ -92,6 +92,49 @@ class SQLHandler(Handler):
         super().__init__(**kwargs)
         if self.config["handler"]["init_db"]:
             self.init_db()
+
+    ######################
+    # interface handlers #
+    ######################
+    @staticmethod
+    @abstractmethod
+    def encode(obj, model_cls: Type[Model], key: str, key_cls):
+        pass
+
+    # Custom decoding function
+    @staticmethod
+    @abstractmethod
+    def decode(obj, model_cls: Type[Model], key: str, key_cls):
+        pass
+
+    def _from_interface(self, model_cls: Type[Model], ikwargs: dict) -> Model:
+        iret = dict()
+        for k in ikwargs.keys():
+            iret[k] = self.decode(ikwargs[k], model_cls, k, model_cls.__annotations__[k])
+
+        ret = model_cls(**iret)
+
+        ret._state = State(value=EState.Fetched)
+
+        return ret
+
+    def _to_interface(self, model: Model) -> dict:
+        model_cls = model.__class__
+        ret = dict()
+        for k in model._state.columns:
+            ret[k] = self.encode(getattr(model, k), model_cls, k, model_cls.__annotations__[k])
+
+        # set state
+        if model._state.value == EState.New:
+            model._state = State(value=EState.Modified)
+        elif model._state.value == EState.Fetched:
+            raise RuntimeError(f"trying to push to db model in fetched state. {model}")
+        elif model._state.value == EState.Modified:
+            model._state = State(value=EState.Modified)
+        else:
+            raise RuntimeError(f"unsupported db state '{model._state}'")
+
+        return ret
 
     @abstractmethod
     def _create(self, model: Model) -> int:
@@ -199,20 +242,59 @@ class SQLHandler(Handler):
 
         return count
 
-    def _get_all(self, model_cls: Type[Model], **kwargs) -> List[dict]:
+    def _get_all(self, model_cls: Type[Model], **kwargs) -> List[Model]:
         query_kwargs = get_query_kwargs(kwargs)
         rows, col_names, _ = self.select_query(model_cls, **query_kwargs)
-        ret = [dict(zip(col_names, row)) for row in rows]
+        imodels = [dict(zip(col_names, row)) for row in rows]
+        models = [self._from_interface(model_cls, imodel) for imodel in imodels]
 
-        return ret
+        return models
 
-    def _get(self, model_cls: Type[Model], model_id) -> dict:
+    # todo: pass session and use self._get(session,...)
+    def _get_parent(self, p_key, model_cls, models):
+        parent: Parent = getattr(model_cls, p_key)
+        for model in models:
+            parent_class = model.__annotations__[p_key]
+            if (parent_id := getattr(model, parent.key)) is not None:
+                rel_model = self.get(parent_class, parent_id)
+                setattr(model, p_key, rel_model)
+
+    def get(self, model_cls: Type[Model], model_id) -> Model:
         rows, col_names, query_str = self.select_query(model_cls, where=f"{model_cls.id_key()} = {model_id}")
         assert len(rows) != 0, f"no match found for '{model_cls.__name__}', query: '{query_str}'."
         assert len(rows) == 1, f"more than 1 row found for '{model_cls.__name__}', query: '{query_str}'."
-        iret = [dict(zip(col_names, row)) for row in rows][0]
 
-        return iret
+        iret = [dict(zip(col_names, row)) for row in rows][0]
+        ret = self._from_interface(model_cls, iret)
+
+        return ret
+
+    def get_all(self, model_cls: Type[Model], relationships=None, **kwargs) -> List[Model]:
+        assert issubclass(model_cls, Model)
+
+        if relationships is None:
+            relationships = []
+
+        models = self._get_all(model_cls, **kwargs)
+
+        for rel_key in relationships:
+            if rel_key in model_cls.parent_keys():
+                self._get_parent(rel_key, model_cls, models)
+            elif rel_key in model_cls.parents_keys():
+                raise NotImplementedError()
+            elif rel_key in model_cls.child_keys():
+                raise NotImplementedError()
+            elif rel_key in model_cls.children_keys():
+                raise NotImplementedError()
+            else:
+                raise RuntimeError(f"relationship '{model_cls.__name__}.{rel_key}' is not a relationship")
+
+        return models
+
+    def delete(self, model: Model):
+        with self.session() as s:
+            s.execute(f"DELETE FROM {model.table_key()} WHERE {model.id_key()} = {model.id_val}")
+        model._state = State(value=EState.Deleted)
 
     @property
     def pragma_foreign_keys_on(self):
@@ -252,10 +334,6 @@ class SQLHandler(Handler):
     def for_update(self):
         pass
 
-    @abstractmethod
-    def connect(self):
-        pass
-
     def update_all(self, model_cls: Type[Model], where: str = None, **ikwargs):
         with self.session() as s:
             if len(ikwargs) == 0:
@@ -280,10 +358,6 @@ class SQLHandler(Handler):
                 query_str += f" WHERE {query_kwargs['where']}"
 
             s.execute(query_str)
-
-    def _delete(self, model: Model):
-        with self.session() as s:
-            s.execute(f"DELETE FROM {model.table_key()} WHERE {model.id_key()} = {model.id_val}")
 
     def init_db(self):
         with self.session(exclusive=True) as s:
